@@ -577,6 +577,53 @@ theorem integral_smoothenedStripGeometricKernel_diagonal (φ : BruhatCompactSupp
 
 end SmoothenedDiagonal
 
+section ClosedStripZeroSum
+
+local notation "oneLtThree" => (show (1 : ℝ) < 3 from Nat.one_lt_cast.mpr (Nat.one_lt_succ_succ 1))
+
+local notation "hs₁(" hs ")" => (lt_of_lt_of_le oneLtThree hs)
+local notation "hs₀(" hs ")" => (le_of_lt (zero_lt_one.trans hs₁(hs)))
+local notation "hStrip(" hα ")" => (neg_nonpos.mpr hα |>.trans hα)
+local notation "stripTensorExists(" hα ", " hs ", " φ ")" =>
+  (∃ K, sobolevProjectiveKernelOperator (F := F) hα hs₀(hs) K =
+    (hardySobolevTestAction μ𝔽 m𝔽 _ _ _ (hStrip(hα)) hs₀(hs) φ).comp
+      (spectralProjection (F := F) (1 / 2) hα hs₀(hs)))
+
+local notation "geomDiagonal(" hα ", " hs ", " φ ", " hK ", " U ")" =>
+  (fun x : C𝔽 ↦ dSequenceKernelSmoothening μ𝔽 U
+    (globalStripGeometricKernel (F := F) (1 / 2) hα hs₁(hs) φ hK) (x, x))
+
+/-- Paper: (12.5.1.4), p. 520. Given the projective kernel, the smoothened
+geometric diagonal is Haar-integrable. Its negative integral is the absolutely
+convergent sum of the surviving Hecke zero jets.
+Deviation: The trace counts the closed strip with strict reciprocal-weight
+multiplicities on its two edges. If both edges are zero-free the sum is precisely
+the interior sum printed on p. 520. -/
+theorem hasSum_stripZeros_neg_integral_smoothenedDiagonal
+    (φ : BruhatCompactSupport C𝔽) (hφ : ∀ g : C₁, φ.val g = 0)
+    (χ : PontryaginDual C₁ → PontryaginDual C𝔽) (hχ : IsSpectralBasepointChoice χ)
+    {α s : ℝ} (hα : 0 < α) (hs : 3 ≤ s) (hK : stripTensorExists(hα.le, hs, φ))
+    (U : ℕ → Set C𝔽) (hU : IsDPrimeSequence μ𝔽 U) (hBorel : ∀ n, MeasurableSet (U n)) :
+    let shift (b t : ℝ) := (b : ℂ) + (t : ℂ) * Complex.I
+    let order (η : PontryaginDual C𝔽) := meromorphicOrderAt (continuedCompletedHeckeL η)
+    let Z := {z : PontryaginDual C₁ × ℝ × ℝ //
+      z.2.1 ∈ Icc (-α) α ∧ 0 < order (χ z.1) (shift (1 / 2 + z.2.1) z.2.2)}
+    let term (z : Z) := ((spectralStripMultiplicity α s z.val.2.1
+      (order (χ z.val.1) (shift (1 / 2 + z.val.2.1) z.val.2.2)).untop₀.toNat : ℕ) : ℂ) *
+      M(φ, twist(χ z.val.1, shift z.val.2.1 z.val.2.2))
+    Integrable geomDiagonal(hα.le, hs, φ, hK, U) μ𝔽 ∧ Summable (fun z ↦ ‖term z‖) ∧
+      HasSum term (-(∫ x, geomDiagonal(hα.le, hs, φ, hK, U) x ∂μ𝔽)) := by
+  intro shift order Z term
+  obtain ⟨hn, hint, heq⟩ := stripDiagonal_trace (F := F) (hone_lt_three := oneLtThree)
+    φ hφ hα hs hK U hU hBorel
+  let T : nuclearEndomorphisms (spectralSobolevQuotient F (1 / 2) (hStrip(hα.le)) hs₀(hs)) := ⟨_, hn⟩
+  obtain ⟨hsum, ht⟩ := spectralStripConvolution_trace (F := F) (1 / 2) χ hχ hα.le hs₁(hs) φ T rfl
+  refine ⟨hint, hsum, ?_⟩
+  rw [heq, neg_neg]
+  exact ht
+
+end ClosedStripZeroSum
+
 section ExteriorZerosGRH
 
 /-! ### The exterior-zero cancellation is equivalent to GRH
