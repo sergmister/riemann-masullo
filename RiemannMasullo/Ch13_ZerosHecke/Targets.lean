@@ -2,6 +2,8 @@ module
 
 public import RiemannMasullo.Ch01_Introduction.Sec4
 public import Mathlib.NumberTheory.LSeries.Nonvanishing
+import Mathlib.NumberTheory.EulerProduct.DirichletLSeries
+import RiemannMasullo.External.AlgebraicNumberTheoryLean.Chebotarev.DirichletHecke
 
 /-!
 # From the idelic zero statement to the Comparator targets
@@ -102,7 +104,10 @@ theorem heckeLFunction_zeros_re :
 zeta series on the convergence half-plane. -/
 theorem finiteHeckeL_one_eq_dedekindZeta (s : halfPlane) :
     finiteHeckeL (1 : U[K]) s = dedekindZeta K s := by
-  sorry
+  have he := completedHeckeL_one_eq_dedekindZeta (F := K) s
+  rw [← heckeGammaFactor_one] at he
+  exact mul_left_cancel₀ (heckeGammaFactor_ne_zero_of_re_pos (1 : U[K])
+    (zero_lt_one.trans s.property)) he
 
 /-- Specializing the idelic claim to the trivial character places the
 critical-strip zeros of any meromorphic continuation of Dedekind zeta on the critical line. -/
@@ -169,13 +174,146 @@ theorem riemannHypothesis :
     ∀ (s : ℂ) (_ : riemannZeta s = 0) (_ : ¬∃ n : ℕ, s = -2 * (n + 1)) (_ : s ≠ 1), s.re = 1 / 2 :=
   riemannZeta_eq_zero_re
 
+open IsDedekindDomain.HeightOneSpectrum NumberFieldKB.Chebotarev.RatIdele WithZero in
+/-- A unit residue class trivial modulo N/p is realized by an idele supported at p.
+Its natural representative is a p-adic unit, and has residue one at every other
+prime power dividing N. -/
+private theorem rationalDirichletLift_unitResidue {N : ℕ} [NeZero N] (v : Pl)
+    (hpN : pr v ∣ N) (a : (ZMod N)ˣ)
+    (ha : a ∈ (ZMod.unitsMap (Nat.div_dvd_of_dvd hpN)).ker) :
+    ∃ u : (v.adicCompletion ℚ)ˣ, Valued.v u.val = 1 ∧
+      (resMod N).toHomUnits (IdeleGroup.ofAdicCompletion (𝓞 ℚ) ℚ v u) = a := by
+  let n := (a.val : ZMod N).val
+  have hn : (n : ZMod N) = a.val := ZMod.natCast_zmod_val _
+  have hcop := (ZMod.isUnit_iff_coprime n N).mp (hn ▸ a.isUnit)
+  have hval : Valued.v (n : v.adicCompletion ℚ) = 1 := by
+    rw [← Rat.cast_natCast, valued_ratCast,
+      show (n : ℚ) = algebraMap (𝓞 ℚ) ℚ (n : 𝓞 ℚ) by simp,
+      valuation_of_algebraMap, intValuation_eq_one_iff, natCast_mem_asIdeal_iff]
+    exact (pr_prime v).coprime_iff_not_dvd.mp (hcop.symm.coprime_dvd_left hpN)
+  let u := Units.mk0 (n : v.adicCompletion ℚ) (fun h ↦ by simp [h] at hval)
+  let x := IdeleGroup.ofAdicCompletion (𝓞 ℚ) ℚ v u
+  have hrat : ratPart x = 1 := by
+    rw [ratPart_ofAdicCompletion v u 0 (by simpa [u] using hval), zpow_zero]
+  have hunit : unitPart x = x := by simp [unitPart_apply, hrat]
+  refine ⟨u, hval, Units.ext ?_⟩
+  change resMod N x = a.val
+  apply (ZMod.equivPi N (NeZero.ne N)).injective
+  rw [resMod_apply, resModFun, RingEquiv.apply_symm_apply, ← hn, map_natCast]
+  funext q
+  change redP q.val _ (N.factorization q) (compV (placeP N q) (unitPart x)).val = (n : ZMod _)
+  rw [hunit]
+  by_cases he : placeP N q = v
+  · subst v
+    rw [compV_ofAdicCompletion_self]
+    exact redP_natCast n
+  · rw [compV_ofAdicCompletion_ne he, Units.val_one, redP_one]
+    have hne : q.val ≠ pr v := by
+      intro h
+      exact he ((eq_placeOf_iff v q.val (Nat.prime_of_mem_primeFactors q.property)).2 h.symm).symm
+    have hcop' : q.val.Coprime (pr v) :=
+      (Nat.coprime_primes (Nat.prime_of_mem_primeFactors q.property) (pr_prime v)).mpr hne
+    have hdiv : q.val ^ N.factorization q.val ∣ N / pr v :=
+      (Nat.dvd_div_iff_mul_dvd hpN).mpr
+        ((hcop'.pow_left _).symm.mul_dvd_of_dvd_of_dvd hpN (Nat.ordProj_dvd N q.val))
+    have hred : (n : ZMod (N / pr v)) = 1 := by
+      have h := congrArg Units.val (MonoidHom.mem_ker.mp ha)
+      change ZMod.castHom (Nat.div_dvd_of_dvd hpN) _ a.val = 1 at h
+      simpa only [← hn, map_natCast] using h
+    simpa only [map_one, map_natCast] using
+      (congrArg (ZMod.castHom hdiv (ZMod (q.val ^ N.factorization q.val))) hred).symm
+
+open NumberFieldKB.Chebotarev.RatIdele in
+/-- At a conductor prime, triviality on local units would force descent to N/p. -/
+private theorem rationalDirichletLift_ramified {N : ℕ} [NeZero N]
+    {χ : DirichletCharacter ℂ N} (hχ : χ.IsPrimitive)
+    (η : HeckeCharacter (𝓞 ℚ) ℚ) (v : Pl) (hpN : pr v ∣ N)
+    (hres : ∀ u : (v.adicCompletion ℚ)ˣ, η.restrict v u.val =
+      (ideleChar N χ (IdeleGroup.ofAdicCompletion (𝓞 ℚ) ℚ v u) : ℂ)) :
+    ¬η.IsUnramifiedAt v := by
+  intro hU
+  have hd := Nat.div_dvd_of_dvd hpN
+  have hf : χ.FactorsThrough (N / pr v) := by
+    apply (χ.factorsThrough_iff_ker_unitsMap hd).mpr
+    intro a ha
+    obtain ⟨u, hu, hr⟩ := rationalDirichletLift_unitResidue v hpN a ha
+    have h := hU.restrict_apply_eq_one u.val hu
+    rw [hres, coe_ideleChar, hr, inv_eq_one] at h
+    exact MonoidHom.mem_ker.mpr (Units.ext h)
+  have hdiv := χ.conductor_dvd_of_mem_conductorSet hf
+  rw [show χ.conductor = N from hχ] at hdiv
+  have hpos := Nat.div_pos (Nat.le_of_dvd (NeZero.pos N) hpN) (pr_prime v).pos
+  exact (Nat.not_le_of_gt (Nat.div_lt_self (NeZero.pos N) (pr_prime v).one_lt))
+    (Nat.le_of_dvd hpos hdiv)
+
+open IsDedekindDomain.HeightOneSpectrum NumberFieldKB.Chebotarev.RatIdele WithZero in
+/-- Away from the modulus, the uniformizer has the original Dirichlet character value. -/
+private theorem rationalDirichletLift_unramified {N : ℕ} [NeZero N] (χ : DirichletCharacter ℂ N)
+    (η : HeckeCharacter (𝓞 ℚ) ℚ) (v : Pl) (hc : (pr v).Coprime N)
+    (hres : ∀ u : (v.adicCompletion ℚ)ˣ, η.restrict v u.val =
+      (ideleChar N χ (IdeleGroup.ofAdicCompletion (𝓞 ℚ) ℚ v u) : ℂ)) :
+    η.IsUnramifiedAt v ∧ η.localValue v = χ (pr v) := by
+  have hU : η.IsUnramifiedAt v := by
+    apply HeckeCharacter.isUnramifiedAt_iff.mpr
+    intro t
+    let u := Units.map (v.adicCompletionIntegers ℚ).subtype.toMonoidHom t
+    have ht : Valued.v u.val = 1 := adicCompletionIntegers.isUnit_iff_valued_eq_one.mp t.isUnit
+    change η.restrict v u.val = 1
+    rw [hres, ideleChar_unit N χ hc u ht, Units.val_one]
+  refine ⟨hU, ?_⟩
+  have hv : Valued.v (pr v : v.adicCompletion ℚ) = exp (-1) := by
+    simpa only [Rat.cast_natCast, eq_self, ↓reduceIte] using valued_prime v (pr_prime v)
+  have hπ : Valued.v.IsUniformizer (pr v : v.adicCompletion ℚ) := by
+    rw [Valuation.IsUniformizer.iff,
+      Valuation.IsRankOneDiscrete.generator_eq_exp_neg_one_of_mem_range ⟨_, hv⟩]
+    exact hv
+  let π := Units.mk0 (pr v : v.adicCompletion ℚ) hπ.ne_zero
+  rw [hU.localValue_eq _ hπ]
+  exact (hres π).trans (ideleChar_uniformizer N χ hc π hv)
+
+open NumberFieldKB.Chebotarev.RatIdele in
 /-- A primitive Dirichlet character has a finite-order idelic character over
 the rationals whose finite Hecke L-function agrees with its Dirichlet series. -/
 theorem DirichletCharacter.IsPrimitive.exists_finiteHeckeL_eq {N : ℕ} [NeZero N]
     {χ : DirichletCharacter ℂ N} (_hχ : χ.IsPrimitive) :
     ∃ ψ : PontryaginDual (IdeleClassGroup (𝓞 ℚ) ℚ), IsOfFinOrder ψ ∧
       ∀ s : ℂ, ∀ hs : 1 < s.re, finiteHeckeL ψ ⟨s, hs⟩ = LSeries (χ ·) s := by
-  sorry
+  let η : HeckeCharacter (𝓞 ℚ) ℚ :=
+    ⟨(Units.coeHom ℂ).comp (ratDirichletChar N χ).toMonoidHom,
+      Units.continuous_val.comp (ratDirichletChar N χ).continuous⟩
+  have hpow (g) : η g ^ orderOf χ = 1 := by
+    obtain ⟨x, rfl⟩ := QuotientGroup.mk_surjective g
+    change ((ideleChar N χ x : ℂˣ) : ℂ) ^ orderOf χ = 1
+    have h := congrArg (fun f : IdQ →* ℂˣ ↦ (f x : ℂ))
+      (ideleChar_pow_eq_one N χ (pow_orderOf_eq_one χ))
+    simpa only [MonoidHom.pow_apply, Units.val_pow_eq_pow_val, MonoidHom.one_apply,
+      Units.val_one] using h
+  have hu (g) : ‖η g‖ = 1 := Complex.norm_eq_one_of_pow_eq_one (hpow g) χ.orderOf_pos.ne'
+  let ψ := unitaryHeckeCharacterToPontryaginDual η hu
+  refine ⟨ψ, isOfFinOrder_iff_pow_eq_one.mpr ⟨orderOf χ, χ.orderOf_pos, ?_⟩, ?_⟩
+  · ext1 g
+    exact (ContinuousMonoidHom.pow_apply (ψ : IdeleClassGroup (𝓞 ℚ) ℚ →ₜ* Circle)
+      (orderOf χ) g).trans (Circle.ext (hpow g))
+  intro s hs
+  have hres (v : Pl) (u : (v.adicCompletion ℚ)ˣ) : η.restrict v u.val =
+      (ideleChar N χ (IdeleGroup.ofAdicCompletion (𝓞 ℚ) ℚ v u) : ℂ) := by
+    rw [HeckeCharacter.restrict, MulChar.ofUnitHom_coe]
+    rfl
+  let e := Rat.HeightOneSpectrum.primesEquiv (R := 𝓞 ℚ)
+  have h := (e.hasProd_iff).mpr (χ.LSeries_eulerProduct_hasProd hs)
+  apply (finiteHeckeL_hasProd ψ ⟨s, hs⟩).unique
+  apply h.congr_fun
+  intro v
+  change finiteHeckeEulerFactor ψ v s = (1 - χ (pr v) * (pr v : ℂ) ^ (-s))⁻¹
+  rw [finiteHeckeEulerFactor, show ideleClassNormTwist ψ 0 = η from
+    ideleClassNormTwist_unitaryHeckeCharacter_zero η hu, absNorm_asIdeal]
+  by_cases hc : (pr v).Coprime N
+  · obtain ⟨hU, hv⟩ := rationalDirichletLift_unramified χ η v hc (hres v)
+    rw [ite_eq_left hU, hv]
+  · have hpN := not_not.mp (mt (pr_prime v).coprime_iff_not_dvd.mpr hc)
+    rw [ite_eq_right (rationalDirichletLift_ramified _hχ η v hpN (hres v)),
+      χ.map_nonunit (mt (ZMod.isUnit_iff_coprime _ _).mp hc)]
+    simp
 
 /-- For a primitive Dirichlet character, all zeros in the open critical strip
 lie on the critical line by comparison with its finite Hecke L-function. -/

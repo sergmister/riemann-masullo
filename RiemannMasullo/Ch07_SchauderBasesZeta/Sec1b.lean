@@ -8,10 +8,14 @@ public import Mathlib.RingTheory.RamificationInertia.Inertia
 public import Mathlib.RingTheory.RamificationInertia.Ramification
 import RiemannMasullo.Ch06_LocalGlobal.Sec3
 import Mathlib.Analysis.Complex.LocallyUniformLimit
+import Mathlib.Analysis.Complex.PhragmenLindelof
+import Mathlib.Analysis.MellinInversion
 import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.Barrelled
 import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.Bounded
 import RiemannMasullo.ForMathlib.Analysis.SpecialFunctions.Pow.Complex
 import RiemannMasullo.ForMathlib.NumberTheory.NumberField.Completion.FinitePlace
+import all RiemannMasullo.AppB_AnalyticNT.Sec1
+import all RiemannMasullo.Ch03_IdelicZeta.Sec2
 
 /-!
 # §7.1.3–7.1.4 Polar multiplicities and spectral biorthogonal sequences
@@ -1520,6 +1524,898 @@ theorem entireIdealAnnihilator_one : entireIdealAnnihilator 1 = ⊥ := by
   · intro h w _
     simp [h]
 
+private theorem entire_analyticAt (f : Entire) (z : ℂ) : AnalyticAt ℂ (f.val : ℂ → ℂ) z :=
+  (show Differentiable ℂ (f.val : ℂ → ℂ) from f.property).analyticAt z
+
+/-- (A) Jets below the order of `g` kill the principal ideal. -/
+private theorem entireJet_mem_entireIdealAnnihilator (g : Entire) (ρ : ℂ) (m : ℕ)
+    (h : (m : ℕ∞) < analyticOrderAt (g.val : ℂ → ℂ) ρ) :
+    entireJet ρ m ∈ entireIdealAnnihilator g := by
+  simp only [entireIdealAnnihilator, Submodule.mem_comap, Submodule.mem_dualAnnihilator]
+  intro w hw
+  obtain ⟨a, rfl⟩ := Ideal.mem_span_singleton'.mp hw
+  change iteratedDeriv m ((a * g).val : ℂ → ℂ) ρ = 0
+  have hfun : ((a * g).val : ℂ → ℂ) = (a.val : ℂ → ℂ) * (g.val : ℂ → ℂ) := rfl
+  have hord : ((m + 1 : ℕ) : ℕ∞) ≤ analyticOrderAt ((a * g).val : ℂ → ℂ) ρ := by
+    rw [hfun, analyticOrderAt_mul (entire_analyticAt a ρ) (entire_analyticAt g ρ)]
+    exact (Order.add_one_le_of_lt h).trans le_add_self
+  exact (natCast_le_analyticOrderAt_iff_iteratedDeriv_eq_zero (entire_analyticAt _ ρ)).mp hord m
+    (Nat.lt_succ_self m)
+
+/-- A nonvanishing-somewhere entire function has finite order everywhere. -/
+private theorem entire_analyticOrderAt_ne_top (G : ℂ → ℂ) (hG : Differentiable ℂ G)
+    (hG0 : ∃ z, G z ≠ 0) (z : ℂ) : analyticOrderAt G z ≠ ⊤ := by
+  obtain ⟨z₀, h⟩ := hG0
+  have hA : AnalyticOnNhd ℂ G univ := fun x _ ↦ hG.analyticAt x
+  exact hA.analyticOrderAt_ne_top_of_isPreconnected isPreconnected_univ (mem_univ z₀) (mem_univ z)
+    (by simp [analyticOrderAt_eq_zero.mpr (Or.inr h)])
+
+/-- (D) A nonzero entire function has finitely many jet indices in a disc. -/
+private theorem entire_jetIndices_finite (g : Entire) (hg : ∃ z, g.val z ≠ 0) (R : ℝ) :
+    {p : ℂ × ℕ | (p.2 : ℕ∞) < analyticOrderAt (g.val : ℂ → ℂ) p.1 ∧ ‖p.1‖ ≤ R}.Finite := by
+  have hd : Differentiable ℂ (g.val : ℂ → ℂ) := g.property
+  have hZ : (Metric.closedBall (0 : ℂ) R \ {z | g.val z ≠ 0}).Finite := by
+    apply (isCompact_closedBall (0 : ℂ) R).finite_sdiff_of_mem_codiscreteWithin
+    have hA : AnalyticOnNhd ℂ (g.val : ℂ → ℂ) univ := fun x _ ↦ hd.analyticAt x
+    rcases hA.eqOn_zero_or_eventually_ne_zero_of_preconnected isPreconnected_univ with h1 | h1
+    · obtain ⟨z, hz⟩ := hg
+      exact absurd (h1 (mem_univ z)) hz
+    · exact Filter.codiscreteWithin_mono (subset_univ _) h1
+  refine (hZ.prod (hZ.biUnion fun z _ ↦
+    Set.finite_Iio (analyticOrderAt (g.val : ℂ → ℂ) z).toNat)).subset ?_
+  rintro ⟨z, k⟩ ⟨hk, hz⟩
+  have hne := entire_analyticOrderAt_ne_top _ hd hg z
+  have hz0 : g.val z = 0 := by
+    by_contra h0
+    rw [analyticOrderAt_eq_zero.mpr (Or.inr h0)] at hk
+    exact (not_lt_zero hk).elim
+  have hmem : z ∈ Metric.closedBall (0 : ℂ) R \ {z | g.val z ≠ 0} :=
+    ⟨mem_closedBall_zero_iff.mpr hz, by simpa using hz0⟩
+  refine ⟨hmem, mem_biUnion hmem ?_⟩
+  obtain ⟨n, hn⟩ := ENat.ne_top_iff_exists.mp hne
+  simp only at hk ⊢
+  rw [← hn] at hk ⊢
+  simpa using hk
+
+/-- Division of entire functions where the orders allow it: the quotient is analytic. -/
+private theorem entire_div_of_order_le (G F : ℂ → ℂ) (hG : Differentiable ℂ G)
+    (hF : Differentiable ℂ F) (hG0 : ∃ z, G z ≠ 0) (U : Set ℂ)
+    (h : ∀ z ∈ U, analyticOrderAt G z ≤ analyticOrderAt F z) :
+    ∃ w : ℂ → ℂ, (∀ z ∈ U, AnalyticAt ℂ w z) ∧ ∀ z ∈ U, F z = G z * w z := by
+  have hmero : MeromorphicOn (F / G) univ := fun z _ ↦
+    (hF.analyticAt z).meromorphicAt.div (hG.analyticAt z).meromorphicAt
+  have hw : ∀ z ∈ U, AnalyticAt ℂ (toMeromorphicNFOn (F / G) univ) z := by
+    intro z hz
+    have hNF := meromorphicNFOn_toMeromorphicNFOn (F / G) univ (mem_univ z)
+    rw [← hNF.meromorphicOrderAt_nonneg_iff_analyticAt,
+      meromorphicOrderAt_toMeromorphicNFOn hmero (mem_univ z),
+      meromorphicOrderAt_div (hF.analyticAt z).meromorphicAt (hG.analyticAt z).meromorphicAt,
+      (hF.analyticAt z).meromorphicOrderAt_eq, (hG.analyticAt z).meromorphicOrderAt_eq]
+    have hz' := h z hz
+    obtain ⟨n, hn⟩ := ENat.ne_top_iff_exists.mp (entire_analyticOrderAt_ne_top G hG hG0 z)
+    rw [← hn] at hz' ⊢
+    by_cases hFt : analyticOrderAt F z = ⊤
+    · rw [hFt]
+      simp
+    · obtain ⟨m, hm⟩ := ENat.ne_top_iff_exists.mp hFt
+      rw [← hm] at hz' ⊢
+      have hnm : n ≤ m := by exact_mod_cast hz'
+      simp only [ENat.map_natCast]
+      have h0 : (0 : ℤ) ≤ (m : ℤ) - n := by omega
+      show (0 : WithTop ℤ) ≤ (((m : ℤ) - n : ℤ) : WithTop ℤ)
+      exact WithTop.coe_le_coe.mpr h0
+  refine ⟨toMeromorphicNFOn (F / G) univ, hw, fun z hz ↦ ?_⟩
+  have hne : ∀ᶠ y in 𝓝[≠] z, G y ≠ 0 :=
+    ((hG.analyticAt z).eventually_eq_zero_or_eventually_ne_zero).resolve_left
+      (fun h' ↦ entire_analyticOrderAt_ne_top G hG hG0 z (analyticOrderAt_eq_top.mpr h'))
+  have heq := hmero.toMeromorphicNFOn_eq_self_on_nhdsNE (mem_univ z)
+  have h1 : F =ᶠ[𝓝[≠] z] fun y ↦ G y * toMeromorphicNFOn (F / G) univ y := by
+    filter_upwards [hne, heq] with y hy hy'
+    rw [hy', Pi.div_apply]
+    field_simp
+  exact (((hF.continuous.continuousAt).eventuallyEq_nhds_iff_eventuallyEq_nhdsNE
+    ((hG.continuous.continuousAt).mul (hw z hz).continuousAt)).mp h1).eq_of_nhds
+
+/-- (L1) Division plus Taylor approximation on a disc. -/
+private theorem entire_approx_of_order_le (g f : Entire) (hg : ∃ z, g.val z ≠ 0) {r r' : ℝ}
+    (hr : r' < r)
+    (h : ∀ z ∈ Metric.ball (0 : ℂ) r,
+      analyticOrderAt (g.val : ℂ → ℂ) z ≤ analyticOrderAt (f.val : ℂ → ℂ) z)
+    {ε : ℝ} (hε : 0 < ε) :
+    ∃ P : Entire, ∀ z ∈ Metric.closedBall (0 : ℂ) r', ‖f.val z - g.val z * P.val z‖ ≤ ε := by
+  have hgd : Differentiable ℂ (g.val : ℂ → ℂ) := g.property
+  have hfd : Differentiable ℂ (f.val : ℂ → ℂ) := f.property
+  rcases lt_or_ge r' 0 with hr0 | hr0
+  · exact ⟨0, fun z hz ↦ absurd (Metric.nonempty_closedBall.mp ⟨z, hz⟩) (not_le.mpr hr0)⟩
+  obtain ⟨w, hwa, hw⟩ := entire_div_of_order_le _ _ hgd hfd hg (Metric.ball 0 r) h
+  have hR0 : 0 < (r' + r) / 2 := by linarith
+  let Rn : ℝ≥0 := ⟨(r' + r) / 2, hR0.le⟩
+  have hd : DifferentiableOn ℂ w (Metric.closedBall 0 (Rn : ℝ)) := fun z hz ↦
+    (hwa z (Metric.closedBall_subset_ball (show (Rn : ℝ) < r by
+      change (r' + r) / 2 < r; linarith) hz)).differentiableAt.differentiableWithinAt
+  have hps := hd.hasFPowerSeriesOnBall (show (0 : ℝ≥0) < Rn from hR0)
+  let Rm : ℝ≥0 := ⟨(r' + (r' + r) / 2) / 2, by linarith⟩
+  have hu := hps.tendstoUniformlyOn (r' := Rm)
+    (ENNReal.coe_lt_coe.mpr (show Rm < Rn by change (r' + (r' + r) / 2) / 2 < (r' + r) / 2; linarith))
+  obtain ⟨C, hC⟩ := (isCompact_closedBall (0 : ℂ) r').exists_bound_of_continuousOn
+    hgd.continuous.continuousOn
+  have hδ : 0 < ε / (|C| + 1) := by positivity
+  obtain ⟨n, hn⟩ := (Metric.tendstoUniformlyOn_iff.mp hu _ hδ).exists
+  set p := cauchyPowerSeries w 0 Rn
+  have hpart : ∀ y, p.partialSum n y = ∑ k ∈ Finset.range n, y ^ k * p.coeff k := by
+    intro y
+    simp [FormalMultilinearSeries.partialSum]
+  have hPd : Differentiable ℂ fun y : ℂ ↦ ∑ k ∈ Finset.range n, y ^ k * p.coeff k := by fun_prop
+  refine ⟨⟨⟨fun y ↦ ∑ k ∈ Finset.range n, y ^ k * p.coeff k, hPd.continuous⟩, hPd⟩,
+    fun z hz ↦ ?_⟩
+  have hz' : ‖z‖ ≤ r' := mem_closedBall_zero_iff.mp hz
+  have hzm : z ∈ Metric.ball (0 : ℂ) Rm := mem_ball_zero_iff.mpr (by
+    change ‖z‖ < (r' + (r' + r) / 2) / 2; linarith)
+  have hzr : z ∈ Metric.ball (0 : ℂ) r := mem_ball_zero_iff.mpr (by linarith)
+  rw [hw z hzr]
+  change ‖g.val z * w z - g.val z * (∑ k ∈ Finset.range n, z ^ k * p.coeff k)‖ ≤ ε
+  rw [← mul_sub, norm_mul]
+  have h1 := hn z hzm
+  rw [zero_add, dist_eq_norm, hpart] at h1
+  calc ‖g.val z‖ * ‖w z - ∑ k ∈ Finset.range n, z ^ k * p.coeff k‖
+      ≤ |C| * (ε / (|C| + 1)) :=
+        mul_le_mul ((hC z hz).trans (le_abs_self C)) h1.le (norm_nonneg _) (abs_nonneg _)
+    _ ≤ ε := by
+        rw [mul_div_assoc', div_le_iff₀ (by positivity)]
+        nlinarith [abs_nonneg C]
+/-- (J) Divide out the zero at `ρ` and correct by a polynomial: Kronecker jets against the
+divisor of `G`. -/
+private theorem exists_div_mul_polynomial_jets (G : ℂ → ℂ) (hG : Differentiable ℂ G)
+    (hG0 : ∃ z, G z ≠ 0) (ρ : ℂ) (m : ℕ) (hm : (m : ℕ∞) < analyticOrderAt G ρ) :
+    ∃ (f₀ : ℂ → ℂ) (n : ℕ) (q : Polynomial ℂ), Differentiable ℂ f₀ ∧
+      (∀ z, G z = (z - ρ) ^ n * f₀ z) ∧
+      ∀ (z : ℂ) (k : ℕ), (k : ℕ∞) < analyticOrderAt G z →
+        iteratedDeriv k (fun w ↦ f₀ w * q.eval w) z = if (z, k) = (ρ, m) then 1 else 0 := by
+  have hne := entire_analyticOrderAt_ne_top G hG hG0
+  set n := (analyticOrderAt G ρ).toNat with hn_def
+  have hn : analyticOrderAt G ρ = n := (ENat.coe_toNat (hne ρ)).symm
+  have hpd : Differentiable ℂ fun z : ℂ ↦ (z - ρ) ^ n := by fun_prop
+  have hp0 : ∃ z, (fun z : ℂ ↦ (z - ρ) ^ n) z ≠ 0 := ⟨ρ + 1, by simp⟩
+  have hpord : ∀ z, analyticOrderAt (fun z : ℂ ↦ (z - ρ) ^ n) z = if z = ρ then n else 0 := by
+    intro z
+    split_ifs with hz
+    · subst hz
+      exact (hpd.analyticAt z).analyticOrderAt_eq_natCast.mpr
+        ⟨fun _ ↦ 1, analyticAt_const, one_ne_zero, Eventually.of_forall fun w ↦ by simp⟩
+    · exact analyticOrderAt_eq_zero.mpr (Or.inr (pow_ne_zero _ (sub_ne_zero.mpr hz)))
+  have hle : ∀ z ∈ (univ : Set ℂ),
+      analyticOrderAt (fun z : ℂ ↦ (z - ρ) ^ n) z ≤ analyticOrderAt G z := by
+    intro z _
+    rw [hpord]
+    split_ifs with hz
+    · rw [hz, hn]
+    · exact zero_le
+  obtain ⟨f₀, hf₀a, hf₀⟩ := entire_div_of_order_le _ G hpd hG hp0 univ hle
+  have hf₀d : Differentiable ℂ f₀ := fun z ↦ (hf₀a z (mem_univ z)).differentiableAt
+  have hGfac : ∀ z, G z = (z - ρ) ^ n * f₀ z := fun z ↦ hf₀ z (mem_univ z)
+  have hGeq : G = fun z ↦ (z - ρ) ^ n * f₀ z := funext hGfac
+  have hordG : ∀ z, analyticOrderAt G z =
+      analyticOrderAt (fun z : ℂ ↦ (z - ρ) ^ n) z + analyticOrderAt f₀ z := by
+    intro z
+    rw [hGeq]
+    exact analyticOrderAt_mul (hpd.analyticAt z) (hf₀d.analyticAt z)
+  have hf₀ρ : f₀ ρ ≠ 0 := by
+    have h1 := hordG ρ
+    rw [hn, hpord, if_pos rfl] at h1
+    have h0 : analyticOrderAt f₀ ρ = 0 := by
+      by_cases ht : analyticOrderAt f₀ ρ = ⊤
+      · rw [ht, add_top] at h1
+        exact absurd h1 (ENat.natCast_ne_top n)
+      · obtain ⟨k, hk⟩ := ENat.ne_top_iff_exists.mp ht
+        rw [← hk] at h1 ⊢
+        have : n = n + k := by exact_mod_cast h1
+        exact_mod_cast (by omega : k = 0)
+    exact (analyticOrderAt_eq_zero.mp h0).resolve_left (not_not.mpr (hf₀d.analyticAt ρ))
+  let u : ℂ → ℂ := fun z ↦ (z - ρ) ^ m / (m.factorial : ℂ) / f₀ z
+  have hua : AnalyticAt ℂ u ρ :=
+    (by fun_prop : AnalyticAt ℂ (fun z : ℂ ↦ (z - ρ) ^ m / (m.factorial : ℂ)) ρ).div
+      (hf₀d.analyticAt ρ) hf₀ρ
+  let u' : ℂ → ℂ := fun y ↦ u (y + ρ)
+  have hu'a : AnalyticAt ℂ u' 0 := by
+    have h0 : AnalyticAt ℂ u ((fun y : ℂ ↦ y + ρ) 0) := by simpa using hua
+    exact AnalyticAt.comp (g := u) (f := fun y : ℂ ↦ y + ρ) (x := 0) h0 (by fun_prop)
+  obtain ⟨Fr, hFra, hFr⟩ := hu'a.exists_eventuallyEq_sum_add_pow_mul n
+  let c : ℕ → ℂ := fun i ↦ iteratedDeriv i u' 0 / (i.factorial : ℂ)
+  let q : Polynomial ℂ :=
+    ∑ i ∈ Finset.range n, Polynomial.C (c i) * (Polynomial.X - Polynomial.C ρ) ^ i
+  have hq : ∀ z, q.eval z =
+      ∑ i ∈ Finset.range n, ((z - ρ) ^ i / (i.factorial : ℂ)) • iteratedDeriv i u' 0 := by
+    intro z
+    simp only [q, Polynomial.eval_finsetSum, Polynomial.eval_mul, Polynomial.eval_C,
+      Polynomial.eval_pow, Polynomial.eval_sub, Polynomial.eval_X]
+    refine Finset.sum_congr rfl fun i _ ↦ ?_
+    simp only [c, smul_eq_mul]
+    ring
+  have hT : ∀ᶠ z in 𝓝 ρ, u z = q.eval z + (z - ρ) ^ n * Fr (z - ρ) := by
+    have ht : Tendsto (fun z : ℂ ↦ z - ρ) (𝓝 ρ) (𝓝 0) := by
+      simpa using (continuous_sub_right ρ).tendsto ρ
+    filter_upwards [ht.eventually hFr] with z hz
+    simp only [u', sub_add_cancel] at hz
+    rw [hz, hq, smul_eq_mul]
+  let Pm : ℂ → ℂ := fun z ↦ (z - ρ) ^ m / (m.factorial : ℂ)
+  have hf₀ne : ∀ᶠ z in 𝓝 ρ, f₀ z ≠ 0 := (hf₀d.continuous.continuousAt).eventually_ne hf₀ρ
+  have hvd : Differentiable ℂ fun w ↦ f₀ w * q.eval w := hf₀d.mul (Polynomial.differentiable q)
+  have hPmd : Differentiable ℂ Pm := by fun_prop
+  have hDd : Differentiable ℂ fun w ↦ f₀ w * q.eval w - Pm w := hvd.sub hPmd
+  have hD : (n : ℕ∞) ≤ analyticOrderAt (fun w ↦ f₀ w * q.eval w - Pm w) ρ := by
+    rw [natCast_le_analyticOrderAt (hDd.analyticAt ρ)]
+    refine ⟨fun z ↦ -(f₀ z * Fr (z - ρ)), ?_, ?_⟩
+    · have h0 : AnalyticAt ℂ Fr ((fun z : ℂ ↦ z - ρ) ρ) := by simpa using hFra
+      exact ((hf₀d.analyticAt ρ).mul
+        (AnalyticAt.comp (g := Fr) (f := fun z : ℂ ↦ z - ρ) (x := ρ) h0 (by fun_prop))).neg
+    · filter_upwards [hT, hf₀ne] with z hz hz0
+      have hPm : Pm z = f₀ z * u z := by
+        simp only [u, Pm]
+        field_simp
+      rw [hPm, hz, smul_eq_mul]
+      ring
+  refine ⟨f₀, n, q, hf₀d, hGfac, fun z k hk ↦ ?_⟩
+  by_cases hz : z = ρ
+  · subst hz
+    have hkn : k < n := by
+      rw [hn] at hk
+      exact_mod_cast hk
+    have e1 : iteratedDeriv k (fun w ↦ f₀ w * q.eval w) z =
+        iteratedDeriv k Pm z + iteratedDeriv k (fun w ↦ f₀ w * q.eval w - Pm w) z := by
+      rw [← iteratedDeriv_add hPmd.contDiff.contDiffAt hDd.contDiff.contDiffAt]
+      congr 1
+      funext w
+      simp only [Pi.add_apply]
+      ring
+    have e2 : iteratedDeriv k Pm z = if k = m then 1 else 0 := by
+      simp only [Pm]
+      rw [iteratedDeriv_div_const (fun w : ℂ ↦ (w - z) ^ m) (m.factorial : ℂ)]
+      simp only [iteratedDeriv_comp_sub_const (f := fun w : ℂ ↦ w ^ m), sub_self,
+        iteratedDeriv_fun_pow_zero]
+      split_ifs <;> simp [Nat.factorial_ne_zero]
+    have e3 : iteratedDeriv k (fun w ↦ f₀ w * q.eval w - Pm w) z = 0 :=
+      (natCast_le_analyticOrderAt_iff_iteratedDeriv_eq_zero (hDd.analyticAt z)).mp hD k hkn
+    rw [e1, e2, e3, add_zero]
+    simp
+  · have hz' : (z, k) ≠ (ρ, m) := fun h ↦ hz (congrArg Prod.fst h)
+    rw [if_neg hz']
+    have hordz : analyticOrderAt G z = analyticOrderAt f₀ z := by
+      rw [hordG, hpord, if_neg hz, Nat.cast_zero, zero_add]
+    have hle' : analyticOrderAt f₀ z ≤ analyticOrderAt (fun w ↦ f₀ w * q.eval w) z := by
+      rw [show (fun w ↦ f₀ w * q.eval w) = f₀ * fun w ↦ q.eval w from rfl,
+        analyticOrderAt_mul (hf₀d.analyticAt z) ((Polynomial.differentiable q).analyticAt z)]
+      exact le_self_add
+    have hk' : ((k + 1 : ℕ) : ℕ∞) ≤ analyticOrderAt (fun w ↦ f₀ w * q.eval w) z :=
+      (Order.add_one_le_of_lt (hordz ▸ hk)).trans hle'
+    exact (natCast_le_analyticOrderAt_iff_iteratedDeriv_eq_zero (hvd.analyticAt z)).mp hk' k
+      (Nat.lt_succ_self k)
+
+/-- (B) Biorthogonal entire functions, as small as wanted on the half-radius disc. -/
+private theorem entire_jet_biorthogonal (g : Entire) (hg : ∃ z, g.val z ≠ 0) (i : ℂ × ℕ)
+    (hi : (i.2 : ℕ∞) < analyticOrderAt (g.val : ℂ → ℂ) i.1) (c : ℝ) :
+    ∃ f : Entire,
+      (∀ j : ℂ × ℕ, (j.2 : ℕ∞) < analyticOrderAt (g.val : ℂ → ℂ) j.1 →
+        entireJet j.1 j.2 f = if j = i then 1 else 0) ∧
+      ∀ z : ℂ, ‖z‖ < ‖i.1‖ / 2 → c * ‖f.val z‖ ≤ 1 := by
+  have hgd : Differentiable ℂ (g.val : ℂ → ℂ) := g.property
+  obtain ⟨f₀, n, q, hf₀d, hfac, hjet⟩ := exists_div_mul_polynomial_jets _ hgd hg i.1 i.2 hi
+  have hvd : Differentiable ℂ fun w ↦ f₀ w * q.eval w := hf₀d.mul (Polynomial.differentiable q)
+  let V : Entire := ⟨⟨fun w ↦ f₀ w * q.eval w, hvd.continuous⟩, hvd⟩
+  have hVjet : ∀ j : ℂ × ℕ, (j.2 : ℕ∞) < analyticOrderAt (g.val : ℂ → ℂ) j.1 →
+      entireJet j.1 j.2 V = if j = i then 1 else 0 := fun j hj ↦ by
+    rw [entireJet_apply]
+    change iteratedDeriv j.2 (fun w ↦ f₀ w * q.eval w) j.1 = _
+    exact hjet j.1 j.2 hj
+  have hV : ∀ z, z ≠ i.1 →
+      analyticOrderAt (g.val : ℂ → ℂ) z ≤ analyticOrderAt (V.val : ℂ → ℂ) z := by
+    intro z hz
+    have hgeq : (g.val : ℂ → ℂ) = (fun w : ℂ ↦ (w - i.1) ^ n) * f₀ := funext hfac
+    have hVeq : (V.val : ℂ → ℂ) = f₀ * fun w ↦ q.eval w := rfl
+    have hpd : Differentiable ℂ fun w : ℂ ↦ (w - i.1) ^ n := by fun_prop
+    rw [hgeq, hVeq, analyticOrderAt_mul (hpd.analyticAt z) (hf₀d.analyticAt z),
+      analyticOrderAt_mul (hf₀d.analyticAt z) ((Polynomial.differentiable q).analyticAt z),
+      (analyticOrderAt_eq_zero (f := fun w : ℂ ↦ (w - i.1) ^ n)).mpr
+        (Or.inr (pow_ne_zero _ (sub_ne_zero.mpr hz))), zero_add]
+    exact le_self_add
+  rcases eq_or_ne i.1 0 with h0 | h0
+  · refine ⟨V, hVjet, fun z hz ↦ ?_⟩
+    rw [h0, norm_zero, zero_div] at hz
+    exact absurd hz (not_lt.mpr (norm_nonneg z))
+  have hpos : 0 < ‖i.1‖ := norm_pos_iff.mpr h0
+  obtain ⟨P, hP⟩ := entire_approx_of_order_le g V hg (r := ‖i.1‖) (r' := ‖i.1‖ / 2)
+    (by linarith)
+    (fun z hz ↦ hV z (fun h ↦ by
+      rw [h, mem_ball_zero_iff] at hz
+      exact lt_irrefl _ hz))
+    (ε := 1 / (|c| + 1)) (by positivity)
+  refine ⟨V - g * P, fun j hj ↦ ?_, fun z hz ↦ ?_⟩
+  · have h0' : entireJet j.1 j.2 (g * P) = 0 := by
+      have hm := entireJet_mem_entireIdealAnnihilator g j.1 j.2 hj
+      simp only [entireIdealAnnihilator, Submodule.mem_comap,
+        Submodule.mem_dualAnnihilator] at hm
+      exact hm (g * P) (Ideal.mem_span_singleton'.mpr ⟨P, mul_comm P g⟩)
+    rw [map_sub, hVjet j hj, h0', sub_zero]
+  · have h1 := hP z (mem_closedBall_zero_iff.mpr hz.le)
+    change c * ‖V.val z - g.val z * P.val z‖ ≤ 1
+    calc c * ‖V.val z - g.val z * P.val z‖
+        ≤ |c| * (1 / (|c| + 1)) :=
+          (mul_le_mul_of_nonneg_right (le_abs_self c) (norm_nonneg _)).trans
+            (mul_le_mul_of_nonneg_left h1 (abs_nonneg c))
+      _ ≤ 1 := by
+          rw [mul_one_div, div_le_one (by positivity)]
+          linarith
+/-- A continuous functional on entire functions is controlled by a sup norm on a compact set. -/
+private theorem entire_strongDual_bound (ℓ : StrongDual ℂ Entire) :
+    ∃ K : Set ℂ, IsCompact K ∧ ∃ δ > 0, ∀ f : Entire,
+      (∀ x ∈ K, ‖f.val x‖ < δ) → ‖ℓ f‖ < 1 := by
+  have h0 : ℓ ⁻¹' Metric.ball 0 1 ∈ 𝓝 (0 : Entire) :=
+    ℓ.continuous.continuousAt.preimage_mem_nhds (by
+      rw [map_zero]
+      exact Metric.ball_mem_nhds 0 one_pos)
+  rw [nhds_subtype, mem_comap] at h0
+  obtain ⟨t, ht, hts⟩ := h0
+  rw [nhds_eq_comap_uniformity, mem_comap] at ht
+  obtain ⟨X, hX, hXt⟩ := ht
+  obtain ⟨⟨K, ε⟩, ⟨hK, hε⟩, hKX⟩ :=
+    (Metric.uniformity_basis_dist.compactConvergenceUniformity (α := ℂ)).mem_iff.mp hX
+  refine ⟨K, hK, ε, hε, fun f hf ↦ ?_⟩
+  have hf' : f ∈ (Subtype.val ⁻¹' t : Set Entire) := hXt (hKX fun x hx ↦ by
+    have := hf x hx
+    simpa [dist_eq_norm] using this)
+  simpa using hts hf'
+
+/-- (C) Every functional killing `g · H(ℂ)` is a finite combination of jets. -/
+private theorem entireIdealAnnihilator_le_span_jets (g : Entire) (hg : ∃ z, g.val z ≠ 0)
+    (ℓ : StrongDual ℂ Entire) (hℓ : ℓ ∈ entireIdealAnnihilator g) :
+    ∃ s : Finset (ℂ × ℕ), (∀ j ∈ s, (j.2 : ℕ∞) < analyticOrderAt (g.val : ℂ → ℂ) j.1) ∧
+      ℓ ∈ Submodule.span ℂ ((fun j : ℂ × ℕ ↦ entireJet j.1 j.2) '' (s : Set (ℂ × ℕ))) := by
+  obtain ⟨K, hK, δ, hδ, hKδ⟩ := entire_strongDual_bound ℓ
+  obtain ⟨R, hR⟩ := hK.isBounded.subset_closedBall (0 : ℂ)
+  have hfin := entire_jetIndices_finite g hg (R + 1)
+  refine ⟨hfin.toFinset, fun j hj ↦ (hfin.mem_toFinset.mp hj).1, ?_⟩
+  have hℓ' : ∀ w : Entire, w ∈ Ideal.span ({g} : Set Entire) → ℓ w = 0 := by
+    simp only [entireIdealAnnihilator, Submodule.mem_comap,
+      Submodule.mem_dualAnnihilator] at hℓ
+    exact fun w hw ↦ hℓ w hw
+  have hker : ∀ f : Entire, (∀ j ∈ hfin.toFinset, entireJet j.1 j.2 f = 0) → ℓ f = 0 := by
+    intro f hf
+    have hord : ∀ z ∈ Metric.ball (0 : ℂ) (R + 1),
+        analyticOrderAt (g.val : ℂ → ℂ) z ≤ analyticOrderAt (f.val : ℂ → ℂ) z := by
+      intro z hz
+      obtain ⟨n, hn⟩ := ENat.ne_top_iff_exists.mp
+        (entire_analyticOrderAt_ne_top _ g.property hg z)
+      rw [← hn, natCast_le_analyticOrderAt_iff_iteratedDeriv_eq_zero (entire_analyticAt f z)]
+      intro i hi
+      have h1 := hf (z, i) (hfin.mem_toFinset.mpr
+        ⟨by rw [← hn]; exact_mod_cast hi, (mem_ball_zero_iff.mp hz).le⟩)
+      rwa [entireJet_apply] at h1
+    refine norm_le_zero_iff.mp (le_of_forall_pos_lt_add fun η hη ↦ ?_)
+    obtain ⟨P, hP⟩ := entire_approx_of_order_le g f hg (r := R + 1) (r' := R) (by linarith)
+      hord (ε := η * δ / 2) (by positivity)
+    have hgP : ℓ (P * g) = 0 := hℓ' _ (Ideal.mem_span_singleton'.mpr ⟨P, rfl⟩)
+    have hh : ∀ x ∈ K, ‖(((η : ℂ)⁻¹) • (f - P * g)).val x‖ < δ := by
+      intro x hx
+      have h1 := hP x (hR hx)
+      change ‖(η : ℂ)⁻¹ * (f.val x - P.val x * g.val x)‖ < δ
+      rw [norm_mul, norm_inv, Complex.norm_of_nonneg hη.le, mul_comm (P.val x)]
+      calc η⁻¹ * ‖f.val x - g.val x * P.val x‖ ≤ η⁻¹ * (η * δ / 2) :=
+            mul_le_mul_of_nonneg_left h1 (inv_nonneg.mpr hη.le)
+        _ < δ := by
+            rw [show η⁻¹ * (η * δ / 2) = δ / 2 by field_simp]
+            linarith
+    have h1 := hKδ _ hh
+    rw [map_smul, map_sub, hgP, sub_zero, smul_eq_mul, norm_mul, norm_inv,
+      Complex.norm_of_nonneg hη.le, inv_mul_lt_iff₀ hη, mul_one] at h1
+    rwa [zero_add]
+  let L : hfin.toFinset → (Entire →ₗ[ℂ] ℂ) := fun j ↦
+    ContinuousLinearMap.coeLM ℂ (entireJet j.1.1 j.1.2)
+  have h := mem_span_of_iInf_ker_le_ker (L := L) (K := ContinuousLinearMap.coeLM ℂ ℓ) (by
+    intro f hf
+    simp only [Submodule.mem_iInf, LinearMap.mem_ker] at hf
+    exact hker f fun j hj ↦ hf ⟨j, hj⟩)
+  have hrange : range L = (ContinuousLinearMap.coeLM ℂ) ''
+      ((fun j : ℂ × ℕ ↦ entireJet j.1 j.2) '' (hfin.toFinset : Set (ℂ × ℕ))) := by
+    rw [Set.image_image, Set.image_eq_range]
+    rfl
+  rw [hrange, ← Submodule.map_span] at h
+  obtain ⟨y, hy, hyℓ⟩ := Submodule.mem_map.mp h
+  rwa [← ContinuousLinearMap.coe_injective hyℓ]
+/-- (M1) Entire Schwartz–Bergman functions are stable under division by `(z - ρ) ^ n`. -/
+private theorem schwartzBergman_univ_div_pow (H f₀ : ℂ → ℂ)
+    (hH : H ∈ schwartzBergmanSubmodule (univ : Set ℝ)) (hf : Differentiable ℂ f₀) (ρ : ℂ)
+    (n : ℕ) (h : ∀ z, H z = (z - ρ) ^ n * f₀ z) :
+    f₀ ∈ schwartzBergmanSubmodule (univ : Set ℝ) := by
+  refine ⟨fun z hz ↦ (hz (mem_univ _)).elim, hf.differentiableOn, fun a b hab hI N ↦ ?_⟩
+  obtain ⟨A, hA⟩ := hH.2.2 a b hab hI N
+  obtain ⟨B, hB⟩ := (isCompact_closedBall ρ 1).exists_bound_of_continuousOn
+    (f := fun z : ℂ ↦ z ^ N * f₀ z) ((continuous_pow N).mul hf.continuous).continuousOn
+  refine ⟨max A B, ?_⟩
+  rintro _ ⟨z, hz, rfl⟩
+  show ‖z ^ N * f₀ z‖ ≤ max A B
+  by_cases hzρ : z ∈ Metric.closedBall ρ 1
+  · have hb : ‖z ^ N * f₀ z‖ ≤ B := hB z hzρ
+    exact hb.trans (le_max_right _ _)
+  · have h1 : 1 ≤ ‖z - ρ‖ ^ n := by
+      refine one_le_pow₀ ?_
+      rw [Metric.mem_closedBall, dist_eq_norm] at hzρ
+      exact (not_le.mp hzρ).le
+    have hA' : ‖z ^ N * H z‖ ≤ A := hA ⟨z, hz, rfl⟩
+    rw [h] at hA'
+    refine le_trans ?_ (hA'.trans (le_max_left _ _))
+    calc ‖z ^ N * f₀ z‖ ≤ ‖z - ρ‖ ^ n * ‖z ^ N * f₀ z‖ :=
+          le_mul_of_one_le_left (norm_nonneg _) h1
+      _ = ‖z ^ N * ((z - ρ) ^ n * f₀ z)‖ := by simp only [norm_mul, norm_pow]; ring
+
+private theorem schwartzBergman_univ_mul_pow (f : ℂ → ℂ)
+    (hf : f ∈ schwartzBergmanSubmodule (univ : Set ℝ)) (k : ℕ) :
+    (fun z ↦ z ^ k * f z) ∈ schwartzBergmanSubmodule (univ : Set ℝ) := by
+  refine ⟨fun z hz ↦ (hz (mem_univ _)).elim, ?_, fun a b hab hI N ↦ ?_⟩
+  · exact (differentiable_pow k).differentiableOn.mul hf.2.1
+  · obtain ⟨A, hA⟩ := hf.2.2 a b hab hI (N + k)
+    refine ⟨A, ?_⟩
+    rintro _ ⟨z, hz, rfl⟩
+    have hA' : ‖z ^ (N + k) * f z‖ ≤ A := hA ⟨z, hz, rfl⟩
+    show ‖z ^ N * (z ^ k * f z)‖ ≤ A
+    rwa [← mul_assoc, ← pow_add]
+
+/-- (M2) ... and under multiplication by polynomials. -/
+private theorem schwartzBergman_univ_mul_polynomial (f : ℂ → ℂ)
+    (hf : f ∈ schwartzBergmanSubmodule (univ : Set ℝ)) (q : Polynomial ℂ) :
+    (fun z ↦ f z * q.eval z) ∈ schwartzBergmanSubmodule (univ : Set ℝ) := by
+  induction q using Polynomial.induction_on' with
+  | add p q hp hq =>
+    have e : (fun z ↦ f z * (p + q).eval z) = (fun z ↦ f z * p.eval z) + fun z ↦ f z * q.eval z := by
+      funext z; simp [mul_add]
+    rw [e]; exact Submodule.add_mem _ hp hq
+  | monomial k c =>
+    have e : (fun z ↦ f z * (Polynomial.monomial k c).eval z) = c • fun z ↦ z ^ k * f z := by
+      funext z; simp only [Polynomial.eval_monomial, Pi.smul_apply, smul_eq_mul]; ring
+    rw [e]; exact Submodule.smul_mem _ c (schwartzBergman_univ_mul_pow f hf k)
+
+
+/-- A continuous function that agrees near every point, off the point, with `P · L` inherits the
+bound of `L` on an open set. -/
+private theorem norm_le_of_eventuallyEq_nhdsNE (h P L : ℂ → ℂ) (hh : Continuous h)
+    (hP : Continuous P) (hEv : ∀ z, h =ᶠ[𝓝[≠] z] fun s ↦ P s * L s) (C₀ : ℝ) (U : Set ℂ)
+    (hU : IsOpen U) (hLU : ∀ s ∈ U, ‖L s‖ ≤ C₀) (z : ℂ) (hz : z ∈ U) :
+    ‖h z‖ ≤ ‖P z‖ * C₀ := by
+  have ht : Tendsto (fun s ↦ ‖h s‖ - ‖P s‖ * C₀) (𝓝[≠] z) (𝓝 (‖h z‖ - ‖P z‖ * C₀)) :=
+    (((hh.norm.sub (hP.norm.mul continuous_const)).tendsto z)).mono_left nhdsWithin_le_nhds
+  have hev : ∀ᶠ s in 𝓝[≠] z, ‖h s‖ - ‖P s‖ * C₀ ≤ 0 := by
+    filter_upwards [hEv z, nhdsWithin_le_nhds (hU.mem_nhds hz)] with s hs hsU
+    rw [hs, norm_mul, sub_nonpos]
+    exact mul_le_mul_of_nonneg_left (hLU s hsU) (norm_nonneg _)
+  exact sub_nonpos.mp (le_of_tendsto ht hev)
+
+/-- The pole-removing polynomial grows at most polynomially. -/
+private theorem norm_poleFactor_le (b : ℂ) (δ : ℕ) (s : ℂ) :
+    ‖(s + b) ^ δ * (1 - s - b) ^ δ‖ ≤ (1 + ‖b‖) ^ (2 * δ) * (1 + ‖s‖) ^ (2 * δ) := by
+  have h1 : ‖s + b‖ ≤ (1 + ‖b‖) * (1 + ‖s‖) := by
+    nlinarith [norm_add_le s b, norm_nonneg s, norm_nonneg b]
+  have h2 : ‖1 - s - b‖ ≤ (1 + ‖b‖) * (1 + ‖s‖) := by
+    have : ‖1 - s - b‖ ≤ 1 + ‖s‖ + ‖b‖ := by
+      calc ‖1 - s - b‖ ≤ ‖1 - s‖ + ‖b‖ := norm_sub_le _ _
+        _ ≤ ‖(1 : ℂ)‖ + ‖s‖ + ‖b‖ := by gcongr; exact norm_sub_le _ _
+        _ = 1 + ‖s‖ + ‖b‖ := by rw [norm_one]
+    nlinarith [norm_nonneg s, norm_nonneg b]
+  calc ‖(s + b) ^ δ * (1 - s - b) ^ δ‖ = ‖s + b‖ ^ δ * ‖1 - s - b‖ ^ δ := by
+        rw [norm_mul, norm_pow, norm_pow]
+    _ ≤ ((1 + ‖b‖) * (1 + ‖s‖)) ^ δ * ((1 + ‖b‖) * (1 + ‖s‖)) ^ δ :=
+        mul_le_mul (pow_le_pow_left₀ (norm_nonneg _) h1 δ)
+          (pow_le_pow_left₀ (norm_nonneg _) h2 δ) (by positivity) (by positivity)
+    _ = _ := by rw [← pow_add, ← two_mul, mul_pow]
+
+/-- Strip bound for the normal form of `(s + b)^δ (1 - s - b)^δ L(s)` when `L` is bounded at
+large height on a slightly wider strip. -/
+private theorem poleFactor_mul_strip_bound (L h : ℂ → ℂ) (b : ℂ) (δ : ℕ) (hh : Continuous h)
+    (hEv : ∀ z, h =ᶠ[𝓝[≠] z] fun s ↦ (s + b) ^ δ * (1 - s - b) ^ δ * L s) (a c : ℝ)
+    (hLb : L =O[comap (abs ∘ Complex.im) atTop ⊓ 𝓟 (Complex.re ⁻¹' Icc (a - 1) (c + 1))]
+      fun _ ↦ (1 : ℝ)) :
+    ∃ C : ℝ, 0 ≤ C ∧ ∀ z : ℂ, z.re ∈ Icc a c → ‖h z‖ ≤ C * (1 + ‖z‖) ^ (2 * δ) := by
+  obtain ⟨C₀, hC₀⟩ := hLb.bound
+  rw [eventually_inf_principal, eventually_comap, eventually_atTop] at hC₀
+  obtain ⟨T, hT⟩ := hC₀
+  let U : Set ℂ := {s | T < |s.im| ∧ a - 1 < s.re ∧ s.re < c + 1}
+  have hU : IsOpen U :=
+    (isOpen_lt continuous_const (continuous_abs.comp Complex.continuous_im)).inter
+      ((isOpen_lt continuous_const Complex.continuous_re).inter
+        (isOpen_lt Complex.continuous_re continuous_const))
+  have hLU : ∀ s ∈ U, ‖L s‖ ≤ max C₀ 0 := by
+    intro s hs
+    have := hT |s.im| hs.1.le s rfl ⟨hs.2.1.le, hs.2.2.le⟩
+    simp only [norm_one, mul_one] at this
+    exact this.trans (le_max_left _ _)
+  let K : ℝ := (1 + ‖b‖) ^ (2 * δ)
+  let R : ℝ := |a| + |c| + T + 1
+  obtain ⟨B, hB⟩ := (isCompact_closedBall (0 : ℂ) R).exists_bound_of_continuousOn hh.continuousOn
+  refine ⟨max (K * max C₀ 0) (max B 0), by positivity, fun z hz ↦ ?_⟩
+  have hpow : 1 ≤ (1 + ‖z‖) ^ (2 * δ) := one_le_pow₀ (by linarith [norm_nonneg z])
+  by_cases hzT : T + 1 ≤ |z.im|
+  · have hzU : z ∈ U := ⟨by linarith, by linarith [hz.1], by linarith [hz.2]⟩
+    have hP : Continuous fun s : ℂ ↦ (s + b) ^ δ * (1 - s - b) ^ δ := by fun_prop
+    have h1 := norm_le_of_eventuallyEq_nhdsNE h (fun s ↦ (s + b) ^ δ * (1 - s - b) ^ δ) L hh hP
+      hEv (max C₀ 0) U hU hLU z hzU
+    calc ‖h z‖ ≤ ‖(z + b) ^ δ * (1 - z - b) ^ δ‖ * max C₀ 0 := h1
+      _ ≤ (K * (1 + ‖z‖) ^ (2 * δ)) * max C₀ 0 :=
+          mul_le_mul_of_nonneg_right (norm_poleFactor_le b δ z) (le_max_right _ _)
+      _ = (K * max C₀ 0) * (1 + ‖z‖) ^ (2 * δ) := by ring
+      _ ≤ _ := mul_le_mul_of_nonneg_right (le_max_left _ _) (by positivity)
+  · have hzR : z ∈ Metric.closedBall (0 : ℂ) R := by
+      rw [mem_closedBall_zero_iff]
+      have hre : |z.re| ≤ |a| + |c| := by
+        rcases le_total 0 z.re with h0 | h0
+        · rw [abs_of_nonneg h0]; linarith [hz.2, le_abs_self c, abs_nonneg a]
+        · rw [abs_of_nonpos h0]; linarith [hz.1, neg_abs_le a, abs_nonneg c]
+      linarith [Complex.norm_le_abs_re_add_abs_im z, not_le.mp hzT]
+    calc ‖h z‖ ≤ max B 0 := (hB z hzR).trans (le_max_left _ _)
+      _ = max B 0 * 1 := (mul_one _).symm
+      _ ≤ max B 0 * (1 + ‖z‖) ^ (2 * δ) := mul_le_mul_of_nonneg_left hpow (le_max_right _ _)
+      _ ≤ _ := mul_le_mul_of_nonneg_right (le_max_right _ _) (by positivity)
+
+/-- The reciprocal Euler factors are bounded on vertical strips. -/
+private theorem norm_inv_finiteHeckeEulerFactor_le (χ : PontryaginDual (IdeleClassGroup (𝓞 F) F))
+    (v : Primes) (a : ℝ) (s : ℂ) (hs : a ≤ s.re) :
+    ‖(finiteHeckeEulerFactor χ v s)⁻¹‖ ≤ 1 + (v.asIdeal.absNorm : ℝ) ^ (-a) := by
+  classical
+  have hq : (1 : ℝ) < v.asIdeal.absNorm := by
+    exact_mod_cast NumberField.HeightOneSpectrum.one_lt_absNorm v
+  have hpos : (0 : ℝ) ≤ (v.asIdeal.absNorm : ℝ) ^ (-a) := by positivity
+  unfold finiteHeckeEulerFactor
+  split_ifs
+  · rw [inv_inv]
+    calc _ ≤ ‖(1 : ℂ)‖ + ‖(ideleClassNormTwist χ 0).localValue v *
+          (v.asIdeal.absNorm : ℂ) ^ (-s)‖ := norm_sub_le _ _
+      _ ≤ _ := by
+        rw [norm_one, norm_mul, norm_ideleClassNormTwist_zero_localValue, one_mul,
+          ← Complex.ofReal_natCast, Complex.norm_cpow_eq_rpow_re_of_pos (zero_lt_one.trans hq),
+          Complex.neg_re]
+        gcongr
+        exact hq.le
+  · rw [inv_one, norm_one]; linarith
+/-- Coordinates in a jet space against a biorthogonal family. -/
+private theorem entireJetSpace_coord (ρ : ℂ) (n : ℕ) (f : Fin n → Entire)
+    (hf : ∀ m m' : Fin n, entireJet ρ m' (f m) = if m' = m then 1 else 0)
+    (a : StrongDual ℂ Entire) (ha : a ∈ entireJetSpace ρ n) :
+    ∑ m : Fin n, a (f m) • entireJet ρ m = a := by
+  induction ha using Submodule.span_induction with
+  | mem x hx =>
+    obtain ⟨m', rfl⟩ := hx
+    simp only [hf, ite_smul, one_smul, zero_smul, Finset.sum_ite_eq, Finset.sum_ite_eq',
+      Finset.mem_univ, if_true]
+  | zero => simp
+  | add x y _ _ hx hy =>
+    simp only [ContinuousLinearMap.add_apply, add_smul, Finset.sum_add_distrib, hx, hy]
+  | smul c x _ hx =>
+    simp only [ContinuousLinearMap.smul_apply, smul_eq_mul, mul_smul, ← Finset.smul_sum, hx]
+
+/-- A jet-space functional vanishes on a function whose jets there vanish. -/
+private theorem entireJetSpace_apply_eq_zero (ρ : ℂ) (n : ℕ) (h : Entire)
+    (hh : ∀ m : Fin n, entireJet ρ m h = 0) (a : StrongDual ℂ Entire)
+    (ha : a ∈ entireJetSpace ρ n) : a h = 0 := by
+  induction ha using Submodule.span_induction with
+  | mem x hx => obtain ⟨m, rfl⟩ := hx; exact hh m
+  | zero => rfl
+  | add x y _ _ hx hy => simp [hx, hy]
+  | smul c x _ hx => simp [hx]
+
+private theorem natCast_lt_toNat (O : ℕ∞) (hO : O ≠ ⊤) (m : ℕ) (h : (m : ℕ∞) < O) :
+    m < O.toNat := by
+  lift O to ℕ using hO
+  simpa using h
+
+private theorem natCast_lt_of_lt_toNat (O : ℕ∞) (m : ℕ) (h : m < O.toNat) : (m : ℕ∞) < O := by
+  cases O with
+  | top => simp at h
+  | coe k => simpa using h
+
+private theorem entireJet_mem_entireJetSpace_toNat (O : ℂ → ℕ∞) (hO : ∀ z, O z ≠ ⊤)
+    (i : {i : ℂ × ℕ // (i.2 : ℕ∞) < O i.1}) :
+    entireJet i.1.1 i.1.2 ∈ entireJetSpace i.1.1 (O i.1.1).toNat :=
+  Submodule.subset_span ⟨⟨i.1.2, natCast_lt_toNat _ (hO _) _ i.2⟩, rfl⟩
+
+open Classical in
+/-- Every element of the jet direct sum is the finite sum of its coordinates against a
+biorthogonal family, over any large enough finite set of indices. -/
+private theorem jetDirectSum_expansion (O : ℂ → ℕ∞) (hO : ∀ z, O z ≠ ⊤)
+    (f : {i : ℂ × ℕ // (i.2 : ℕ∞) < O i.1} → Entire)
+    (hf : ∀ i j : {i : ℂ × ℕ // (i.2 : ℕ∞) < O i.1},
+      entireJet j.1.1 j.1.2 (f i) = if j = i then 1 else 0)
+    (x : ⨁ ρ : {ρ : ℂ // 0 < O ρ}, ↥(entireJetSpace ρ.val (O ρ.val).toNat)) :
+    ∃ I₀ : Finset {i : ℂ × ℕ // (i.2 : ℕ∞) < O i.1}, ∀ I, I₀ ⊆ I →
+      x = ∑ i ∈ I, (DirectSum.toModule ℂ {ρ : ℂ // 0 < O ρ} (StrongDual ℂ Entire)
+          (fun ρ ↦ (entireJetSpace ρ.val (O ρ.val).toNat).subtype) x) (f i) •
+        DirectSum.lof ℂ {ρ : ℂ // 0 < O ρ} (fun ρ ↦ ↥(entireJetSpace ρ.val (O ρ.val).toNat))
+          ⟨i.1.1, zero_le.trans_lt i.2⟩ ⟨_, entireJet_mem_entireJetSpace_toNat O hO i⟩ := by
+  induction x using DirectSum.induction_on with
+  | zero => exact ⟨∅, fun I _ ↦ by simp⟩
+  | of ρ a =>
+    let ι : Fin (O ρ.val).toNat → {i : ℂ × ℕ // (i.2 : ℕ∞) < O i.1} :=
+      fun m ↦ ⟨(ρ.val, m.val), natCast_lt_of_lt_toNat _ _ m.2⟩
+    have hι : Function.Injective ι := fun m m' h ↦ Fin.ext (by
+      have := congrArg (fun i ↦ i.1.2) h
+      simpa [ι] using this)
+    refine ⟨Finset.univ.image ι, fun I hI ↦ ?_⟩
+    rw [← DirectSum.lof_eq_of ℂ, DirectSum.toModule_lof]
+    have hcoord := entireJetSpace_coord ρ.val (O ρ.val).toNat (fun m ↦ f (ι m))
+      (fun m m' ↦ (hf (ι m) (ι m')).trans (if_congr hι.eq_iff rfl rfl)) a.val a.2
+    symm
+    rw [← Finset.sum_subset hI ?_, Finset.sum_image hι.injOn]
+    · conv_rhs => rw [← Subtype.ext (show (∑ m : Fin (O ρ.val).toNat,
+          a.val (f (ι m)) • (⟨entireJet ρ.val m, entireJet_mem_entireJetSpace_toNat O hO (ι m)⟩ :
+            ↥(entireJetSpace ρ.val (O ρ.val).toNat))).val = a.val by
+          rw [Submodule.coe_sum]; exact hcoord)]
+      rw [map_sum]
+      exact Finset.sum_congr rfl fun m _ ↦ by rw [LinearMap.map_smul]; rfl
+    · intro i _ hi
+      have hne : i.1.1 ≠ ρ.val := by
+        intro he
+        apply hi
+        refine Finset.mem_image.mpr ⟨⟨i.1.2, natCast_lt_toNat _ (hO _) _ (he ▸ i.2)⟩,
+          Finset.mem_univ _, ?_⟩
+        apply Subtype.ext
+        exact Prod.ext he.symm rfl
+      have h0 : a.val (f i) = 0 := entireJetSpace_apply_eq_zero ρ.val _ (f i) (fun m ↦ by
+        rw [show entireJet ρ.val m (f i) = entireJet (ι m).1.1 (ι m).1.2 (f i) from rfl,
+          hf i (ι m), if_neg]
+        intro h
+        exact hne (congrArg (fun j ↦ j.1.1) h).symm) a.val a.2
+      rw [Submodule.subtype_apply, h0, ← LinearMap.map_smul, zero_smul, LinearMap.map_zero]
+  | add x y hx hy =>
+    obtain ⟨I₁, h₁⟩ := hx
+    obtain ⟨I₂, h₂⟩ := hy
+    refine ⟨I₁ ∪ I₂, fun I hI ↦ ?_⟩
+    simp only [map_add, add_apply, add_smul, Finset.sum_add_distrib]
+    rw [← h₁ I (Finset.subset_union_left.trans hI), ← h₂ I (Finset.subset_union_right.trans hI)]
+
+open Classical in
+/-- Seminorm bound from the jet expansion. -/
+private theorem jetDirectSum_seminorm_le (O : ℂ → ℕ∞) (hO : ∀ z, O z ≠ ⊤)
+    (f : {i : ℂ × ℕ // (i.2 : ℕ∞) < O i.1} → Entire)
+    (hf : ∀ i j : {i : ℂ × ℕ // (i.2 : ℕ∞) < O i.1},
+      entireJet j.1.1 j.1.2 (f i) = if j = i then 1 else 0)
+    (x : ⨁ ρ : {ρ : ℂ // 0 < O ρ}, ↥(entireJetSpace ρ.val (O ρ.val).toNat)) :
+    letI instA : ∀ ρ : {ρ : ℂ // 0 < O ρ}, AddCommGroup ↥(entireJetSpace ρ.val (O ρ.val).toNat) :=
+      fun ρ ↦ Submodule.addCommGroup _
+    ∀ p : Seminorm ℂ (⨁ ρ : {ρ : ℂ // 0 < O ρ}, ↥(entireJetSpace ρ.val (O ρ.val).toNat)),
+    ∃ I : Finset {i : ℂ × ℕ // (i.2 : ℕ∞) < O i.1},
+      p x ≤ ∑ i ∈ I, ‖(DirectSum.toModule ℂ {ρ : ℂ // 0 < O ρ} (StrongDual ℂ Entire)
+          (fun ρ ↦ (entireJetSpace ρ.val (O ρ.val).toNat).subtype) x) (f i)‖ *
+        p (DirectSum.lof ℂ {ρ : ℂ // 0 < O ρ} (fun ρ ↦ ↥(entireJetSpace ρ.val (O ρ.val).toNat))
+          ⟨i.1.1, zero_le.trans_lt i.2⟩ ⟨_, entireJet_mem_entireJetSpace_toNat O hO i⟩) := by
+  intro p
+  letI instA : ∀ ρ : {ρ : ℂ // 0 < O ρ}, AddCommGroup ↥(entireJetSpace ρ.val (O ρ.val).toNat) :=
+    fun ρ ↦ Submodule.addCommGroup _
+  obtain ⟨I, hI⟩ := jetDirectSum_expansion O hO f hf x
+  refine ⟨I, ?_⟩
+  conv_lhs => rw [hI I subset_rfl]
+  refine (Finset.le_sum_of_subadditive p (map_zero p).le (map_add_le_add p) _ _).trans
+    (le_of_eq (Finset.sum_congr rfl fun i _ ↦ map_smul_eq_mul _ _ _))
+
+/-- Basic neighbourhoods of zero for the compact-open topology on entire functions. -/
+private theorem entire_nhds_zero (V : Set Entire) (hV : V ∈ 𝓝 (0 : Entire)) :
+    ∃ K : Set ℂ, IsCompact K ∧ ∃ ε > 0, ∀ f : Entire, (∀ x ∈ K, ‖f.val x‖ < ε) → f ∈ V := by
+  rw [nhds_subtype, mem_comap] at hV
+  obtain ⟨t, ht, hts⟩ := hV
+  rw [nhds_eq_comap_uniformity, mem_comap] at ht
+  obtain ⟨X, hX, hXt⟩ := ht
+  obtain ⟨⟨K, ε⟩, ⟨hK, hε⟩, hKX⟩ :=
+    (Metric.uniformity_basis_dist.compactConvergenceUniformity (α := ℂ)).mem_iff.mp hX
+  refine ⟨K, hK, ε, hε, fun f hf ↦ ?_⟩
+  have hf' : f ∈ (Subtype.val ⁻¹' t : Set Entire) := hXt (hKX fun x hx ↦ by
+    have := hf x hx
+    simpa [dist_eq_norm] using this)
+  exact hts hf'
+
+/-- Locally uniformly bounded families of entire functions are von Neumann bounded. -/
+private theorem entire_isVonNBounded (S : Set Entire)
+    (hS : ∀ R : ℝ, ∃ M : ℝ, ∀ f ∈ S, ∀ z ∈ Metric.closedBall (0 : ℂ) R, ‖f.val z‖ ≤ M) :
+    Bornology.IsVonNBounded ℂ S := by
+  intro V hV
+  obtain ⟨K, hK, ε, hε, hKV⟩ := entire_nhds_zero V hV
+  obtain ⟨R, hR⟩ := hK.isBounded.subset_closedBall (0 : ℂ)
+  obtain ⟨M, hM⟩ := hS R
+  rw [absorbs_iff_norm]
+  refine ⟨(|M| + 1) / ε, fun c hc f hf ↦ ?_⟩
+  have hc0 : 0 < ‖c‖ := lt_of_lt_of_le (by positivity) hc
+  have hc0' : c ≠ 0 := norm_pos_iff.mp hc0
+  refine ⟨c⁻¹ • f, hKV _ fun x hx ↦ ?_, smul_inv_smul₀ hc0' f⟩
+  have hfx := hM f hf x (hR hx)
+  have e : ‖(c⁻¹ • f).val x‖ = ‖f.val x‖ / ‖c‖ := by
+    rw [show (c⁻¹ • f).val x = c⁻¹ * f.val x from rfl, norm_mul, norm_inv]; ring
+  rw [e, div_lt_iff₀ hc0]
+  calc ‖f.val x‖ ≤ |M| := hfx.trans (le_abs_self M)
+    _ < |M| + 1 := by linarith
+    _ = ε * ((|M| + 1) / ε) := by field_simp
+    _ ≤ ε * ‖c‖ := by gcongr
+
+private theorem sum_half_pow_succ_le_one {ι : Type*} (s : Finset ι) (ν : ι → ℕ)
+    (hν : Injective ν) : ∑ i ∈ s, (1 / 2 : ℝ) ^ (ν i + 1) ≤ 1 := by
+  classical
+  rw [← Finset.sum_image (f := fun k ↦ (1 / 2 : ℝ) ^ (k + 1)) hν.injOn]
+  obtain ⟨N, hN⟩ := Finset.exists_nat_subset_range (s.image ν)
+  calc ∑ k ∈ s.image ν, (1 / 2 : ℝ) ^ (k + 1) ≤ ∑ k ∈ Finset.range N, (1 / 2 : ℝ) ^ (k + 1) :=
+        Finset.sum_le_sum_of_subset_of_nonneg hN fun _ _ _ ↦ by positivity
+    _ = (∑ k ∈ Finset.range N, (1 / 2 : ℝ) ^ k) * (1 / 2) := by
+        rw [Finset.sum_mul]; simp only [pow_succ]
+    _ ≤ 2 * (1 / 2) := by gcongr; exact sum_geometric_two_le N
+    _ = 1 := by norm_num
+open Classical in
+/-- (E) Generic form of Theorem 7.1.4.3(1): the jet direct sum against a submodule of the
+strong dual that the jets span finitely, given biorthogonal families small near the origin. -/
+private theorem jetDirectSum_equiv (O : ℂ → ℕ∞) (hO : ∀ z, O z ≠ ⊤)
+    (A : Submodule ℂ (StrongDual ℂ Entire))
+    (hA : ∀ i : {i : ℂ × ℕ // (i.2 : ℕ∞) < O i.1}, entireJet i.1.1 i.1.2 ∈ A)
+    (hB : ∀ (i : {i : ℂ × ℕ // (i.2 : ℕ∞) < O i.1}) (c : ℝ), ∃ f : Entire,
+      (∀ j : ℂ × ℕ, (j.2 : ℕ∞) < O j.1 → entireJet j.1 j.2 f = if j = i.1 then 1 else 0) ∧
+      ∀ z : ℂ, ‖z‖ < ‖i.1.1‖ / 2 → c * ‖f.val z‖ ≤ 1)
+    (hC : ∀ ℓ ∈ A, ∃ s : Finset (ℂ × ℕ), (∀ j ∈ s, (j.2 : ℕ∞) < O j.1) ∧
+      ℓ ∈ Submodule.span ℂ ((fun j : ℂ × ℕ ↦ entireJet j.1 j.2) '' (s : Set (ℂ × ℕ))))
+    (hD : ∀ R : ℝ, {p : ℂ × ℕ | (p.2 : ℕ∞) < O p.1 ∧ ‖p.1‖ ≤ R}.Finite) :
+    let Zeros := {ρ : ℂ // 0 < O ρ}
+    let J (ρ : Zeros) := entireJetSpace ρ.val (O ρ.val).toNat
+    letI instJetAddSec1b : ∀ ρ : Zeros, AddCommGroup ↥(J ρ) :=
+      fun ρ ↦ Submodule.addCommGroup (J ρ)
+    letI instJetModuleSec1b : ∀ ρ : Zeros, Module ℂ ↥(J ρ) :=
+      fun ρ ↦ Submodule.module (J ρ)
+    let inclusion := DirectSum.lof ℂ Zeros (fun ρ ↦ ↥(J ρ))
+    letI instJetSumTopologySec1b : TopologicalSpace (⨁ ρ : Zeros, ↥(J ρ)) :=
+      locallyConvexFinalTopology inclusion
+    ∃ e : (⨁ ρ : Zeros, ↥(J ρ)) ≃L[ℂ] A,
+      ∀ (ρ : Zeros) (a : ↥(J ρ)), (e (inclusion ρ a)).val = a.val := by
+  intro Zeros J inclusion
+  letI instA : ∀ ρ : Zeros, AddCommGroup ↥(J ρ) := fun ρ ↦ Submodule.addCommGroup (J ρ)
+  letI instM : ∀ ρ : Zeros, Module ℂ ↥(J ρ) := fun ρ ↦ Submodule.module (J ρ)
+  let D := ⨁ ρ : Zeros, ↥(J ρ)
+  letI : TopologicalSpace D := locallyConvexFinalTopology inclusion
+  let P : SeminormFamily ℂ D {p : Seminorm ℂ D // ∀ k, Continuous (p ∘ inclusion k)} :=
+    Subtype.val
+  have hP : WithSeminorms P := ⟨rfl⟩
+  haveI : IsTopologicalAddGroup D := hP.isTopologicalAddGroup
+  let T : D →ₗ[ℂ] StrongDual ℂ Entire := DirectSum.toModule ℂ Zeros _ fun ρ ↦ (J ρ).subtype
+  have hT (ρ : Zeros) (a : ↥(J ρ)) : T (inclusion ρ a) = a.val :=
+    DirectSum.toModule_lof (R := ℂ) (M := fun ρ : Zeros ↦ ↥(J ρ)) ρ a
+  have hBf : ∀ c : {i : ℂ × ℕ // (i.2 : ℕ∞) < O i.1} → ℝ,
+      ∃ f : {i : ℂ × ℕ // (i.2 : ℕ∞) < O i.1} → Entire,
+      (∀ i j : {i : ℂ × ℕ // (i.2 : ℕ∞) < O i.1},
+        entireJet j.1.1 j.1.2 (f i) = if j = i then 1 else 0) ∧
+      ∀ i z, ‖z‖ < ‖i.1.1‖ / 2 → c i * ‖(f i).val z‖ ≤ 1 := by
+    intro c
+    choose f hf1 hf2 using fun i ↦ hB i (c i)
+    exact ⟨f, fun i j ↦ (hf1 i j.1 j.2).trans (if_congr Subtype.ext_iff.symm rfl rfl), hf2⟩
+  have hexp : ∀ (f : {i : ℂ × ℕ // (i.2 : ℕ∞) < O i.1} → Entire),
+      (∀ i j : {i : ℂ × ℕ // (i.2 : ℕ∞) < O i.1},
+        entireJet j.1.1 j.1.2 (f i) = if j = i then 1 else 0) → ∀ x : D,
+      ∃ I₀ : Finset {i : ℂ × ℕ // (i.2 : ℕ∞) < O i.1}, ∀ I, I₀ ⊆ I →
+        x = ∑ i ∈ I, (T x) (f i) • inclusion ⟨i.1.1, zero_le.trans_lt i.2⟩
+          ⟨_, entireJet_mem_entireJetSpace_toNat O hO i⟩ :=
+    fun f hf x ↦ jetDirectSum_expansion O hO f hf x
+  have hJA : ∀ ρ : Zeros, J ρ ≤ A := fun ρ ↦ Submodule.span_le.mpr (by
+    rintro _ ⟨m, rfl⟩
+    exact hA ⟨(ρ.val, m.val), natCast_lt_of_lt_toNat _ _ m.2⟩)
+  have hmem : ∀ x, T x ∈ A := by
+    intro x
+    induction x using DirectSum.induction_on with
+    | zero => rw [map_zero]; exact A.zero_mem
+    | of ρ a =>
+      show T (inclusion ρ a) ∈ A
+      rw [hT ρ a]
+      exact hJA ρ a.2
+    | add x y hx hy => rw [map_add]; exact A.add_mem hx hy
+  obtain ⟨f₀, hf₀, -⟩ := hBf fun _ ↦ 0
+  have hinj : Injective T := by
+    refine (injective_iff_map_eq_zero T).mpr fun x hx ↦ ?_
+    obtain ⟨I, hI⟩ := hexp f₀ hf₀ x
+    rw [hI I subset_rfl, hx]
+    simp
+  have hsurj : ∀ ℓ ∈ A, ∃ x, T x = ℓ := by
+    intro ℓ hℓ
+    obtain ⟨s, hs, hℓs⟩ := hC ℓ hℓ
+    have hle : Submodule.span ℂ ((fun j : ℂ × ℕ ↦ entireJet j.1 j.2) '' (s : Set (ℂ × ℕ))) ≤
+        LinearMap.range T := by
+      rw [Submodule.span_le]
+      rintro _ ⟨j, hj, rfl⟩
+      exact ⟨inclusion ⟨j.1, zero_le.trans_lt (hs j hj)⟩
+        ⟨_, entireJet_mem_entireJetSpace_toNat O hO ⟨j, hs j hj⟩⟩, hT _ _⟩
+    exact hle hℓs
+  letI instAA : AddCommGroup A := A.addCommGroup
+  letI instAM : Module ℂ A := A.module
+  let e₀ : D ≃ₗ[ℂ] A :=
+    LinearEquiv.ofBijective (T.codRestrict _ hmem)
+      ⟨fun x y h ↦ hinj (congrArg Subtype.val h), fun ℓ ↦ by
+        obtain ⟨x, hx⟩ := hsurj ℓ.val ℓ.property
+        exact ⟨x, Subtype.ext hx⟩⟩
+  haveI := isUniformAddGroup_continuousMap ℂ ℂ
+  haveI : IsUniformAddGroup Entire :=
+    inferInstanceAs (IsUniformAddGroup entireContinuousMapSubalgebra.toSubring.toAddSubgroup)
+  letI : PolynormableSpace ℂ (StrongDual ℂ Entire) :=
+    uniformConvergenceCLM_polynormable (F := ℂ) {B : Set Entire | Bornology.IsVonNBounded ℂ B}
+      (fun _ h ↦ h) (by rw [Bornology.sUnion_isVonNBounded_eq_univ, Submodule.span_univ]; simp)
+  have hTc : Continuous T := by
+    refine WithSeminorms.continuous_of_continuous_comp
+      (PolynormableSpace.withSeminorms ℂ (StrongDual ℂ Entire)) T fun q ↦ ?_
+    refine hP.continuous_seminorm ⟨q.1.comp T, fun k ↦ ?_⟩
+    have e : (q.1.comp T) ∘ inclusion k = q.1 ∘ Subtype.val := funext fun a ↦ by
+      simp only [Function.comp_apply, Seminorm.comp_apply, hT]
+    rw [e]
+    exact q.2.comp continuous_subtype_val
+  have hcont : Continuous e₀ := continuous_induced_rng.2 hTc
+  have hcountable : Countable {i : ℂ × ℕ // (i.2 : ℕ∞) < O i.1} := by
+    have e : {i : ℂ × ℕ | (i.2 : ℕ∞) < O i.1} =
+        ⋃ n : ℕ, {p : ℂ × ℕ | (p.2 : ℕ∞) < O p.1 ∧ ‖p.1‖ ≤ n} := by
+      ext p
+      simp only [mem_setOf_eq, mem_iUnion]
+      exact ⟨fun h ↦ ⟨⌈‖p.1‖⌉₊, h, Nat.le_ceil _⟩, fun ⟨_, h, _⟩ ↦ h⟩
+    have hc : {i : ℂ × ℕ | (i.2 : ℕ∞) < O i.1}.Countable := by
+      rw [e]; exact countable_iUnion fun n ↦ (hD n).countable
+    exact hc.to_subtype
+  obtain ⟨ν, hν⟩ := exists_injective_nat {i : ℂ × ℕ // (i.2 : ℕ∞) < O i.1}
+  let v : {i : ℂ × ℕ // (i.2 : ℕ∞) < O i.1} → D := fun i ↦
+    inclusion ⟨i.1.1, zero_le.trans_lt i.2⟩ ⟨_, entireJet_mem_entireJetSpace_toNat O hO i⟩
+  have key : ∀ p : Seminorm ℂ D, Continuous (p.comp e₀.symm.toLinearMap) := by
+    intro p
+    let c : {i : ℂ × ℕ // (i.2 : ℕ∞) < O i.1} → ℝ := fun i ↦ 2 ^ (ν i + 1) * (p (v i) + 1)
+    have hc : ∀ i, 0 < c i := fun i ↦ by positivity
+    obtain ⟨f, hf, hfs⟩ := hBf c
+    obtain ⟨b, hb⟩ : ∃ b : {i : ℂ × ℕ // (i.2 : ℕ∞) < O i.1} → Entire,
+        ∀ i, b i = ((c i : ℝ) : ℂ) • f i := ⟨_, fun _ ↦ rfl⟩
+    have hbval : ∀ i z, (b i).val z = (c i : ℂ) * (f i).val z := fun i z ↦ by rw [hb]; rfl
+    have hbd : Bornology.IsVonNBounded ℂ (range b) := by
+      apply entire_isVonNBounded
+      intro R
+      have hfin := (hD (2 * R)).preimage
+        (f := (Subtype.val : {i : ℂ × ℕ // (i.2 : ℕ∞) < O i.1} → ℂ × ℕ)) Subtype.val_injective.injOn
+      choose M hM using fun i : {i : ℂ × ℕ // (i.2 : ℕ∞) < O i.1} ↦
+        (isCompact_closedBall (0 : ℂ) R).exists_bound_of_continuousOn
+          (b i).val.continuous.continuousOn
+      have hMs : 0 ≤ ∑ j ∈ hfin.toFinset, |M j| := Finset.sum_nonneg fun j _ ↦ abs_nonneg _
+      refine ⟨1 + ∑ i ∈ hfin.toFinset, |M i|, ?_⟩
+      rintro _ ⟨i, rfl⟩ z hz
+      by_cases hi : ‖i.1.1‖ ≤ 2 * R
+      · have hi' : i ∈ hfin.toFinset := hfin.mem_toFinset.mpr ⟨i.2, hi⟩
+        calc ‖(b i).val z‖ ≤ M i := hM i z hz
+          _ ≤ |M i| := le_abs_self _
+          _ ≤ ∑ j ∈ hfin.toFinset, |M j| :=
+              Finset.single_le_sum (f := fun j ↦ |M j|) (fun j _ ↦ abs_nonneg (M j)) hi'
+          _ ≤ _ := by linarith
+      · have hz' : ‖z‖ < ‖i.1.1‖ / 2 := by
+          rw [mem_closedBall_zero_iff] at hz; linarith [not_le.mp hi]
+        have h1 := hfs i z hz'
+        rw [hbval, norm_mul, Complex.norm_real, Real.norm_eq_abs, abs_of_pos (hc i)]
+        linarith
+    have hW : {ℓ : StrongDual ℂ Entire | ∀ x ∈ range b, ℓ x ∈ Metric.ball (0 : ℂ) 1} ∈
+        𝓝 (0 : StrongDual ℂ Entire) :=
+      (ContinuousLinearMap.hasBasis_nhds_zero).mem_of_mem
+        (i := (range b, Metric.ball (0 : ℂ) 1)) ⟨hbd, Metric.ball_mem_nhds 0 one_pos⟩
+    have hWA : Subtype.val ⁻¹'
+        {ℓ : StrongDual ℂ Entire | ∀ x ∈ range b, ℓ x ∈ Metric.ball (0 : ℂ) 1} ∈ 𝓝 (0 : A) :=
+      continuous_subtype_val.continuousAt.preimage_mem_nhds hW
+    refine Seminorm.continuous' (r := 1) (Filter.mem_of_superset hWA ?_)
+    intro ℓ hℓ
+    rw [Seminorm.mem_closedBall_zero, Seminorm.comp_apply]
+    have hTx : T (e₀.symm ℓ) = ℓ.val := congrArg Subtype.val (e₀.apply_symm_apply ℓ)
+    obtain ⟨I, hI⟩ := jetDirectSum_seminorm_le O hO f hf (e₀.symm ℓ) p
+    rw [LinearEquiv.coe_coe]
+    refine hI.trans (le_trans (Finset.sum_le_sum fun i _ ↦ ?_) (sum_half_pow_succ_le_one I ν hν))
+    show ‖(T (e₀.symm ℓ)) (f i)‖ * p (v i) ≤ _
+    rw [hTx]
+    have hlt0 : (ℓ : StrongDual ℂ Entire) (b i) ∈ Metric.ball (0 : ℂ) 1 := hℓ (b i) ⟨i, rfl⟩
+    have hlt : ‖ℓ.val (b i)‖ < 1 := mem_ball_zero_iff.mp hlt0
+    have hbi : ℓ.val (b i) = (c i : ℂ) * ℓ.val (f i) := by
+      rw [hb]; exact (ℓ.val).map_smul ((c i : ℝ) : ℂ) (f i)
+    rw [hbi, norm_mul, Complex.norm_real, Real.norm_eq_abs, abs_of_pos (hc i)] at hlt
+    have h2 : (0 : ℝ) < 2 ^ (ν i + 1) := by positivity
+    show ‖ℓ.val (f i)‖ * p (v i) ≤ _
+    calc ‖ℓ.val (f i)‖ * p (v i) ≤ ‖ℓ.val (f i)‖ * (p (v i) + 1) := by
+          gcongr; linarith
+      _ = (c i * ‖ℓ.val (f i)‖) / 2 ^ (ν i + 1) := by
+          simp only [c]; field_simp
+      _ ≤ 1 / 2 ^ (ν i + 1) := by gcongr
+      _ = (1 / 2) ^ (ν i + 1) := (one_div_pow _ _).symm
+  have hcontinv : Continuous e₀.symm :=
+    WithSeminorms.continuous_of_continuous_comp hP e₀.symm.toLinearMap fun p ↦ key p.1
+  exact ⟨{ e₀ with continuous_toFun := hcont, continuous_invFun := hcontinv },
+    fun ρ a ↦ hT ρ a⟩
+
 -- TODO(paper-gap): In (7.1.4.2) the product is the quotient's model, while the
 -- continuous dual consists of finite-support jets as computed on p. 328.
 -- The proof's second pole-removing factor also has the wrong sign of ix₀.
@@ -1548,11 +2444,104 @@ theorem spectralAnnihilator_directSum :
     ∃ e : (⨁ ρ : Zeros, ↥(J ρ)) ≃L[ℂ] entireIdealAnnihilator Λ,
       ∀ (ρ : Zeros) (a : ↥(J ρ)), (e (inclusion ρ a)).val = a.val := by sorry
 
+/-- On a strip, a Schwartz–Bergman function is bounded by its bounds on the two boundary
+lines (Phragmén–Lindelöf). -/
+private theorem exists_schwartzBergman_entireInclusion_strip_bound (f : SchwartzBergman (univ : Set ℝ)) (R : ℝ) (hR : 0 < R)
+    (C : ℝ) (hl : ∀ y : ℝ, ‖f.val ((-R : ℝ) + y * Complex.I)‖ ≤ C)
+    (hr : ∀ y : ℝ, ‖f.val ((R : ℝ) + y * Complex.I)‖ ≤ C) (z : ℂ) (hz : ‖z‖ ≤ R) :
+    ‖f.val z‖ ≤ C := by
+  have hd : Differentiable ℂ f.val := fun w ↦
+    (f.property.2.1 w (by simp)).differentiableAt (by simp)
+  obtain ⟨M, hM⟩ := f.property.2.2 (-R) R (by linarith) (subset_univ _) 0
+  have hre : |z.re| ≤ R := (Complex.abs_re_le_norm z).trans hz
+  refine PhragmenLindelof.vertical_strip (a := -R) (b := R) hd.diffContOnCl
+    ⟨0, by have : 0 < R - -R := by linarith
+           positivity, 0, ?_⟩ ?_ ?_ (by linarith [neg_abs_le z.re]) (le_of_abs_le hre)
+  · refine Asymptotics.IsBigO.of_bound M (eventually_inf_principal.2 (Eventually.of_forall ?_))
+    intro w hw
+    have := hM ⟨w, ⟨hw.1.le, hw.2.le⟩, rfl⟩
+    simpa using this
+  · intro w hw
+    have := hl w.im
+    rwa [← hw, Complex.re_add_im] at this
+  · intro w hw
+    have := hr w.im
+    rwa [← hw, Complex.re_add_im] at this
+
+
+private theorem exists_schwartzBergman_entireInclusion_tendsto_zero (R : ℝ) (hR : 0 < R) :
+    ∀ ε > 0, ∀ᶠ f : SchwartzBergman (univ : Set ℝ) in 𝓝 0, ∀ z : ℂ, ‖z‖ ≤ R → ‖f.val z‖ < ε := by
+  obtain ⟨T, hT, hTe⟩ := schwartzBergman_schwartzLine_topology (univ : Set ℝ) isOpen_univ
+    ordConnected_univ univ_nonempty
+  let a : (univ : Set ℝ) := ⟨-R, trivial⟩
+  let b : (univ : Set ℝ) := ⟨R, trivial⟩
+  let q : SchwartzBergman (univ : Set ℝ) → ℝ := fun f ↦
+    SchwartzMap.seminorm ℂ 0 0 (T f a) + SchwartzMap.seminorm ℂ 0 0 (T f b)
+  have hsc := (schwartz_withSeminorms ℂ ℝ ℂ).continuous_seminorm (0, 0)
+  have hq : Continuous q :=
+    (hsc.comp ((continuous_apply a).comp hTe.continuous)).add
+      (hsc.comp ((continuous_apply b).comp hTe.continuous))
+  have hT0 (c : (univ : Set ℝ)) : T 0 c = 0 := by
+    ext x
+    rw [hT]
+    simp [weightedVerticalTrace]
+    rfl
+  have hq0 : q 0 = 0 := by simp [q, hT0]
+  intro ε hε
+  have hev : ∀ᶠ f in 𝓝 (0 : SchwartzBergman (univ : Set ℝ)), q f < ε :=
+    (hq.tendsto 0) (by rw [hq0]; exact Iio_mem_nhds hε)
+  filter_upwards [hev] with f hf z hz
+  refine lt_of_le_of_lt (exists_schwartzBergman_entireInclusion_strip_bound f R hR (q f) (fun y ↦ ?_) (fun y ↦ ?_) z hz) hf
+  · have h1 := SchwartzMap.norm_le_seminorm ℂ (T f a) y
+    have h2 : 0 ≤ SchwartzMap.seminorm ℂ 0 0 (T f b) := apply_nonneg _ _
+    rw [hT] at h1
+    simp only [weightedVerticalTrace, pow_zero, one_mul] at h1
+    exact h1.trans (le_add_of_nonneg_right h2)
+  · have h1 := SchwartzMap.norm_le_seminorm ℂ (T f b) y
+    have h2 : 0 ≤ SchwartzMap.seminorm ℂ 0 0 (T f a) := apply_nonneg _ _
+    rw [hT] at h1
+    simp only [weightedVerticalTrace, pow_zero, one_mul] at h1
+    exact h1.trans (le_add_of_nonneg_left h2)
+
+private theorem exists_schwartzBergman_entireInclusion_continuousMap :
+    ∃ i : SchwartzBergman (univ : Set ℝ) →L[ℂ] C(ℂ, ℂ),
+      ∀ (f : SchwartzBergman (univ : Set ℝ)) (z : ℂ), i f z = f.val z := by
+  have hd (f : SchwartzBergman (univ : Set ℝ)) : Differentiable ℂ f.val := fun w ↦
+    (f.property.2.1 w (by simp)).differentiableAt (by simp)
+  let L : SchwartzBergman (univ : Set ℝ) →ₗ[ℂ] C(ℂ, ℂ) :=
+    { toFun f := ⟨f.val, (hd f).continuous⟩
+      map_add' _ _ := by ext; rfl
+      map_smul' _ _ := by ext; rfl }
+  have hL : Continuous L := by
+    refine continuous_of_continuousAt_zero L.toAddMonoidHom ?_
+    change Tendsto L (𝓝 0) (𝓝 (L 0))
+    rw [map_zero, ContinuousMap.tendsto_iff_forall_isCompact_tendstoUniformlyOn]
+    intro K hK
+    obtain ⟨R, hR, hKR⟩ := hK.isBounded.subset_closedBall_lt 0 0
+    rw [Metric.tendstoUniformlyOn_iff]
+    intro ε hε
+    filter_upwards [exists_schwartzBergman_entireInclusion_tendsto_zero R hR ε hε] with f hf z hz
+    have hz' : ‖z‖ ≤ R := by simpa using hKR hz
+    change dist 0 (f.val z) < ε
+    rw [dist_zero_left]
+    exact hf z hz'
+  exact ⟨⟨L, hL⟩, fun _ _ ↦ rfl⟩
+
 /-- Paper: Theorem 7.1.4.2(2), p. 326.
 An entire Schwartz–Bergman function includes continuously into the compact-open space
 by keeping its value at each point. -/
 theorem exists_schwartzBergman_entireInclusion :
-    ∃ i : Aℂ →L[ℂ] Entire, ∀ (f : Aℂ) (z : ℂ), (i f).val z = f.val z := by sorry
+    ∃ i : Aℂ →L[ℂ] Entire, ∀ (f : Aℂ) (z : ℂ), (i f).val z = f.val z := by
+  obtain ⟨i, hi⟩ := exists_schwartzBergman_entireInclusion_continuousMap
+  have hd (f : Aℂ) : i f ∈ entireContinuousMapSubalgebra := by
+    have h : (i f : ℂ → ℂ) = f.val := funext (hi f)
+    change Differentiable ℂ (i f : ℂ → ℂ)
+    rw [h]
+    exact fun w ↦ (f.property.2.1 w (by simp)).differentiableAt (by simp)
+  exact ⟨{ toFun := fun f ↦ ⟨i f, hd f⟩
+           map_add' := fun f g ↦ Subtype.ext (i.map_add f g)
+           map_smul' := fun c f ↦ Subtype.ext (i.map_smul c f)
+           cont := continuous_induced_rng.2 i.continuous }, hi⟩
 
 /-- Paper: Theorem 7.1.4.2(2), pp. 326–327. The canonical map includes entire
 Schwartz–Bergman functions into the compact-open space of entire functions. -/
@@ -1661,6 +2650,110 @@ theorem spectralTheta_jetRestriction_of_range_eq :
   rw [h]
   exact exists_schwartzBergman_jetRestriction g
 
+/-- Log-moment profiles of a decay profile are bounded by every power. -/
+private theorem schwartzBergman_jet_eq_mellinInv_moment_bound (g : logExponentialDecaySubmodule (univ : Set ℝ)) (a : ℝ) (k : ℕ) :
+    ∃ C : ℝ, ∀ t : ℝ, 0 < t →
+      ‖(Real.log t : ℂ) ^ k * g.val (Real.log t)‖ ≤ C * t ^ (-a) := by
+  let S := logExponentialDecayTwist (univ : Set ℝ) ⟨a, trivial⟩ g
+  refine ⟨SchwartzMap.seminorm ℂ k 0 S, fun t ht ↦ ?_⟩
+  have hS := SchwartzMap.norm_pow_mul_le_seminorm ℂ S k (Real.log t)
+  rw [logExponentialDecayTwist_apply] at hS
+  have he : Real.exp (a * Real.log t) = t ^ a := by
+    rw [Real.rpow_def_of_pos ht, mul_comm]
+  rw [norm_mul, Complex.norm_real, he, Real.norm_of_nonneg (Real.rpow_nonneg ht.le _)] at hS
+  have htp : 0 < t ^ a := Real.rpow_pos_of_pos ht a
+  rw [Real.rpow_neg ht.le, ← div_eq_mul_inv, le_div_iff₀ htp, norm_mul, norm_pow,
+    Complex.norm_real]
+  calc ‖Real.log t‖ ^ k * ‖g.val (Real.log t)‖ * t ^ a
+      = ‖Real.log t‖ ^ k * (t ^ a * ‖g.val (Real.log t)‖) := by ring
+    _ ≤ _ := hS
+
+private theorem schwartzBergman_jet_eq_mellinInv_moment_cont (g : logExponentialDecaySubmodule (univ : Set ℝ)) :
+    Continuous g.val := by
+  let S := logExponentialDecayTwist (univ : Set ℝ) ⟨0, trivial⟩ g
+  have : g.val = S := by
+    funext x
+    rw [logExponentialDecayTwist_apply]
+    simp
+  rw [this]
+  exact S.continuous
+
+private theorem schwartzBergman_jet_eq_mellinInv_moment_props (g : logExponentialDecaySubmodule (univ : Set ℝ)) (k : ℕ) (s : ℂ) :
+    let f := fun t : ℝ ↦ (Real.log t : ℂ) ^ k * g.val (Real.log t)
+    MellinConvergent f s ∧ HasDerivAt (mellin f)
+      (mellin (fun t : ℝ ↦ (Real.log t : ℂ) ^ (k + 1) * g.val (Real.log t)) s) s := by
+  intro f
+  have hc : ContinuousOn f (Ioi 0) := by
+    intro t ht
+    have hl : ContinuousAt Real.log t := Real.continuousAt_log (ne_of_gt ht)
+    exact (((Complex.continuous_ofReal.continuousAt.comp hl).pow k).mul
+      ((schwartzBergman_jet_eq_mellinInv_moment_cont g).continuousAt.comp hl)).continuousWithinAt
+  have hfc : LocallyIntegrableOn f (Ioi 0) := hc.locallyIntegrableOn measurableSet_Ioi
+  have hO (a : ℝ) (l : Filter ℝ) (hl : ∀ᶠ t in l, 0 < t) : Asymptotics.IsBigO l f (· ^ (-a)) := by
+    obtain ⟨C, hC⟩ := schwartzBergman_jet_eq_mellinInv_moment_bound g a k
+    refine Asymptotics.IsBigO.of_bound C ?_
+    filter_upwards [hl] with t ht
+    rw [Real.norm_of_nonneg (Real.rpow_nonneg ht.le _)]
+    exact hC t ht
+  have htop : ∀ᶠ t : ℝ in atTop, 0 < t := eventually_gt_atTop 0
+  have hbot : ∀ᶠ t : ℝ in 𝓝[>] 0, 0 < t := self_mem_nhdsWithin
+  have h1 := mellinConvergent_of_isBigO_rpow hfc (hO (s.re + 1) atTop htop) (by linarith)
+    (hO (s.re - 1) _ hbot) (by linarith)
+  have h2 := (mellin_hasDerivAt_of_isBigO_rpow hfc (hO (s.re + 1) atTop htop) (by linarith)
+    (hO (s.re - 1) _ hbot) (by linarith)).2
+  refine ⟨h1, ?_⟩
+  convert h2 using 2
+  funext t
+  simp only [f, Complex.real_smul, pow_succ]
+  ring
+
+private theorem schwartzBergman_jet_eq_mellinInv_moment_iter (g : logExponentialDecaySubmodule (univ : Set ℝ)) (m : ℕ) :
+    iteratedDeriv m (mellin fun t : ℝ ↦ g.val (Real.log t)) =
+      mellin (fun t : ℝ ↦ (Real.log t : ℂ) ^ m * g.val (Real.log t)) := by
+  induction m with
+  | zero => simp
+  | succ m ih =>
+    rw [iteratedDeriv_succ, ih]
+    funext s
+    exact (schwartzBergman_jet_eq_mellinInv_moment_props g m s).2.deriv
+
+private theorem schwartzBergman_jet_eq_mellinInv_moment_aux (f : SchwartzBergman (univ : Set ℝ)) (ρ : ℂ) (m : ℕ) :
+    let φ : ℂ → ℂ := f.val
+    let moment := fun t : ℝ ↦ (Real.log t : ℂ) ^ m * mellinInv 0 φ t
+    Complex.VerticalIntegrable φ 0 ∧ MellinConvergent moment ρ.re ∧
+      iteratedDeriv m φ ρ = mellin moment ρ := by
+  intro φ moment
+  let M := positiveRealFourierMellin (univ : Set ℝ) isOpen_univ ordConnected_univ univ_nonempty
+  let g : logExponentialDecaySubmodule (univ : Set ℝ) := M.symm f
+  have hφ : φ = mellin (fun t : ℝ ↦ g.val (Real.log t)) := by
+    funext s
+    have h := positiveRealFourierMellin_apply (univ : Set ℝ) isOpen_univ ordConnected_univ
+      univ_nonempty (M.symm f) s trivial
+    rw [M.apply_symm_apply] at h
+    exact h
+  obtain ⟨T, hT, -⟩ := schwartzBergman_schwartzLine_topology (univ : Set ℝ) isOpen_univ
+    ordConnected_univ univ_nonempty
+  have hvi : Complex.VerticalIntegrable φ 0 := by
+    refine (T f ⟨0, trivial⟩).integrable.congr (Eventually.of_forall fun y ↦ ?_)
+    rw [hT]
+    simp [weightedVerticalTrace, φ]
+  have hinv (t : ℝ) (ht : t ∈ Ioi 0) : mellinInv 0 φ t = g.val (Real.log t) := by
+    have hc : MellinConvergent (fun t : ℝ ↦ g.val (Real.log t)) ((0 : ℝ) : ℂ) := by
+      simpa using (schwartzBergman_jet_eq_mellinInv_moment_props g 0 0).1
+    have hcont : ContinuousAt (fun t : ℝ ↦ g.val (Real.log t)) t :=
+      (schwartzBergman_jet_eq_mellinInv_moment_cont g).continuousAt.comp (Real.continuousAt_log (ne_of_gt ht))
+    rw [hφ]
+    exact mellinInv_mellin_eq 0 _ ht hc (hφ ▸ hvi) hcont
+  have heq : EqOn moment (fun t : ℝ ↦ (Real.log t : ℂ) ^ m * g.val (Real.log t)) (Ioi 0) :=
+    fun t ht ↦ by simp only [moment, hinv t ht]
+  refine ⟨hvi, ?_, ?_⟩
+  · have h := (schwartzBergman_jet_eq_mellinInv_moment_props g m (ρ.re : ℂ)).1
+    refine IntegrableOn.congr_fun h (fun t ht ↦ ?_) measurableSet_Ioi
+    simp only [heq ht]
+  · rw [hφ, schwartzBergman_jet_eq_mellinInv_moment_iter]
+    refine (setIntegral_congr_fun measurableSet_Ioi fun t ht ↦ ?_)
+    simp only [heq ht]
+
 -- TODO(paper-gap): In (7.1.4.6), with φ already in the Mellin coordinate, the
 -- factor t^(ix₀) shifts the derivative to ρ + ix₀. The proof on p. 329 uses t^ρ.
 
@@ -1672,7 +2765,8 @@ theorem schwartzBergman_jet_eq_mellinInv_moment (f : Aℂ) (ρ : ℂ) (m : ℕ) 
     let φ : ℂ → ℂ := f.val
     let moment := fun t : ℝ ↦ (Real.log t : ℂ) ^ m * mellinInv 0 φ t
     Complex.VerticalIntegrable φ 0 ∧ MellinConvergent moment ρ.re ∧
-      iteratedDeriv m φ ρ = mellin moment ρ := by sorry
+      iteratedDeriv m φ ρ = mellin moment ρ :=
+  schwartzBergman_jet_eq_mellinInv_moment_aux f ρ m
 
 -- TODO(paper-gap): Theorem 7.1.4.2(4) names the ordinary Schwartz quotient, whereas
 -- the setup and argument use the exponentially decaying quotient. Theorem
@@ -1847,6 +2941,135 @@ theorem orbitalHeckeGenerator_order_at_canceled_pole (S₀ : Finset Primes)
     rw [hmul, analyticOrderAt_mul (hdiff.analyticAt _) (hG.analyticAt _), ho, ih,
       Finset.card_insert_of_notMem hv, Nat.cast_add_one, add_comm]
 
+/-- Euler factors do not vanish on `Re s > 0`. -/
+private theorem finiteHeckeEulerFactor_ne_zero_of_re_pos (v : Primes) {s : ℂ} (hs : 0 < s.re) :
+    finiteHeckeEulerFactor χ v s ≠ 0 := by
+  classical
+  unfold finiteHeckeEulerFactor
+  split_ifs
+  · apply inv_ne_zero
+    have hq : (1 : ℝ) < v.asIdeal.absNorm := by
+      exact_mod_cast NumberField.HeightOneSpectrum.one_lt_absNorm v
+    have hlt : ‖(ideleClassNormTwist χ 0).localValue v *
+        (v.asIdeal.absNorm : ℂ) ^ (-s)‖ < 1 := by
+      rw [norm_mul, norm_ideleClassNormTwist_zero_localValue, one_mul, ← Complex.ofReal_natCast,
+        Complex.norm_cpow_eq_rpow_re_of_pos (zero_lt_one.trans hq), Complex.neg_re]
+      exact Real.rpow_lt_one_of_one_lt_of_neg hq (by linarith)
+    exact fun he ↦ hlt.ne (by rw [← sub_eq_zero.mp he, norm_one])
+  · exact one_ne_zero
+
+open Classical in
+/-- The orbital generator is not identically zero: it is nonzero near `s = 2`. -/
+private theorem orbitalHeckeGenerator_ne_zero (S₀ : Finset Primes) :
+    ∃ z, (orbitalHeckeGenerator χ τ hτ L hL hEq S₀).val z ≠ 0 := by
+  let x₀ := (existsUnique_ideleNormSection_character_phase χ τ hτ).exists.choose
+  let b := (x₀ : ℂ) * Complex.I
+  let δ : ℕ := if χ.toMonoidHom.comp (ideleClassNorm F).ker.subtype = 1 then 1 else 0
+  let φ : ℂ → ℂ := fun s ↦ (s + b) ^ δ * (1 - s - b) ^ δ * L s
+  have hreg : ((regularizedCompletedHeckeL χ τ hτ L hL hEq).val : ℂ → ℂ) =
+      toMeromorphicNFOn φ univ := rfl
+  have hφm : MeromorphicOn φ univ := fun s hs ↦
+    ((by fun_prop : AnalyticAt ℂ (fun s : ℂ ↦ (s + b) ^ δ * (1 - s - b) ^ δ) s).meromorphicAt).mul
+      (hL.meromorphicOn s hs)
+  have heq := hφm.toMeromorphicNFOn_eq_self_on_nhdsNE (mem_univ (2 : ℂ))
+  have hhalf : ∀ᶠ s in 𝓝[≠] (2 : ℂ), 1 < s.re :=
+    nhdsWithin_le_nhds ((isOpen_lt continuous_const Complex.continuous_re).mem_nhds
+      (by norm_num))
+  obtain ⟨s, hs1, hs2⟩ := (heq.and hhalf).exists
+  refine ⟨s, ?_⟩
+  change reciprocalPartialHeckeEulerProduct χ S₀ s *
+    (regularizedCompletedHeckeL χ τ hτ L hL hEq).val s ≠ 0
+  rw [hreg, hs1]
+  have hb : b.re = 0 := by simp [b]
+  have hLs : L s = heckeGammaFactor χ s * finiteHeckeL χ ⟨s, hs2⟩ := hEq ⟨s, hs2⟩
+  refine mul_ne_zero ?_ (mul_ne_zero (mul_ne_zero (pow_ne_zero _ ?_) (pow_ne_zero _ ?_)) ?_)
+  · exact Finset.prod_ne_zero_iff.mpr fun v _ ↦
+      inv_ne_zero (finiteHeckeEulerFactor_ne_zero_of_re_pos χ v (by linarith))
+  · intro h
+    have := congrArg Complex.re h
+    simp only [Complex.add_re, hb, Complex.zero_re] at this
+    linarith
+  · intro h
+    have := congrArg Complex.re h
+    simp only [Complex.sub_re, Complex.one_re, hb, Complex.zero_re] at this
+    linarith
+  · rw [hLs]
+    exact mul_ne_zero (heckeGammaFactor_ne_zero_of_re_pos χ (by linarith))
+      (finiteHeckeL_ne_zero_of_one_lt_re χ ⟨s, hs2⟩)
+
+open Classical in
+/-- (G) Polynomial growth of the orbit generator on vertical strips. -/
+private theorem orbitalHeckeGenerator_strip_bound (S₀ : Finset Primes) (a c : ℝ) (hac : a ≤ c) :
+    ∃ C : ℝ, ∃ M : ℕ, 0 ≤ C ∧ ∀ z : ℂ, z.re ∈ Icc a c →
+      ‖(orbitalHeckeGenerator χ τ hτ L hL hEq S₀).val z‖ ≤ C * (1 + ‖z‖) ^ M := by
+  let x₀ := (existsUnique_ideleNormSection_character_phase χ τ hτ).exists.choose
+  let b := (x₀ : ℂ) * Complex.I
+  let δ : ℕ := if χ.toMonoidHom.comp (ideleClassNorm F).ker.subtype = 1 then 1 else 0
+  let φ : ℂ → ℂ := fun s ↦ (s + b) ^ δ * (1 - s - b) ^ δ * L s
+  have hreg : ((regularizedCompletedHeckeL χ τ hτ L hL hEq).val : ℂ → ℂ) =
+      toMeromorphicNFOn φ univ := rfl
+  have hφm : MeromorphicOn φ univ := fun s hs ↦
+    ((by fun_prop : AnalyticAt ℂ (fun s : ℂ ↦ (s + b) ^ δ * (1 - s - b) ^ δ) s).meromorphicAt).mul
+      (hL.meromorphicOn s hs)
+  have hc : Continuous (toMeromorphicNFOn φ univ) :=
+    hreg ▸ (regularizedCompletedHeckeL χ τ hτ L hL hEq).val.continuous
+  obtain ⟨C, hC0, hC⟩ := poleFactor_mul_strip_bound L (toMeromorphicNFOn φ univ) b δ hc
+    (fun z ↦ hφm.toMeromorphicNFOn_eq_self_on_nhdsNE (mem_univ z)) a c
+    (completedHeckeL_continuation_isBigO_one χ L hL hEq (a - 1) (c + 1) (by linarith))
+  let KR : ℝ := ∏ v ∈ S₀, (1 + (v.asIdeal.absNorm : ℝ) ^ (-a))
+  have hKR : 0 ≤ KR := Finset.prod_nonneg fun v _ ↦ by positivity
+  refine ⟨KR * C, 2 * δ, mul_nonneg hKR hC0, fun z hz ↦ ?_⟩
+  change ‖reciprocalPartialHeckeEulerProduct χ S₀ z *
+    (regularizedCompletedHeckeL χ τ hτ L hL hEq).val z‖ ≤ _
+  rw [hreg, norm_mul, mul_assoc]
+  refine mul_le_mul ?_ (hC z hz) (norm_nonneg _) hKR
+  unfold reciprocalPartialHeckeEulerProduct
+  rw [norm_prod]
+  exact Finset.prod_le_prod₀ (fun v _ ↦ norm_nonneg _)
+    fun v _ ↦ norm_inv_finiteHeckeEulerFactor_le χ v a z hz.1
+
+private theorem one_add_pow_le_two_pow_mul (x : ℝ) (hx : 0 ≤ x) (M : ℕ) :
+    (1 + x) ^ M ≤ 2 ^ M * (1 + x ^ M) := by
+  rcases le_total x 1 with h1 | h1
+  · calc (1 + x) ^ M ≤ 2 ^ M := pow_le_pow_left₀ (by positivity) (by linarith) M
+      _ ≤ 2 ^ M * (1 + x ^ M) :=
+          le_mul_of_one_le_right (by positivity) (by linarith [pow_nonneg hx M])
+  · calc (1 + x) ^ M ≤ (2 * x) ^ M := pow_le_pow_left₀ (by positivity) (by linarith) M
+      _ = 2 ^ M * x ^ M := mul_pow _ _ _
+      _ ≤ 2 ^ M * (1 + x ^ M) := by gcongr; linarith
+
+/-- (GE) The generator times the Gaussian is Schwartz–Bergman. -/
+private theorem orbitalHeckeGenerator_mul_gaussian_mem (S₀ : Finset Primes) :
+    (fun z : ℂ ↦ (orbitalHeckeGenerator χ τ hτ L hL hEq S₀).val z * Complex.exp (z ^ 2)) ∈
+      schwartzBergmanSubmodule (univ : Set ℝ) := by
+  set g := orbitalHeckeGenerator χ τ hτ L hL hEq S₀
+  have hgd : Differentiable ℂ (g.val : ℂ → ℂ) := g.property
+  refine ⟨fun z hz ↦ (hz (mem_univ _)).elim, ?_, fun a b hab hI N ↦ ?_⟩
+  · exact (hgd.mul (by fun_prop)).differentiableOn
+  · obtain ⟨C, M, hC0, hC⟩ := orbitalHeckeGenerator_strip_bound χ τ hτ L hL hEq S₀ a b hab
+    have hGa := (gaussian_mem_schwartzBergmanSubmodule univ isOpen_univ).2.2 a b hab hI
+    obtain ⟨A₁, hA₁⟩ := hGa N
+    obtain ⟨A₂, hA₂⟩ := hGa (N + M)
+    refine ⟨C * 2 ^ M * A₁ + C * 2 ^ M * A₂, ?_⟩
+    rintro _ ⟨z, hz, rfl⟩
+    have h₁ : ‖z ^ N * Complex.exp (z ^ 2)‖ ≤ A₁ := by
+      have := hA₁ ⟨z, hz, rfl⟩
+      simpa only [preimage_univ, indicator_univ] using this
+    have h₂ : ‖z ^ (N + M) * Complex.exp (z ^ 2)‖ ≤ A₂ := by
+      have := hA₂ ⟨z, hz, rfl⟩
+      simpa only [preimage_univ, indicator_univ] using this
+    have hp := one_add_pow_le_two_pow_mul ‖z‖ (norm_nonneg z) M
+    show ‖z ^ N * (g.val z * Complex.exp (z ^ 2))‖ ≤ _
+    calc ‖z ^ N * (g.val z * Complex.exp (z ^ 2))‖
+        = ‖g.val z‖ * ‖z ^ N * Complex.exp (z ^ 2)‖ := by rw [mul_left_comm, norm_mul]
+      _ ≤ C * (1 + ‖z‖) ^ M * ‖z ^ N * Complex.exp (z ^ 2)‖ :=
+          mul_le_mul_of_nonneg_right (hC z hz) (norm_nonneg _)
+      _ ≤ C * (2 ^ M * (1 + ‖z‖ ^ M)) * ‖z ^ N * Complex.exp (z ^ 2)‖ := by gcongr
+      _ = C * 2 ^ M * ‖z ^ N * Complex.exp (z ^ 2)‖ +
+          C * 2 ^ M * ‖z ^ (N + M) * Complex.exp (z ^ 2)‖ := by
+          simp only [norm_mul, norm_pow, pow_add]; ring
+      _ ≤ C * 2 ^ M * A₁ + C * 2 ^ M * A₂ := by gcongr
+
 open Classical in
 /-- Paper: Theorem 7.1.4.3(1), p. 331.
 The strong annihilator of the orbital ideal is a locally convex direct sum of jets.
@@ -1865,8 +3088,18 @@ theorem orbitalAnnihilator_directSum (S₀ : Finset Primes) :
     letI instJetSumTopologySec1b : TopologicalSpace (⨁ ρ : Zeros, ↥(J ρ)) :=
       locallyConvexFinalTopology inclusion
     ∃ e : (⨁ ρ : Zeros, ↥(J ρ)) ≃L[ℂ] entireIdealAnnihilator g,
-      ∀ (ρ : Zeros) (a : ↥(J ρ)), (e (inclusion ρ a)).val = a.val := by sorry
+      ∀ (ρ : Zeros) (a : ↥(J ρ)), (e (inclusion ρ a)).val = a.val := by
+  intro g
+  have hg := orbitalHeckeGenerator_ne_zero χ τ hτ L hL hEq S₀
+  exact jetDirectSum_equiv (analyticOrderAt (g.val : ℂ → ℂ))
+    (entire_analyticOrderAt_ne_top _ g.property hg) (entireIdealAnnihilator g)
+    (fun i ↦ entireJet_mem_entireIdealAnnihilator g _ _ i.2)
+    (fun i c ↦ entire_jet_biorthogonal g hg i.1 i.2 c)
+    (entireIdealAnnihilator_le_span_jets g hg) (entire_jetIndices_finite g hg)
 
+-- TODO(paper-gap): the proof of Theorem 7.1.4.2(3) uses, without saying so, the
+-- boundedness of the completed L-function on vertical strips (Tate's split integral)
+-- to put the dual jets in the Schwartz–Bergman space.
 open Classical in
 /-- Paper: Theorem 7.1.4.2(3), p. 327 and Theorem 7.1.4.3(3), pp. 331–332.
 The derivative functionals of the regularized generator have biorthogonal
@@ -1877,7 +3110,33 @@ theorem orbitalSchwartzBergman_biorthogonal (S₀ : Finset Primes) :
     let g := orbitalHeckeGenerator χ τ hτ L hL hEq S₀
     let indices := {p : ℂ × ℕ // (p.2 : ℕ∞) < analyticOrderAt (g.val : ℂ → ℂ) p.1}
     ∃ b : indices → Aℂ, ∀ i j : indices,
-      iteratedDeriv i.val.2 (b j).val i.val.1 = if i = j then 1 else 0 := by sorry
+      iteratedDeriv i.val.2 (b j).val i.val.1 = if i = j then 1 else 0 := by
+  intro g indices
+  let H : ℂ → ℂ := fun z ↦ g.val z * Complex.exp (z ^ 2)
+  have hH : H ∈ schwartzBergmanSubmodule (univ : Set ℝ) :=
+    orbitalHeckeGenerator_mul_gaussian_mem χ τ hτ L hL hEq S₀
+  have hgd : Differentiable ℂ (g.val : ℂ → ℂ) := g.property
+  have hHd : Differentiable ℂ H := hgd.mul (by fun_prop)
+  have hH0 : ∃ z, H z ≠ 0 := by
+    obtain ⟨z, hz⟩ := orbitalHeckeGenerator_ne_zero χ τ hτ L hL hEq S₀
+    exact ⟨z, mul_ne_zero hz (Complex.exp_ne_zero _)⟩
+  have hord : ∀ z, analyticOrderAt H z = analyticOrderAt (g.val : ℂ → ℂ) z := by
+    intro z
+    have he : AnalyticAt ℂ (fun z : ℂ ↦ Complex.exp (z ^ 2)) z := by fun_prop
+    change analyticOrderAt ((g.val : ℂ → ℂ) * fun z : ℂ ↦ Complex.exp (z ^ 2)) z = _
+    rw [analyticOrderAt_mul (hgd.analyticAt z) he, he.analyticOrderAt_eq_zero.mpr
+      (Complex.exp_ne_zero _), add_zero]
+  have key := fun j : indices ↦
+    exists_div_mul_polynomial_jets H hHd hH0 j.1.1 j.1.2 (by rw [hord]; exact j.2)
+  choose f₀ n q hf hfac hjet using key
+  refine ⟨fun j ↦ ⟨fun w ↦ f₀ j w * (q j).eval w,
+    schwartzBergman_univ_mul_polynomial _
+      (schwartzBergman_univ_div_pow H _ hH (hf j) _ _ (hfac j)) _⟩, fun i j ↦ ?_⟩
+  have h := hjet j i.1.1 i.1.2 (by rw [hord]; exact i.2)
+  have hiff : ((i.1.1, i.1.2) = (j.1.1, j.1.2)) ↔ i = j := by
+    rw [Subtype.ext_iff]
+  simpa only [hiff] using h
+
 
 -- TODO(prerequisite): Transport the analytic quotient and its jet families to
 -- (7.1.4.7) by §6.3.2. The orbital identification (7.1.4.26)–(7.1.4.28)

@@ -28,7 +28,22 @@ def Printed.outsideLocalUnits_embed_in_ideles : Prop :=
 choose the component p at every prime p. The tuple is integral everywhere, but its coordinatewise
 inverse is nonintegral at every prime, so no idele has these coordinates. -/
 theorem Printed.outsideLocalUnits_embed_in_ideles_false :
-    ¬ Printed.outsideLocalUnits_embed_in_ideles := by sorry
+    ¬ Printed.outsideLocalUnits_embed_in_ideles := by
+  classical
+  intro h
+  let : Infinite (Places(ℚ)) := Infinite.of_injective Rat.HeightOneSpectrum.primesEquiv.symm
+    Rat.HeightOneSpectrum.primesEquiv.symm.injective
+  have bad (v : Places(ℚ)) : ∃ u : (L(ℚ, v))ˣ, u.val ∉ v.adicCompletionIntegers ℚ := by
+    let val := (Valued.v : Valuation (L(ℚ, v)) (WithZero (Multiplicative ℤ)))
+    obtain ⟨π, hπ⟩ := val.exists_isUniformizer_of_isCyclic_of_nontrivial
+    refine ⟨(Units.mk0 π hπ.ne_zero)⁻¹, (HeightOneSpectrum.notMem_adicCompletionIntegers _ _ v).mpr ?_⟩
+    change 1 < val π⁻¹
+    rw [map_inv₀]
+    exact (one_lt_inv₀ (pos_iff_ne_zero.mpr hπ.val_ne_zero)).mpr hπ.val_lt_one
+  choose u hu using bad
+  obtain ⟨g, -, -, hg⟩ := h ℚ ∅ (fun v ↦ u v.val)
+  obtain ⟨v, hv⟩ := g.val.2.property.exists
+  exact hu v ((hg ⟨v, Finset.notMem_empty v⟩) ▸ hv)
 
 open Classical in
 /-- Paper: Lemma 6.1.2.2(2), (6.1.2.5)–(6.1.2.6), p. 289. As printed: the monomial-to-ball

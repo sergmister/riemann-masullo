@@ -1,0 +1,956 @@
+/-
+Copyright (c) 2026 Lean FRO, LLC. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Kim Morrison
+-/
+/-
+Vendored from TauCetiProject/TauCeti at 8794ab329bb60340fa690a2902cf995f0571721b,
+file TauCeti/Topology/Homotopy/Path.lean.
+Changes are listed in MODIFICATIONS.md in the vendoring directory.
+-/
+module
+
+public import Mathlib.Topology.Subpath
+public import Mathlib.Topology.Homotopy.Contractible
+public import Mathlib.AlgebraicTopology.FundamentalGroupoid.SimplyConnected
+public import Mathlib.Topology.Connected.LocallyPathConnected
+public import RiemannMasullo.External.TauCeti.Topology.UnitInterval
+-- Private: `Path.Homotopic.map_trans_evalAt` is used only in the proofs of
+-- `exists_trans_homotopic_trans_of_homotopicWith` and `map_nullhomotopic_of_nullhomotopic` below,
+-- so this import is not re-exported.
+import Mathlib.AlgebraicTopology.FundamentalGroupoid.InducedMaps
+
+/-!
+# Path homotopy helpers
+
+Small path and path-homotopy lemmas, mostly for the universal-cover construction. The
+quotient subpath identities are adapted from Kim Morrison's Mathlib universal-cover drafts,
+especially [#31576](https://github.com/leanprover-community/mathlib4/pull/31576) and
+[#38292](https://github.com/leanprover-community/mathlib4/pull/38292), following the earlier
+Tau Ceti work in [#42](https://github.com/TauCetiProject/TauCeti/pull/42).
+
+`Path.exists_homotopy_forall_mem_of_isSimplyConnected` is not from that source: it records that
+`SimplyConnectedSpace.paths_homotopic`, applied in a subspace `↥V`, yields a homotopy in the
+ambient space whose intermediate paths all stay in `V`. Analytic continuation consumes it in
+`Analysis/Complex/Conformal/GlobalBranch.lean`.
+
+`Path.continuousFamily` packages a jointly continuous map on `Y × [0, 1]` with fixed ends as a
+continuous family of paths, and `Path.ofContinuousFamily` reads the case `Y = [0, 1]` with
+prescribed end paths as a path between paths. The smoothing of caps in
+`Geometry/Symplectic/Floer/Cap/Smoothing.lean` feeds such families to
+`Path.homotopic_of_continuous_square`, and `IsSmoothBasedCap.toPath` in
+`Geometry/Symplectic/Floer/Cap/Area.lean` is built with `Path.ofContinuousFamily`.
+
+`Path.homotopic_of_continuous_square` is likewise adapted from Kim Morrison's
+[#38292](https://github.com/leanprover-community/mathlib4/pull/38292). It is used by
+`AlgebraicTopology/UniversalCover/BasedPath.lean`, where it previously lived privately, and by
+`AlgebraicTopology/Sphere/Puncture.lean`. Its moving-basepoint variant
+`Path.exists_trans_homotopic_trans_of_homotopicWith` reads a homotopy of loops through closed paths
+as the square `γ₀ · δ ≃ δ · γ₁` along the track `δ` of the base point; it identifies free homotopy
+classes of loops with conjugacy classes in
+`AlgebraicTopology/FundamentalGroup/FreeLoop.lean`, together with the converse
+`Path.homotopicWith_trans_trans_symm`: a conjugate loop `χ · ℓ · χ⁻¹` is homotopic to `ℓ` through
+closed paths. Its family version `Path.homotopicWith_uncurry_trans_trans_symm` gives the conjugation
+homotopy of families of loops in `Topology/MappingSpace/Sphere/LoopFamily.lean`. The family version
+`Path.homotopic_trans_symm_trans_trans_symm` of the cancellation `ρ⁻¹ · ρ ≃ refl` shrinks a
+detour `(α · ρ⁻¹) · (ρ · β⁻¹)` to `α · β⁻¹` uniformly in a parameter, as a homotopy of maps into the
+space of paths; it compares families of loops on spheres with products of loops in
+`AlgebraicTopology/Sphere/Stiefel/MeridianProduct.lean`. The lemma
+`Path.Homotopic.refl_of_forall_mem_of_nullhomotopic` is not from #38292; it was factored out of
+`AlgebraicTopology/SemilocallySimplyConnected/Basic.lean`.
+
+`Path.exists_monotone_range_subpath_subset` subdivides a path, by the Lebesgue number lemma on the
+unit interval, so that each consecutive subpath lies in a member of a given family of sets. It is
+used for the generation half of the groupoid van Kampen theorem in
+`AlgebraicTopology/FundamentalGroupoid/CoverGeneration.lean`, and, repackaged over a
+`unitInterval.Partition` as `Path.exists_partition_with_property`, for the tube construction in
+`Topology/Homotopy/TubeNeighborhood.lean`. That construction also uses
+`unitInterval.exists_vertex_family`, the path-connected vertex neighbourhoods of such a
+subdivision; `IsPathHomotopyTrivial`, the property of a set that paths in it with common endpoints
+are homotopic in the ambient space; and the pasting lemma
+`Path.Homotopic.trans_of_subpath_trans`, which assembles homotopies over the segments of a
+partition into a homotopy of the whole paths.
+
+`IsSimplyConnected.isPathHomotopyTrivial` records that a simply connected set is
+path-homotopy-trivial. `AlgebraicTopology/ThricePuncturedSphere/LoopAtInfinity.lean` uses it to
+compare paths inside a closed half-plane.
+
+`Path.trans_apply_of_eq_two_mul` and `Path.trans_apply_of_eq_two_mul_sub_one` express a value of a
+concatenation as a value of one of its two halves, and `Path.subpath_apply_mem` bounds the values
+of a subpath by the values of the path on an interval containing its endpoints. `Path.coe_subpath`
+and `Path.subpath_subpath_apply` evaluate a subpath and a subpath of a subpath, and
+`Path.cast_subpath_eq_codRestrict` identifies a subpath of a path in a subset, cast to the
+endpoints of a corestricted subpath, with that corestriction. The last two are used by the gluing
+construction in `AlgebraicTopology/FundamentalGroupoid/Glue.lean`.
+
+The path-homotopy quotient API also records that reversing twice is the identity, that the
+reverse of the constant class is constant, and that mapping a composite class and casting its
+endpoints composes the cast images of the factors (`Path.Homotopic.Quotient.map_trans_cast`).
+`Path.refl_trans_eq_reparam`, the left counterpart of Mathlib's
+`Path.Homotopy.trans_refl_reparam`, and `map_trans_cast` are used by the gluing of caps along a
+pair of pants in `Geometry/Symplectic/Floer/Cap/Loop.lean`.
+
+Every point of a path lies in the path component of its source (`Path.mem_pathComponent`). So the
+paths in a subspace `S` starting at a point whose path component lies in `S` are the paths of the
+ambient space: the inclusion of `S` induces a homeomorphism of path spaces
+(`Path.subtypeValHomeomorph`). In particular a path component, with the subspace topology, has
+the loop space of the ambient space at each of its points.
+-/
+
+public section
+
+open scoped unitInterval
+open Topology Set
+
+namespace Path
+variable {X : Type*} [TopologicalSpace X]
+
+/-- Restrict a path whose image lies in a subset to a path in the corresponding subtype.
+The source and target are the given subtype endpoints, and coercing the restricted path back to
+`X` recovers the original path pointwise. -/
+def codRestrict {s : Set X} {x y : s} (γ : Path x.val y.val) (hmem : ∀ t, γ t ∈ s) :
+    Path x y where
+  toFun := s.codRestrict γ hmem
+  continuous_toFun := γ.continuous.codRestrict hmem
+  source' := Subtype.ext γ.source
+  target' := Subtype.ext γ.target
+
+/-- The underlying point of `γ.codRestrict hmem` at time `t` is just `γ t`, viewed in `X`. -/
+@[simp]
+theorem codRestrict_coe {s : Set X} {x y : s} (γ : Path x.val y.val) (hmem : ∀ t, γ t ∈ s) (t : I) :
+    (γ.codRestrict hmem t : X) = γ t := by
+  rfl
+
+/-- Mapping `γ.codRestrict hmem` back along the subtype inclusion recovers `γ`. -/
+@[simp]
+theorem map_codRestrict {s : Set X} {x y : s} (γ : Path x.val y.val) (hmem : ∀ t, γ t ∈ s) :
+    (γ.codRestrict hmem).map continuous_subtype_val = γ := by
+  ext t
+  simp
+
+/-- Mapping a constant path gives the constant path at the image point. -/
+@[simp]
+theorem map_refl {Y : Type*} [TopologicalSpace Y] {f : X → Y} (hf : Continuous f) (a : X) :
+    (refl a).map hf = refl (f a) :=
+  rfl
+
+/-- The value of `γ.trans δ` at `u` is the value of `γ` at any `v` with `v = 2 * u`. -/
+theorem trans_apply_of_eq_two_mul {x y z : X} (γ : Path x y) (δ : Path y z) {u : I}
+    (v : I) (hv : (v : ℝ) = 2 * u) : γ.trans δ u = γ v := by
+  rw [trans_apply]
+  split_ifs with h
+  · exact congrArg γ (Subtype.ext hv.symm)
+  · exfalso
+    linarith [v.2.2]
+
+/-- The value of `γ.trans δ` at `u` is the value of `δ` at any `v` with `v = 2 * u - 1`. -/
+theorem trans_apply_of_eq_two_mul_sub_one {x y z : X} (γ : Path x y) (δ : Path y z) {u : I}
+    (v : I) (hv : (v : ℝ) = 2 * u - 1) : γ.trans δ u = δ v := by
+  rw [trans_apply]
+  split_ifs with h
+  · have hu' : (u : ℝ) = 1 / 2 := le_antisymm h (by linarith [v.2.1])
+    have hv_zero : v = 0 := Subtype.ext (by rw [hv, hu']; norm_num)
+    rw [hv_zero, δ.source]
+    convert γ.target using 2
+    exact Subtype.ext (by norm_num [hu'])
+  · exact congrArg δ (Subtype.ext hv.symm)
+
+/-- A subpath of `γ` between two parameters of an interval that `γ` maps into `V` lies in `V`. -/
+theorem subpath_apply_mem {x y : X} {γ : Path x y} {V : Set X} {lo hi : I}
+    (hγ : ∀ t ∈ Icc lo hi, γ t ∈ V) {a b : I} (ha : a ∈ Icc lo hi) (hb : b ∈ Icc lo hi) (t : I) :
+    γ.subpath a b t ∈ V := by
+  obtain ⟨s, hs, hst⟩ : γ.subpath a b t ∈ γ '' uIcc a b :=
+    range_subpath γ a b ▸ mem_range_self t
+  exact hst ▸ hγ s (uIcc_subset_Icc ha hb hs)
+
+/-- The function underlying a subpath is composition with the affine parameter map. -/
+@[simp]
+theorem coe_subpath {x y : X} (γ : Path x y) (s t : I) :
+    ⇑(γ.subpath s t) = γ ∘ Icc.convexComb s t := (rfl)
+
+/-- A subpath of a subpath of `γ` between parameters `r`, `s` of the inner interval `[lo, hi]` is
+the subpath of `γ` between their images in `[lo, hi]`, evaluated at the combined parameter. -/
+theorem subpath_subpath_apply {x y : X} (γ : Path x y) (lo hi r s t : I) :
+    γ.subpath (Icc.convexComb lo hi r) (Icc.convexComb lo hi s) t =
+      γ (Icc.convexComb lo hi (Icc.convexComb r s t)) := by
+  refine congrArg γ (Subtype.ext ?_)
+  simp only [Icc.coe_convexComb]
+  ring
+
+/-- Casting the subpath `r → s` of a path `p` in `S` that parametrises `γ` on `[lo, hi]` agrees with
+the corestriction to `S` of the corresponding subpath of `γ`. -/
+theorem cast_subpath_eq_codRestrict {x y : X} {S : Set X} (γ : Path x y) {lo hi : I}
+    {u v : S} (p : Path u v) (hp : ∀ t, (p t : X) = γ (Icc.convexComb lo hi t)) (r s : I) :
+    (p.subpath r s).cast
+        (Subtype.ext (hp r).symm : (⟨_, hp r ▸ (p r).2⟩ : S) = p r)
+        (Subtype.ext (hp s).symm : (⟨_, hp s ▸ (p s).2⟩ : S) = p s) =
+      (γ.subpath (Icc.convexComb lo hi r) (Icc.convexComb lo hi s)).codRestrict
+        fun t ↦ by
+          rw [subpath_subpath_apply, ← hp]
+          exact (p _).2 := by
+  apply Path.ext
+  funext t
+  apply Subtype.ext
+  simp only [cast_coe, codRestrict_coe, coe_subpath, Function.comp_apply]
+  rw [hp]
+  exact (subpath_subpath_apply γ lo hi r s t).symm
+
+/-- If the extended path stays inside `U` throughout `[t₀, t₁]`, then the truncated subpath has
+range in `U`. -/
+theorem truncateOfLE_range_subset {a b : X} (γ : Path a b) {t₀ t₁ : ℝ}
+    (h : t₀ ≤ t₁) {U : Set X} (hU : Set.Icc t₀ t₁ ⊆ γ.extend ⁻¹' U) :
+    Set.range (γ.truncateOfLE h) ⊆ U := by
+  rintro _ ⟨s, rfl⟩
+  dsimp [truncateOfLE, truncate]
+  apply hU
+  constructor
+  · exact le_min (le_max_right _ _) h
+  · exact min_le_right _ _
+
+/-- The family of initial segments of `γ : Path a b`: at parameter `t : I`, the path
+`s ↦ γ.extend (min s t)` from `a` to `γ t` (`initialSegmentFamily_apply`). At `t = 0` this is
+the constant path at `a` (`initialSegmentFamily_zero`); at `t = 1` it is `γ` itself, up to a
+trivial right-endpoint cast (`initialSegmentFamily_one`). The property consumers actually need
+is joint continuity in `(t, s)`, recorded as `continuous_initialSegmentFamily_uncurry`. -/
+noncomputable def initialSegmentFamily {a b : X} (γ : Path a b) (t : I) :
+    Path a (γ t) :=
+  (γ.truncate 0 t).cast (by rw [min_eq_left t.2.1, γ.extend_zero]) (γ.extend_apply t.2).symm
+
+/-- Every point on a path lies in the path component of its source. -/
+theorem mem_pathComponent {a b : X} (γ : Path a b) (t : I) : γ t ∈ pathComponent a :=
+  ⟨γ.initialSegmentFamily t⟩
+
+/-- A path whose source lies in a path component remains in that path component. -/
+theorem mem_pathComponent_of_mem {a b x₀ : X} (γ : Path a b) (ha : a ∈ pathComponent x₀)
+    (t : I) : γ t ∈ pathComponent x₀ :=
+  Joined.mem_pathComponent (γ.mem_pathComponent t) ha
+
+/-- **Paths in a subspace containing a path component.** If the path component of `a` lies in a
+subspace `S`, the inclusion of `S` induces a homeomorphism from the paths in `S` from `a` to `b`
+to the paths in the ambient space from `a` to `b`: every such path stays in the path component of
+`a`, hence in `S`. -/
+def subtypeValHomeomorph {S : Set X} {a b : S} (hS : pathComponent (a : X) ⊆ S) :
+    Path a b ≃ₜ Path (a : X) b where
+  toFun γ := γ.map continuous_subtype_val
+  invFun γ := γ.codRestrict fun t ↦ hS (γ.mem_pathComponent t)
+  left_inv _ := rfl
+  right_inv _ := rfl
+  continuous_toFun := continuous_induced_rng.2 <|
+    (ContinuousMap.continuous_postcomp ⟨Subtype.val, continuous_subtype_val⟩).comp
+      continuous_induced_dom
+  continuous_invFun := continuous_induced_rng.2 <|
+    (ContinuousMap.isEmbedding_postcomp ⟨Subtype.val, continuous_subtype_val⟩
+      IsEmbedding.subtypeVal).isInducing.continuous_iff.2 continuous_induced_dom
+
+@[simp]
+theorem subtypeValHomeomorph_apply {S : Set X} {a b : S} (hS : pathComponent (a : X) ⊆ S)
+    (γ : Path a b) (t : I) : subtypeValHomeomorph hS γ t = γ t :=
+  (rfl)
+
+@[simp]
+theorem coe_subtypeValHomeomorph_symm_apply {S : Set X} {a b : S}
+    (hS : pathComponent (a : X) ⊆ S) (γ : Path (a : X) b) (t : I) :
+    ((subtypeValHomeomorph hS).symm γ t : X) = γ t :=
+  (rfl)
+
+theorem continuous_initialSegmentFamily_uncurry {a b : X} (γ : Path a b) :
+    Continuous ↿(initialSegmentFamily γ) := by
+  have hincl : Continuous (fun ts : I × I ↦ ((ts.1 : ℝ), ts.2) : I × I → ℝ × I) := by fun_prop
+  have htrunc : Continuous (fun ts : I × I ↦ γ.truncate 0 ts.1 ts.2 : I × I → X) :=
+    (γ.truncate_const_continuous_family 0).comp hincl
+  simpa [initialSegmentFamily] using! htrunc
+
+@[simp] theorem initialSegmentFamily_apply {a b : X} (γ : Path a b) (t s : I) :
+    initialSegmentFamily γ t s = γ.extend (min (s : ℝ) t) := by
+  simp [initialSegmentFamily, truncate, max_eq_left s.2.1]
+
+@[simp] theorem initialSegmentFamily_zero {a b : X} (γ : Path a b) :
+    initialSegmentFamily γ 0 = (refl a).cast rfl (by simp) := by
+  ext s
+  simp [initialSegmentFamily_apply, γ.extend_zero, refl, min_eq_right s.2.1]
+  -- `simp` unfolds `Path.refl` to its structure literal; applying that literal to `s` returns
+  -- `a` by definition.
+  rfl
+
+@[simp] theorem initialSegmentFamily_one {a b : X} (γ : Path a b) :
+    initialSegmentFamily γ 1 = γ.cast rfl (by simp) := by
+  ext s
+  simp [initialSegmentFamily_apply, min_eq_left s.2.2, γ.extend_apply s.2]
+
+/-- **Two paths with the same endpoints in a simply connected set are homotopic inside it.** For
+`p` and `q` running in `V` between the same two points of `V`, there is a homotopy from `p` to `q`
+every intermediate path of which again lies in `V`.
+
+The homotopy is stated in the ambient space rather than in `↥V`, with membership in `V` as a
+separate conclusion: that is the form consumers want, and it spares them transporting along the
+subtype. -/
+theorem exists_homotopy_forall_mem_of_isSimplyConnected {V : Set X} (hV : IsSimplyConnected V)
+    {a b : X} {p q : Path a b} (hp : ∀ t, p t ∈ V) (hq : ∀ t, q t ∈ V) :
+    ∃ K : p.Homotopy q, ∀ t x, K (t, x) ∈ V := by
+  have := hV.simplyConnectedSpace
+  have haV : a ∈ V := p.source ▸ hp 0
+  have hbV : b ∈ V := p.target ▸ hp 1
+  obtain ⟨h⟩ := SimplyConnectedSpace.paths_homotopic
+    (codRestrict (x := ⟨a, haV⟩) (y := ⟨b, hbV⟩) p hp)
+    (codRestrict (x := ⟨a, haV⟩) (y := ⟨b, hbV⟩) q hq)
+  -- map the subspace homotopy back down, and read its endpoints through `map_codRestrict`
+  refine ⟨(h.map (⟨Subtype.val, continuous_subtype_val⟩ : C(V, X))).cast
+    (map_codRestrict (x := ⟨a, haV⟩) (y := ⟨b, hbV⟩) p hp)
+    (map_codRestrict (x := ⟨a, haV⟩) (y := ⟨b, hbV⟩) q hq), fun t x => ?_⟩
+  simp
+
+/-- The continuous family of paths from `x₀` to `x₁` given by a jointly continuous map `F` on
+`Y × [0, 1]` which sends `Y × {0}` to `x₀` and `Y × {1}` to `x₁`. -/
+def continuousFamily {Y : Type*} [TopologicalSpace Y] {x₀ x₁ : X} (F : Y → I → X)
+    (hF : Continuous ↿F) (h₀ : ∀ y, F y 0 = x₀) (h₁ : ∀ y, F y 1 = x₁) : C(Y, Path x₀ x₁) where
+  toFun y := ⟨⟨F y, hF.comp (continuous_const.prodMk continuous_id)⟩, h₀ y, h₁ y⟩
+  continuous_toFun := continuous_uncurry_iff.1 hF
+
+@[simp]
+theorem continuousFamily_apply {Y : Type*} [TopologicalSpace Y] {x₀ x₁ : X} (F : Y → I → X)
+    (hF : Continuous ↿F) (h₀ : ∀ y, F y 0 = x₀) (h₁ : ∀ y, F y 1 = x₁) (y : Y) (t : I) :
+    continuousFamily F hF h₀ h₁ y t = F y t :=
+  (rfl)
+
+/-- The path from `p` to `q` in the space of paths from `x₀` to `x₁` given by a jointly continuous
+map `F` on `[0, 1] × [0, 1]` which sends `[0, 1] × {0}` to `x₀` and `[0, 1] × {1}` to `x₁`, and
+restricts to `p` on `{0} × [0, 1]` and to `q` on `{1} × [0, 1]`. -/
+def ofContinuousFamily {x₀ x₁ : X} {p q : Path x₀ x₁} (F : I → I → X) (hF : Continuous ↿F)
+    (h₀ : ∀ s, F s 0 = x₀) (h₁ : ∀ s, F s 1 = x₁) (hp : ∀ t, F 0 t = p t)
+    (hq : ∀ t, F 1 t = q t) : Path p q where
+  toContinuousMap := continuousFamily F hF h₀ h₁
+  source' := Path.ext (funext fun t ↦ (continuousFamily_apply F hF h₀ h₁ 0 t).trans (hp t))
+  target' := Path.ext (funext fun t ↦ (continuousFamily_apply F hF h₀ h₁ 1 t).trans (hq t))
+
+@[simp]
+theorem ofContinuousFamily_apply {x₀ x₁ : X} {p q : Path x₀ x₁} (F : I → I → X)
+    (hF : Continuous ↿F) (h₀ : ∀ s, F s 0 = x₀) (h₁ : ∀ s, F s 1 = x₁) (hp : ∀ t, F 0 t = p t)
+    (hq : ∀ t, F 1 t = q t) (s t : I) : ofContinuousFamily F hF h₀ h₁ hp hq s t = F s t :=
+  (rfl)
+
+/-- **A square with prescribed edges is a path homotopy.** A continuous map on `I × I` that
+restricts to `p` at `t = 0` and to `q` at `t = 1`, and is constant along each of the edges `s = 0`
+and `s = 1`, exhibits `p` and `q` as homotopic paths. -/
+theorem homotopic_of_continuous_square {a b : X} {p q : Path a b} (K : I × I → X)
+    (hK_cont : Continuous K) (hK_zero : ∀ s, K (0, s) = p s) (hK_one : ∀ s, K (1, s) = q s)
+    (hK_left : ∀ t, K (t, 0) = a) (hK_right : ∀ t, K (t, 1) = b) : p.Homotopic q :=
+  ⟨{ toFun := K
+     continuous_toFun := hK_cont
+     map_zero_left := hK_zero
+     map_one_left := hK_one
+     prop' := by
+       intro t s hs
+       rcases hs with rfl | hs
+       · exact (hK_left t).trans p.source.symm
+       · rw [Set.mem_singleton_iff] at hs
+         subst hs
+         exact (hK_right t).trans p.target.symm }⟩
+
+/-- **A homotopy through closed paths is a square.** If the loop `γ₀` at `x` is homotopic to the
+loop `γ₁` at `y` through closed paths, then along the track `δ` of the base point,
+`γ₀ · δ` and `δ · γ₁` are homotopic paths from `x` to `y`. -/
+theorem exists_trans_homotopic_trans_of_homotopicWith {x y : X} {γ₀ : Path x x} {γ₁ : Path y y}
+    (h : (γ₀ : C(I, X)).HomotopicWith (γ₁ : C(I, X)) fun p ↦ p 0 = p 1) :
+    ∃ δ : Path x y, (γ₀.trans δ).Homotopic (δ.trans γ₁) := by
+  obtain ⟨H⟩ := h
+  -- The track of the base point, along the edge `t = 0` (equivalently `t = 1`) of the square.
+  have hH (s : I) : H (s, 0) = H (s, 1) := H.prop s
+  let δ : Path x y := (H.toHomotopy.evalAt 0).cast (by simp) (by simp)
+  refine ⟨δ, ?_⟩
+  -- Naturality of `H` along `Path.id : 0 ⟶ 1`, whose tracks at `0` and `1` are both `δ`.
+  have h := (Path.Homotopic.map_trans_evalAt H.toHomotopy Path.id).pathCast
+    (show x = (γ₀ : C(I, X)) 0 by simp) (show y = (γ₁ : C(I, X)) 1 by simp)
+  convert h using 1 <;> ext t
+  · simp only [Path.trans_apply, Path.cast_coe, Path.map_coe, Function.comp_apply, Path.id,
+      ContinuousMap.Homotopy.evalAt_apply]
+    split_ifs
+    · rfl
+    · exact hH _
+  · simp only [Path.trans_apply, Path.cast_coe, Path.map_coe, Function.comp_apply, Path.id,
+      ContinuousMap.Homotopy.evalAt_apply]
+    split_ifs <;> rfl
+
+section Conjugation
+
+variable {A : Type*} {x y : A → X}
+
+/-- The explicit free homotopy from `χ · ℓ · χ⁻¹` to `ℓ`: at time `r` it runs along `χ` from
+`χ r` to its end, along `ℓ` on a middle interval that grows to all of `I` as `r → 1`, and back
+along `χ` to `χ r`. -/
+private noncomputable def conjHomotopyFun (χ : ∀ a, Path (x a) (y a)) (ℓ : ∀ a, Path (y a) (y a))
+    (q : (I × A) × I) : X :=
+  if (q.2 : ℝ) ≤ (1 - q.1.1) / 4 then (χ q.1.2).extend (q.1.1 + 4 * q.2)
+  else if (q.2 : ℝ) ≤ (1 + q.1.1) / 2 then
+    (ℓ q.1.2).extend ((q.2 - (1 - q.1.1) / 4) / ((1 + 3 * q.1.1) / 4))
+  else (χ q.1.2).extend (q.1.1 + 2 * (1 - q.2))
+
+private theorem continuous_conjHomotopyFun [TopologicalSpace A] (χ : ∀ a, Path (x a) (y a))
+    (hχ : Continuous ↿χ) (ℓ : ∀ a, Path (y a) (y a)) (hℓ : Continuous ↿ℓ) :
+    Continuous (conjHomotopyFun χ ℓ) := by
+  have hχe := Path.continuous_uncurry_extend_of_continuous_family χ hχ
+  have hℓe := Path.continuous_uncurry_extend_of_continuous_family ℓ hℓ
+  have hpos : ∀ r : I, (1 + 3 * (r : ℝ)) / 4 ≠ 0 := fun r => by
+    have := r.2.1; positivity
+  refine Continuous.if_le ?_ (Continuous.if_le ?_ ?_ (by fun_prop) (by fun_prop) ?_)
+    (by fun_prop) (by fun_prop) ?_
+  · exact hχe.comp ((by fun_prop : Continuous fun q : (I × A) × I => q.1.2).prodMk
+      (by fun_prop : Continuous fun q : (I × A) × I => (q.1.1 : ℝ) + 4 * q.2))
+  · exact hℓe.comp ((by fun_prop : Continuous fun q : (I × A) × I => q.1.2).prodMk
+      ((by fun_prop : Continuous fun q : (I × A) × I => ((q.2 : ℝ) - (1 - q.1.1) / 4)).div
+        (by fun_prop) fun q => hpos q.1.1))
+  · exact hχe.comp ((by fun_prop : Continuous fun q : (I × A) × I => q.1.2).prodMk
+      (by fun_prop : Continuous fun q : (I × A) × I => (q.1.1 : ℝ) + 2 * (1 - q.2)))
+  · rintro ⟨⟨r, a⟩, t⟩ (h : (t : ℝ) = (1 + r) / 2)
+    simp only [h]
+    rw [show ((1 + (r : ℝ)) / 2 - (1 - r) / 4) / ((1 + 3 * r) / 4) = 1 by
+        rw [div_eq_one_iff_eq (hpos r)]; ring,
+      show (r : ℝ) + 2 * (1 - (1 + r) / 2) = 1 by ring, Path.extend_one, Path.extend_one]
+  · rintro ⟨⟨r, a⟩, t⟩ (h : (t : ℝ) = (1 - r) / 4)
+    have hle : (1 - (r : ℝ)) / 4 ≤ (1 + r) / 2 := by linarith [r.2.1]
+    simp only [h, hle, ite_true]
+    rw [show (r : ℝ) + 4 * ((1 - r) / 4) = 1 by ring, sub_self, zero_div, Path.extend_one,
+      Path.extend_zero]
+
+private theorem conjHomotopyFun_zero_eq_one (χ : ∀ a, Path (x a) (y a))
+    (ℓ : ∀ a, Path (y a) (y a)) (q : I × A) :
+    conjHomotopyFun χ ℓ (q, 0) = conjHomotopyFun χ ℓ (q, 1) := by
+  obtain ⟨⟨r, hr0, hr1⟩, a⟩ := q
+  have h0 : (0 : ℝ) ≤ (1 - r) / 4 := by linarith
+  have h1 : ¬ (1 : ℝ) ≤ (1 - r) / 4 := by linarith
+  simp only [conjHomotopyFun, Set.Icc.coe_zero, Set.Icc.coe_one, mul_zero, add_zero, sub_self]
+  simp only [h0, h1, ↓reduceIte]
+  rcases hr1.lt_or_eq with hr1 | rfl
+  · have h2 : ¬ (1 : ℝ) ≤ (1 + r) / 2 := by linarith
+    simp [h2]
+  · norm_num [Path.extend_one]
+
+private theorem conjHomotopyFun_zero (χ : ∀ a, Path (x a) (y a)) (ℓ : ∀ a, Path (y a) (y a))
+    (a : A) (t : I) :
+    conjHomotopyFun χ ℓ ((0, a), t) = (((χ a).trans (ℓ a)).trans (χ a).symm) t := by
+  simp only [conjHomotopyFun, Set.Icc.coe_zero, sub_zero, zero_add, mul_zero, Path.trans_apply,
+    Path.symm_apply]
+  have ht0 := t.2.1
+  have ht1 := t.2.2
+  split_ifs with h₁ h₂ h₃ h₄ h₅ h₆ <;> try (exfalso; linarith)
+  · rw [Path.extend_apply _ ⟨by linarith, by linarith⟩]
+    congr 1; ext; simp only; ring
+  · rw [show ((t : ℝ) - 1 / 4) / ((1 + 0) / 4) = 2 * (2 * t) - 1 by ring,
+      Path.extend_apply _ ⟨by linarith, by linarith⟩]
+  · rw [Path.extend_apply _ ⟨by linarith, by linarith⟩]
+    simp only [Function.comp_apply, unitInterval.symm]
+    congr 1; ext; simp only; ring
+
+private theorem conjHomotopyFun_one (χ : ∀ a, Path (x a) (y a)) (ℓ : ∀ a, Path (y a) (y a))
+    (a : A) (t : I) : conjHomotopyFun χ ℓ ((1, a), t) = ℓ a t := by
+  have ht0 := t.2.1
+  have ht1 := t.2.2
+  simp only [conjHomotopyFun, Set.Icc.coe_one, sub_self, zero_div]
+  split_ifs with h₁ h₂
+  · have ht : t = 0 := Subtype.ext (le_antisymm h₁ ht0)
+    subst ht
+    simp
+  · rw [show ((t : ℝ) - 0) / ((1 + 3 * 1) / 4) = t by ring, Path.extend_apply _ ⟨ht0, ht1⟩]
+  · exfalso; linarith
+
+/-- **Conjugate loops are homotopic through closed paths**, in families: for continuous families
+of paths `χ a` from `x a` to `y a` and of loops `ℓ a` at `y a`, the family of loops
+`χ a · ℓ a · (χ a)⁻¹`, read as a map `A × I → X`, is homotopic to the family `ℓ` through maps `G`
+with `G (a, 0) = G (a, 1)` for every `a`. Descending along the circle, this is
+`RiemannMasullo.External.TauCeti.homotopic_loopFamilyCircleMap_trans_symm`. -/
+theorem homotopicWith_uncurry_trans_trans_symm [TopologicalSpace A] (χ : ∀ a, Path (x a) (y a))
+    (hχ : Continuous ↿χ) (ℓ : ∀ a, Path (y a) (y a)) (hℓ : Continuous ↿ℓ) :
+    (⟨↿fun a ↦ ((χ a).trans (ℓ a)).trans (χ a).symm,
+        trans_continuous_family _ (trans_continuous_family _ hχ _ hℓ) _
+          (symm_continuous_family _ hχ)⟩ : C(A × I, X)).HomotopicWith ⟨↿ℓ, hℓ⟩
+      fun G ↦ ∀ a, G (a, 0) = G (a, 1) :=
+  ⟨{ toFun q := conjHomotopyFun χ ℓ ((q.1, q.2.1), q.2.2)
+     continuous_toFun := (continuous_conjHomotopyFun χ hχ ℓ hℓ).comp (by fun_prop)
+     map_zero_left q := conjHomotopyFun_zero χ ℓ q.1 q.2
+     map_one_left q := conjHomotopyFun_one χ ℓ q.1 q.2
+     prop' s a := conjHomotopyFun_zero_eq_one χ ℓ (s, a) }⟩
+
+/-- **A conjugate loop is homotopic through closed paths to the loop.** For a path `χ` from `a`
+to `b` and a loop `ℓ` at `b`, the loop `χ · ℓ · χ⁻¹` at `a` and `ℓ` are homotopic as maps
+`I → X` through maps taking the same value at `0` and at `1`. This is the single-loop case of
+`Path.homotopicWith_uncurry_trans_trans_symm`; through `RiemannMasullo.External.TauCeti.circleMapHomeomorphClosedUnitPath`
+it gives the same statement on the complex circle. -/
+theorem homotopicWith_trans_trans_symm {a b : X} (χ : Path a b) (ℓ : Path b b) :
+    ((((χ.trans ℓ).trans χ.symm : Path a a)) : C(I, X)).HomotopicWith (ℓ : C(I, X))
+      fun p ↦ p 0 = p 1 :=
+  ⟨{ toFun q := conjHomotopyFun (A := Unit) (fun _ ↦ χ) (fun _ ↦ ℓ) ((q.1, ()), q.2)
+     continuous_toFun := (continuous_conjHomotopyFun (A := Unit) _
+        (χ.continuous.comp continuous_snd) _ (ℓ.continuous.comp continuous_snd)).comp
+          (by fun_prop)
+     map_zero_left t := conjHomotopyFun_zero (A := Unit) (fun _ ↦ χ) (fun _ ↦ ℓ) () t
+     map_one_left t := conjHomotopyFun_one (A := Unit) (fun _ ↦ χ) (fun _ ↦ ℓ) () t
+     prop' s := conjHomotopyFun_zero_eq_one (A := Unit) (fun _ ↦ χ) (fun _ ↦ ℓ) (s, ()) }⟩
+
+end Conjugation
+
+section Cancellation
+
+variable {A : Type*} {x y z w : X}
+
+/-- The explicit homotopy from `(α · ρ⁻¹) · (ρ · β⁻¹)` to `α · β⁻¹`: at time `r`, with
+`c = (1 + r) / 4`, it runs along `α` on `[0, c]`, then on `[c, 1 - c]` backwards along `ρ` down to
+`ρ r` and forwards again, and finally backwards along `β` on `[1 - c, 1]`. -/
+private noncomputable def cancelHomotopyFun (α : A → Path x y) (ρ : A → Path w y)
+    (β : A → Path z y) (q : (I × A) × I) : X :=
+  if (q.2 : ℝ) ≤ (1 + (q.1.1 : ℝ)) / 4 then (α q.1.2).extend ((q.2 : ℝ) / ((1 + q.1.1) / 4))
+  else if (q.2 : ℝ) ≤ 1 - (1 + (q.1.1 : ℝ)) / 4 then
+    (ρ q.1.2).extend ((q.1.1 : ℝ) + 2 * |2 * (q.2 : ℝ) - 1|)
+  else (β q.1.2).extend ((1 - (q.2 : ℝ)) / ((1 + q.1.1) / 4))
+
+private theorem pos_cancel (r : I) : 0 < (1 + (r : ℝ)) / 4 := by
+  have := r.2.1; positivity
+
+private theorem continuous_cancelHomotopyFun [TopologicalSpace A] {α : A → Path x y}
+    {ρ : A → Path w y} {β : A → Path z y} (hα : Continuous α) (hρ : Continuous ρ)
+    (hβ : Continuous β) : Continuous (cancelHomotopyFun α ρ β) := by
+  have hαe := continuous_uncurry_extend_of_continuous_family α (continuous_uncurry_iff.2 hα)
+  have hρe := continuous_uncurry_extend_of_continuous_family ρ (continuous_uncurry_iff.2 hρ)
+  have hβe := continuous_uncurry_extend_of_continuous_family β (continuous_uncurry_iff.2 hβ)
+  refine Continuous.if_le ?_ (Continuous.if_le ?_ ?_ (by fun_prop) (by fun_prop) ?_)
+    (by fun_prop) (by fun_prop) ?_
+  · exact hαe.comp ((by fun_prop : Continuous fun q : (I × A) × I => q.1.2).prodMk
+      ((by fun_prop : Continuous fun q : (I × A) × I => (q.2 : ℝ)).div (by fun_prop)
+        fun q => (pos_cancel q.1.1).ne'))
+  · exact hρe.comp ((by fun_prop : Continuous fun q : (I × A) × I => q.1.2).prodMk
+      (by fun_prop : Continuous fun q : (I × A) × I => (q.1.1 : ℝ) + 2 * |2 * (q.2 : ℝ) - 1|))
+  · exact hβe.comp ((by fun_prop : Continuous fun q : (I × A) × I => q.1.2).prodMk
+      ((by fun_prop : Continuous fun q : (I × A) × I => 1 - (q.2 : ℝ)).div (by fun_prop)
+        fun q => (pos_cancel q.1.1).ne'))
+  · rintro ⟨⟨r, a⟩, t⟩ (h : (t : ℝ) = 1 - (1 + r) / 4)
+    have hr := r.2.2
+    rw [h, show |2 * (1 - (1 + (r : ℝ)) / 4) - 1| = 1 - 2 * ((1 + r) / 4) by
+        rw [abs_of_nonneg (by linarith)]; ring,
+      show (r : ℝ) + 2 * (1 - 2 * ((1 + r) / 4)) = 1 by ring,
+      show 1 - (1 - (1 + (r : ℝ)) / 4) = (1 + r) / 4 by ring, div_self (pos_cancel r).ne',
+      extend_one, extend_one]
+  · rintro ⟨⟨r, a⟩, t⟩ (h : (t : ℝ) = (1 + r) / 4)
+    have hr := r.2.2
+    have hle : (1 + (r : ℝ)) / 4 ≤ 1 - (1 + r) / 4 := by linarith
+    simp only [h, hle, ite_true]
+    rw [div_self (pos_cancel r).ne', show |2 * ((1 + (r : ℝ)) / 4) - 1| = 1 - 2 * ((1 + r) / 4) by
+        rw [abs_of_nonpos (by linarith)]; ring,
+      show (r : ℝ) + 2 * (1 - 2 * ((1 + r) / 4)) = 1 by ring, extend_one, extend_one]
+
+private theorem cancelHomotopyFun_zero (α : A → Path x y) (ρ : A → Path w y)
+    (β : A → Path z y) (a : A) (t : I) :
+    cancelHomotopyFun α ρ β ((0, a), t) =
+      (((α a).trans (ρ a).symm).trans ((ρ a).trans (β a).symm)) t := by
+  have ht0 := t.2.1
+  have ht1 := t.2.2
+  simp only [cancelHomotopyFun, Set.Icc.coe_zero, add_zero, trans_apply, symm_apply]
+  split_ifs with h₁ h₂ h₃ h₄ h₅ h₆ <;> try (exfalso; linarith)
+  · rw [extend_apply _ ⟨by positivity, by linarith⟩]
+    congr 1; ext; simp only; ring
+  · rw [abs_of_nonpos (by linarith), extend_apply _ ⟨by linarith, by linarith⟩]
+    simp only [Function.comp_apply, unitInterval.symm]
+    congr 1; ext; simp only; ring
+  · rw [abs_of_nonneg (by linarith), extend_apply _ ⟨by linarith, by linarith⟩]
+    congr 1; ext; simp only; ring
+  · rw [extend_apply _ ⟨by linarith, by linarith⟩]
+    simp only [Function.comp_apply, unitInterval.symm]
+    congr 1; ext; simp only; ring
+
+private theorem cancelHomotopyFun_one (α : A → Path x y) (ρ : A → Path w y)
+    (β : A → Path z y) (a : A) (t : I) :
+    cancelHomotopyFun α ρ β ((1, a), t) = ((α a).trans (β a).symm) t := by
+  have ht0 := t.2.1
+  have ht1 := t.2.2
+  simp only [cancelHomotopyFun, Set.Icc.coe_one, trans_apply, symm_apply]
+  split_ifs with h₁ h₂ h₃ h₄ <;> try (exfalso; linarith)
+  · rw [extend_apply _ ⟨by positivity, by linarith⟩]
+    congr 1; ext; simp only; ring
+  · rw [extend_apply _ ⟨by linarith, by linarith⟩]
+    simp only [Function.comp_apply, unitInterval.symm]
+    congr 1; ext; simp only; ring
+
+private theorem cancelHomotopyFun_source (α : A → Path x y) (ρ : A → Path w y)
+    (β : A → Path z y) (q : I × A) : cancelHomotopyFun α ρ β (q, 0) = x := by
+  simp [cancelHomotopyFun, (pos_cancel q.1).le]
+
+private theorem cancelHomotopyFun_target (α : A → Path x y) (ρ : A → Path w y)
+    (β : A → Path z y) (q : I × A) : cancelHomotopyFun α ρ β (q, 1) = z := by
+  have := q.1.2.1
+  have h₁ : ¬ (1 : ℝ) ≤ (1 + q.1) / 4 := by linarith [q.1.2.2]
+  have h₂ : ¬ (1 : ℝ) ≤ 1 - (1 + q.1) / 4 := by linarith
+  simp [cancelHomotopyFun, h₁, h₂]
+
+variable [TopologicalSpace A]
+
+/-- **Cancelling a back-and-forth path, in families.** For continuous families of paths
+`α a : x ⇝ y`, `ρ a : w ⇝ y` and `β a : z ⇝ y`, the two families of paths from `x` to `z`
+
+`a ↦ (α a · (ρ a)⁻¹) · (ρ a · (β a)⁻¹)` and `a ↦ α a · (β a)⁻¹`
+
+are homotopic as maps from `A` to the space of paths: the detour along `ρ a` and back is
+shrunk to the end point `y`, uniformly in `a`. -/
+theorem homotopic_trans_symm_trans_trans_symm {α : A → Path x y} {ρ : A → Path w y}
+    {β : A → Path z y} (hα : Continuous α) (hρ : Continuous ρ) (hβ : Continuous β) :
+    (⟨fun a ↦ ((α a).trans (ρ a).symm).trans ((ρ a).trans (β a).symm),
+        (hα.path_trans (continuous_symm.comp hρ)).path_trans
+          (hρ.path_trans (continuous_symm.comp hβ))⟩ : C(A, Path x z)).Homotopic
+      ⟨fun a ↦ (α a).trans (β a).symm, hα.path_trans (continuous_symm.comp hβ)⟩ :=
+  ⟨{ toFun q :=
+      { toFun t := cancelHomotopyFun α ρ β (q, t)
+        continuous_toFun := (continuous_cancelHomotopyFun hα hρ hβ).comp (by fun_prop)
+        source' := cancelHomotopyFun_source α ρ β q
+        target' := cancelHomotopyFun_target α ρ β q }
+     continuous_toFun := continuous_uncurry_iff.mp
+        ((continuous_cancelHomotopyFun hα hρ hβ).comp (by fun_prop))
+     map_zero_left a := Path.ext <| funext <| cancelHomotopyFun_zero α ρ β a
+     map_one_left a := Path.ext <| funext <| cancelHomotopyFun_one α ρ β a }⟩
+
+end Cancellation
+
+/-- If every parameter `s` has some `γ ⁻¹' U i` as a neighbourhood, then `γ` can be subdivided
+at finitely many monotone times, starting at `0` and ending at `1`, so that the subpath between
+any two consecutive times has range in some `U i`. -/
+theorem exists_monotone_range_subpath_subset {ι : Type*} {U : ι → Set X} {x y : X}
+    (γ : Path x y) (hU : ∀ s, ∃ i, γ ⁻¹' U i ∈ 𝓝 s) :
+    ∃ (n : ℕ) (t : Fin (n + 1) → I), t 0 = 0 ∧ t (Fin.last n) = 1 ∧ Monotone t ∧
+      ∀ k : Fin n, ∃ i, range (γ.subpath (t k.castSucc) (t k.succ)) ⊆ U i := by
+  obtain ⟨t, ht0, ht_mono, ⟨N, hN⟩, ht_cover⟩ :=
+    exists_monotone_Icc_subset_open_cover_unitInterval
+      (c := fun i ↦ interior (γ ⁻¹' U i))
+      (fun i ↦ isOpen_interior)
+      (fun s _ ↦ by
+        obtain ⟨i, hi⟩ := hU s
+        exact mem_iUnion.2 ⟨i, mem_interior_iff_mem_nhds.2 hi⟩)
+  refine ⟨N, fun k ↦ t k, by simpa using ht0, by simpa using hN N le_rfl,
+    fun a b hab ↦ ht_mono (by simpa using hab), fun k ↦ ?_⟩
+  obtain ⟨i, hi⟩ := ht_cover k
+  refine ⟨i, ?_⟩
+  rw [range_subpath_of_le _ _ _ (ht_mono (by simp))]
+  rintro _ ⟨s, hs, rfl⟩
+  have hs' : s ∈ γ ⁻¹' U i := interior_subset (hi (by simpa using hs))
+  exact hs'
+
+-- The statement is ported from https://github.com/leanprover-community/mathlib4/pull/44183.
+/-- If every point on a path has an open neighborhood satisfying `P`, then there is a partition
+`0 = t₀ ≤ ⋯ ≤ tₙ = 1` such that each segment `γ [tᵢ, tᵢ₊₁]` lies in an open set satisfying
+`P`. -/
+theorem exists_partition_with_property {x y : X} (γ : Path x y) (P : Set X → Prop)
+    (h : ∀ z ∈ range γ, ∃ U : Set X, IsOpen U ∧ z ∈ U ∧ P U) :
+    ∃ (n : ℕ) (part : unitInterval.Partition n),
+      ∀ i : Fin n, ∃ U : Set X, IsOpen U ∧ P U ∧
+        MapsTo γ (Icc (part.t i.castSucc) (part.t i.succ)) U := by
+  choose U hU_open hU_mem hU_P using h
+  obtain ⟨N, t, ht0, htN, ht_mono, ht_cover⟩ :=
+    γ.exists_monotone_range_subpath_subset (U := fun z : range γ ↦ U z.val z.property)
+      fun s ↦ ⟨⟨γ s, s, rfl⟩, γ.continuous.continuousAt.preimage_mem_nhds
+        ((hU_open _ _).mem_nhds (hU_mem _ _))⟩
+  refine ⟨N, ⟨t, ht_mono, ht0, htN⟩, fun i ↦ ?_⟩
+  obtain ⟨⟨z, hz⟩, h_seg⟩ := ht_cover i
+  rw [range_subpath_of_le _ _ _ (ht_mono i.castSucc_le_succ)] at h_seg
+  exact ⟨U z hz, hU_open z hz, hU_P z hz, fun s hs ↦ h_seg ⟨s, hs, rfl⟩⟩
+
+end Path
+
+-- Ported from https://github.com/leanprover-community/mathlib4/pull/44183.
+/-- Given open sets `U i` into which `f` maps the consecutive segments `[t i, t (i + 1)]` of a
+monotone sequence in the unit interval, the path components of `f (t j)` in the intersections of
+the adjacent `U i` are open, path-connected vertex sets, each contained in its adjacent `U i`. -/
+theorem unitInterval.exists_vertex_family {X : Type*} [TopologicalSpace X]
+    [LocallyPathConnectedSpace X] {n : ℕ} {f : I → X} {t : Fin (n + 1) → I} {U : Fin n → Set X}
+    (h_mono : Monotone t)
+    (hU_open : ∀ i, IsOpen (U i))
+    (hU : ∀ i : Fin n, MapsTo f (Icc (t i.castSucc) (t i.succ)) (U i)) :
+    ∃ V : Fin (n + 1) → Set X, (∀ j, IsOpen (V j)) ∧ (∀ j, IsPathConnected (V j)) ∧
+      (∀ j, f (t j) ∈ V j) ∧ (∀ i : Fin n, V i.castSucc ⊆ U i) ∧ ∀ i : Fin n, V i.succ ⊆ U i := by
+  let W : Fin (n + 1) → Set X := fun j ↦ ⋂ i : Fin n, ⋂ (_ : j = i.castSucc ∨ j = i.succ), U i
+  have hW_open : ∀ j, IsOpen (W j) := fun j ↦
+    isOpen_iInter_of_finite fun i ↦ isOpen_iInter_of_finite fun _ ↦ hU_open i
+  have hfW : ∀ j, f (t j) ∈ W j := by
+    intro j
+    simp only [W, mem_iInter]
+    rintro i (rfl | rfl)
+    · exact hU i ⟨le_rfl, h_mono i.castSucc_lt_succ.le⟩
+    · exact hU i ⟨h_mono i.castSucc_lt_succ.le, le_rfl⟩
+  refine ⟨fun j ↦ pathComponentIn (W j) (f (t j)), fun j ↦ (hW_open j).pathComponentIn _,
+    fun j ↦ isPathConnected_pathComponentIn (hfW j), fun j ↦ mem_pathComponentIn_self (hfW j),
+    fun i ↦ pathComponentIn_subset.trans ?_, fun i ↦ pathComponentIn_subset.trans ?_⟩
+  · exact iInter_subset_of_subset i (iInter_subset _ (Or.inl rfl))
+  · exact iInter_subset_of_subset i (iInter_subset _ (Or.inr rfl))
+
+namespace Path
+variable {X : Type*} [TopologicalSpace X] {x y : X}
+
+/-- The constant path followed by `p` is a reparametrization of `p`, the counterpart of
+`Path.Homotopy.trans_refl_reparam`. -/
+theorem refl_trans_eq_reparam {y z : X} (p : Path y z) :
+    (refl y).trans p =
+      p.reparam (fun t => Set.projIcc 0 1 zero_le_one (2 * (t : ℝ) - 1)) (by fun_prop)
+        (Subtype.ext (by norm_num)) (Subtype.ext (by norm_num)) := by
+  ext t
+  rw [trans_apply, coe_reparam, Function.comp_apply]
+  split_ifs with h
+  · rw [refl_apply, Set.projIcc_of_le_left _ (by linarith)]
+    exact p.source.symm
+  · exact congrArg p (Set.projIcc_of_mem _ ⟨by linarith, by linarith [t.2.2]⟩).symm
+
+namespace Homotopic.Quotient
+
+/-- Reversing a path-homotopy class twice recovers the original class. -/
+@[simp]
+theorem symm_symm {x₀ x₁ : X} (γ : Homotopic.Quotient x₀ x₁) : γ.symm.symm = γ := by
+  induction γ using Quotient.ind with
+  | mk γ => exact congrArg mk (Path.symm_symm γ)
+
+/-- The reverse of the constant path-homotopy class is the constant class. -/
+@[simp]
+theorem symm_refl (x : X) : (refl x).symm = refl x := by
+  rw [← mk_refl, ← mk_symm, Path.refl_symm, mk_refl]
+
+/-- The quotient topology on path-homotopy classes. This instance is load-bearing:
+`Path.Homotopic.Quotient` is a `def` over `Quotient`, and instance search does not unfold it to
+find the generic `TopologicalSpace (Quotient _)`. -/
+instance instTopologicalSpace (x₀ x : X) :
+    TopologicalSpace (Path.Homotopic.Quotient x₀ x) :=
+  inferInstanceAs (TopologicalSpace (Quotient _))
+
+/-- A set of path-homotopy classes is open exactly when its preimage under quotient
+construction is open. -/
+theorem isOpen_iff_preimage_mk {x₀ x₁ : X} {S : Set (Path.Homotopic.Quotient x₀ x₁)} :
+    IsOpen S ↔ IsOpen ((mk : Path x₀ x₁ →
+      Path.Homotopic.Quotient x₀ x₁) ⁻¹' S) :=
+  -- `Iff.rfl` is valid because `instTopologicalSpace` above is by definition the quotient
+  -- topology (`inferInstanceAs`), so `IsOpen S` unfolds to openness of the `mk`-preimage.
+  Iff.rfl
+
+/-- The concatenation identity `Path.Homotopic.mk_subpath_trans_mk_subpath` with endpoints
+recast to given points. This cuts a path into pieces with prescribed, named endpoints. -/
+theorem subpath_cast_trans {x y : X} (p : Path x y) (a b c : unitInterval) {x₀ x₁ x₂ : X}
+    (h₀ : x₀ = p a) (h₁ : x₁ = p b) (h₂ : x₂ = p c) :
+    trans (mk ((p.subpath a b).cast h₀ h₁)) (mk ((p.subpath b c).cast h₁ h₂)) =
+      mk ((p.subpath a c).cast h₀ h₂) := by
+  subst h₀ h₁ h₂
+  simp
+
+/-- A degenerate subpath represents the reflexivity class at its endpoint. -/
+theorem subpath_self {x y : X} (p : Path x y) (a : unitInterval) :
+    mk (p.subpath a a) = refl (p a) := by
+  simp only [← mk_refl, eq]
+  rw [Path.subpath_self]
+
+/-- The full `[0,1]` subpath represents the original path, up to the endpoint casts inserted by
+`Path.subpath`. -/
+theorem subpath_zero_one {x y : X} (p : Path x y) :
+    mk (p.subpath 0 1) = (mk p).cast (by simp) (by simp) := by
+  simp only [← mk_cast, eq]
+  rw [Path.subpath_zero_one]
+
+end Homotopic.Quotient
+
+end Path
+
+namespace Path.Homotopic
+variable {X : Type*} [TopologicalSpace X] {x₀ x₁ : X}
+
+/-- Composing on the left with a null-homotopic loop does not change the homotopy class. -/
+theorem trans_left_of_nullhomotopic {γ₀ : Path x₀ x₀} {γ₁ : Path x₀ x₁}
+    (hγ₀ : γ₀.Homotopic (Path.refl x₀)) : (γ₀.trans γ₁).Homotopic γ₁ :=
+  (hcomp hγ₀ (.refl γ₁)).trans (refl_trans γ₁)
+
+/-- Composing on the right with a null-homotopic loop does not change the homotopy class. -/
+theorem trans_right_of_nullhomotopic {γ₀ : Path x₀ x₁} {γ₁ : Path x₁ x₁}
+    (hγ₁ : γ₁.Homotopic (Path.refl x₁)) : (γ₀.trans γ₁).Homotopic γ₀ :=
+  (hcomp (.refl γ₀) hγ₁).trans (trans_refl γ₀)
+
+/-- If `γ.trans γ'.symm` is nullhomotopic, then `γ` and `γ'` are homotopic.
+This is the path-homotopy analogue of `a * b⁻¹ = 1 → a = b`. -/
+theorem of_trans_symm {γ γ' : Path x₀ x₁}
+    (h : (γ.trans γ'.symm).Homotopic (Path.refl x₀)) : γ.Homotopic γ' :=
+  (trans_refl γ).symm |>.trans <|
+  (hcomp (.refl γ) (symm_trans γ').symm) |>.trans <|
+  (trans_assoc γ γ'.symm γ').symm |>.trans <|
+  (hcomp h (.refl γ')) |>.trans <|
+  refl_trans γ'
+
+/-- Right cancellation in the fundamental groupoid: if `γ.trans e` and `δ.trans e` are homotopic,
+then `γ` and `δ` are homotopic. This is the path-homotopy analogue of `a * c = b * c → a = b`. -/
+theorem trans_right_cancel {x₀ x₁ x₂ : X} {γ δ : Path x₀ x₁} {e : Path x₁ x₂}
+    (h : (γ.trans e).Homotopic (δ.trans e)) : γ.Homotopic δ := by
+  have hγ : ((γ.trans e).trans e.symm).Homotopic γ :=
+    (trans_assoc γ e e.symm).trans (trans_right_of_nullhomotopic (trans_symm e))
+  have hδ : ((δ.trans e).trans e.symm).Homotopic δ :=
+    (trans_assoc δ e e.symm).trans (trans_right_of_nullhomotopic (trans_symm e))
+  exact hγ.symm.trans ((h.hcomp (refl e.symm)).trans hδ)
+
+/-- Left cancellation in the fundamental groupoid: if `e.trans γ` and `e.trans δ` are homotopic,
+then `γ` and `δ` are homotopic. This is the path-homotopy analogue of `c * a = c * b → a = b`. -/
+theorem trans_left_cancel {x₀ x₁ x₂ : X} {e : Path x₀ x₁} {γ δ : Path x₁ x₂}
+    (h : (e.trans γ).Homotopic (e.trans δ)) : γ.Homotopic δ := by
+  have hγ : (e.symm.trans (e.trans γ)).Homotopic γ :=
+    (trans_assoc e.symm e γ).symm.trans (trans_left_of_nullhomotopic (symm_trans e))
+  have hδ : (e.symm.trans (e.trans δ)).Homotopic δ :=
+    (trans_assoc e.symm e δ).symm.trans (trans_left_of_nullhomotopic (symm_trans e))
+  exact hγ.symm.trans (((refl e.symm).hcomp h).trans hδ)
+
+/-- A loop whose conjugate by a path is null-homotopic is itself null-homotopic. This is the
+path-homotopy analogue of `a * b * a⁻¹ = 1 → b = 1`. -/
+theorem of_conj_nullhomotopic {x₀ x₁ : X} {α : Path x₀ x₁} {δ : Path x₁ x₁}
+    (h : ((α.trans δ).trans α.symm).Homotopic (Path.refl x₀)) :
+    δ.Homotopic (Path.refl x₁) :=
+  trans_left_cancel ((of_trans_symm h).trans (trans_refl α).symm)
+
+/-- The image of a based loop under a null-homotopic continuous map is null-homotopic in the
+target: a map homotopic to a constant collapses every loop to the constant loop. -/
+theorem map_nullhomotopic_of_nullhomotopic {Y : Type*} [TopologicalSpace Y] {f : C(X, Y)}
+    (hf : f.Nullhomotopic) {a : X} (γ : Path a a) :
+    (γ.map (map_continuous f)).Homotopic (Path.refl (f a)) := by
+  obtain ⟨c, ⟨F⟩⟩ := hf
+  have key := map_trans_evalAt F γ
+  have hconst : γ.map (map_continuous (ContinuousMap.const X c)) = Path.refl c := by ext t; rfl
+  rw [hconst] at key
+  exact trans_right_cancel
+    ((key.trans (trans_refl _)).trans (refl_trans _).symm)
+
+/-- A loop that stays in a set whose inclusion is null-homotopic is itself null-homotopic in the
+ambient space. -/
+theorem refl_of_forall_mem_of_nullhomotopic {s : Set X}
+    (hs : (ContinuousMap.mk (Subtype.val : s → X) continuous_subtype_val).Nullhomotopic)
+    {x : X} (γ : Path x x) (hγ : ∀ t, γ t ∈ s) : γ.Homotopic (Path.refl x) := by
+  have hx : x ∈ s := γ.source ▸ hγ 0
+  have hmap := map_nullhomotopic_of_nullhomotopic hs
+    (γ.codRestrict (x := ⟨x, hx⟩) (y := ⟨x, hx⟩) hγ)
+  rwa [Path.map_codRestrict] at hmap
+
+namespace Quotient
+variable {x₀ x₁ : X}
+
+/-- Casting the reflexivity class at `x` along `h : y = x` gives the reflexivity class at `y`. -/
+@[simp, grind =]
+theorem refl_cast {x y : X} (h : y = x) : (refl x).cast h h = refl y := by
+  -- After `cases h` the cast is along `rfl`, and `Quotient.cast` on a literal `refl` class
+  -- reduces definitionally, so `rfl` closes the goal.
+  cases h; rfl
+
+/-- The image under `f` of a composite of path classes, with endpoints cast along `h₀` and `h₂`,
+is the composite of the cast images of the two factors. -/
+theorem map_trans_cast {Y : Type*} [TopologicalSpace Y] {a b c : X} {f : C(X, Y)}
+    (A : Homotopic.Quotient a b) (B : Homotopic.Quotient b c) {y₀ y₁ y₂ : Y}
+    (h₀ : y₀ = f a) (h₁ : y₁ = f b) (h₂ : y₂ = f c) :
+    ((A.trans B).map f).cast h₀ h₂ = ((A.map f).cast h₀ h₁).trans ((B.map f).cast h₁ h₂) := by
+  subst h₀ h₁ h₂
+  simp only [cast_rfl_rfl]
+  induction A, B using Quotient.ind₂ with
+  | mk A B => simp only [← mk_trans, ← mk_map, Path.map_trans]
+
+/-- If `trans γ (symm γ') = refl`, then `γ = γ'`.
+This is the quotient analogue of `eq_of_div_eq_one : a / b = 1 → a = b`. -/
+theorem eq_of_trans_symm {γ γ' : Homotopic.Quotient x₀ x₁}
+    (h : trans γ (symm γ') = refl x₀) : γ = γ' := by
+  induction γ using Quotient.ind with | mk γ =>
+  induction γ' using Quotient.ind with | mk γ' =>
+  simp only [← mk_trans, ← mk_symm, ← mk_refl] at h
+  exact Quotient.sound (Homotopic.of_trans_symm (Quotient.exact h))
+
+end Quotient
+end Path.Homotopic
+
+section IsPathHomotopyTrivial
+
+variable {X : Type*} [TopologicalSpace X]
+
+/-- A subset `U` of a topological space `X` is *path-homotopy-trivial* if any two paths
+in `X` whose images lie in `U` and which share endpoints are homotopic in `X`.
+This is the form of "`U` is simply connected" used in the universal-cover
+construction: it is weaker than `IsSimplyConnected U` because the homotopy is not required
+to lie inside `U` (`IsSimplyConnected.isPathHomotopyTrivial`). -/
+def IsPathHomotopyTrivial (U : Set X) : Prop :=
+  ∀ ⦃a b : X⦄ (p q : Path a b), range p ⊆ U → range q ⊆ U → Path.Homotopic p q
+
+/-- The defining characterization of a path-homotopy-trivial set. -/
+theorem isPathHomotopyTrivial_def {U : Set X} :
+    IsPathHomotopyTrivial U ↔
+      ∀ ⦃a b : X⦄ (p q : Path a b), range p ⊆ U → range q ⊆ U → Path.Homotopic p q :=
+  Iff.rfl
+
+/-- A loop in a path-homotopy-trivial set is nullhomotopic. -/
+theorem IsPathHomotopyTrivial.nullhomotopic {U : Set X} (hU : IsPathHomotopyTrivial U)
+    {x : X} (γ : Path x x) (hγ : range γ ⊆ U) : γ.Homotopic (Path.refl x) :=
+  hU γ _ hγ (by simpa using hγ ⟨0, γ.source⟩)
+
+/-- **A simply connected set is path-homotopy-trivial.** Two paths with the same endpoints whose
+ranges lie in a simply connected set are homotopic in the ambient space. -/
+theorem IsSimplyConnected.isPathHomotopyTrivial {U : Set X} (hU : IsSimplyConnected U) :
+    IsPathHomotopyTrivial U :=
+  isPathHomotopyTrivial_def.mpr fun _ _ _ _ hp hq ↦
+    let ⟨K, _⟩ := Path.exists_homotopy_forall_mem_of_isSimplyConnected hU
+      (range_subset_iff.1 hp) (range_subset_iff.1 hq)
+    ⟨K⟩
+
+end IsPathHomotopyTrivial
+
+section Pasting
+variable {X : Type*} [TopologicalSpace X] {n : ℕ}
+
+-- Ported from https://github.com/leanprover-community/mathlib4/pull/44183.
+/-- The class of `p.subpath` over the endpoints of a partition is the class of `p`. Casts keep the
+endpoints fixed when rewriting the partition endpoints. -/
+private theorem Path.Homotopic.Quotient.cast_mk_subpath_t_zero_t_last {x y : X} (p : Path x y)
+    (part : unitInterval.Partition n) (h₁ : x = p (part.t 0)) (h₂ : y = p (part.t (Fin.last n))) :
+    (Path.Homotopic.Quotient.mk (p.subpath (part.t 0) (part.t (Fin.last n)))).cast h₁ h₂ =
+      Path.Homotopic.Quotient.mk p := by
+  revert h₁ h₂
+  rw [part.t_zero, part.t_last]
+  intro h₁ h₂
+  rw [Path.Homotopic.Quotient.subpath_zero_one]
+  simp
+
+/-- The pasting lemma. Let `γ : Path x y` and `γ' : Path x' y'`, and let `α j` be "rung" paths
+from `γ (t j)` to `γ' (t j)` at the vertices of a partition. If on each segment
+`γ|[tᵢ, tᵢ₊₁] · αᵢ₊₁` is homotopic to `αᵢ · γ'|[tᵢ, tᵢ₊₁]`, then `γ · αₙ` is homotopic to
+`α₀ · γ'`. -/
+theorem Path.Homotopic.trans_of_subpath_trans {x y x' y' : X}
+    (γ : Path x y) (γ' : Path x' y') (part : unitInterval.Partition n)
+    (α : (j : Fin (n + 1)) → Path (γ (part.t j)) (γ' (part.t j)))
+    (h_rect : ∀ i : Fin n,
+      ((γ.subpath (part.t i.castSucc) (part.t i.succ)).trans (α i.succ)).Homotopic
+        ((α i.castSucc).trans (γ'.subpath (part.t i.castSucc) (part.t i.succ)))) :
+    (γ.trans ((α (Fin.last n)).cast (by simp) (by simp))).Homotopic
+      (((α 0).cast (by simp) (by simp)).trans γ') := by
+  open Path.Homotopic.Quotient in
+  -- `γ_aux j` follows `γ` up to `t j`, crosses along `α j`, then follows `γ'`.
+  let γ_aux : Fin (n + 1) → Path x y' := fun j ↦
+    (((γ.subpath (part.t 0) (part.t j)).trans (α j)).trans
+      (γ'.subpath (part.t j) (part.t (Fin.last n)))).cast (by simp) (by simp)
+  have h_zero : (γ_aux 0).Homotopic (((α 0).cast (by simp) (by simp)).trans γ') := by
+    apply Path.Homotopic.Quotient.exact
+    dsimp [γ_aux]
+    rw [subpath_self, cast_mk_subpath_t_zero_t_last γ' part]
+    simp
+  have h_last : (γ_aux (Fin.last n)).Homotopic
+      (γ.trans ((α (Fin.last n)).cast (by simp) (by simp))) := by
+    apply Path.Homotopic.Quotient.exact
+    dsimp [γ_aux]
+    rw [subpath_self, cast_mk_subpath_t_zero_t_last γ part]
+    simp
+  have h_rect' : ∀ (i : Fin n) {w : X} (q : Path.Homotopic.Quotient (γ' (part.t i.succ)) w),
+      (Path.Homotopic.Quotient.mk (γ.subpath (part.t i.castSucc) (part.t i.succ))).trans
+          ((Path.Homotopic.Quotient.mk (α i.succ)).trans q) =
+        (Path.Homotopic.Quotient.mk (α i.castSucc)).trans
+          ((Path.Homotopic.Quotient.mk (γ'.subpath (part.t i.castSucc) (part.t i.succ))).trans
+            q) := by
+    intro i w q
+    rw [← Path.Homotopic.Quotient.trans_assoc, ← Path.Homotopic.Quotient.trans_assoc]
+    rw [← mk_trans, ← mk_trans, Path.Homotopic.Quotient.eq.mpr (h_rect i)]
+  have h_step : ∀ i : Fin n, (γ_aux i.succ).Homotopic (γ_aux i.castSucc) := by
+    intro i
+    apply Path.Homotopic.Quotient.exact
+    simp only [γ_aux, mk_trans, mk_cast]
+    rw [← Path.Homotopic.mk_subpath_trans_mk_subpath γ (part.t 0) (part.t i.castSucc),
+      ← Path.Homotopic.mk_subpath_trans_mk_subpath γ' (part.t i.castSucc) (part.t i.succ)]
+    simp only [Path.Homotopic.Quotient.trans_assoc]
+    rw [h_rect']
+  have h_chain : ∀ j : Fin (n + 1), (γ_aux j).Homotopic (γ_aux 0) := by
+    intro j
+    induction j using Fin.induction with
+    | zero => exact .refl _
+    | succ i ih => exact (h_step i).trans ih
+  exact h_last.symm.trans ((h_chain (Fin.last n)).trans h_zero)
+
+end Pasting

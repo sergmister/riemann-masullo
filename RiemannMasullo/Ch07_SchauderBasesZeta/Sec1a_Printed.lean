@@ -2,6 +2,10 @@ module
 
 public import RiemannMasullo.Ch07_SchauderBasesZeta.Sec1a
 import Mathlib.Algebra.Field.ULift
+import Mathlib.NumberTheory.NumberField.Cyclotomic.Embeddings
+import Mathlib.Analysis.Real.Pi.Irrational
+
+import Mathlib.Analysis.Meromorphic.RCLike
 
 import Mathlib.Algebra.Field.ULift
 import all RiemannMasullo.Ch07_SchauderBasesZeta.Sec1a
@@ -45,11 +49,52 @@ def Printed.reciprocalPartialHeckeEulerProduct_unshifted_zeros : Prop :=
     let s : ℂ := ((m : ℝ) * period(v.val) : ℝ) * Complex.I
     ∏ w : S, (1 - (w.val.asIdeal.absNorm : ℂ) ^ (-s - (t w : ℂ) * Complex.I)) = 0
 
+private theorem Printed.reciprocalPartialHeckeEulerProduct_unshifted_zeros_false_factor (q : ℕ)
+    (hq : 1 < q) :
+    1 - (q : ℂ) ^ (-(0 : ℂ) - ((Real.pi / Real.log q : ℝ) : ℂ) * Complex.I) ≠ 0 := by
+  have hq0 : (q : ℂ) ≠ 0 := by exact_mod_cast (zero_lt_one.trans hq).ne'
+  have hlog : Real.log q ≠ 0 := by
+    have : (1 : ℝ) < q := by exact_mod_cast hq
+    exact (Real.log_pos this).ne'
+  rw [Complex.cpow_def_of_ne_zero hq0, ← Complex.ofReal_natCast,
+    ← Complex.ofReal_log (Nat.cast_nonneg q)]
+  have : ((Real.log q : ℝ) : ℂ) * (-(0 : ℂ) - ((Real.pi / Real.log q : ℝ) : ℂ) * Complex.I) =
+      -(Real.pi * Complex.I) := by
+    have hlogc : ((Real.log q : ℝ) : ℂ) ≠ 0 := Complex.ofReal_ne_zero.mpr hlog
+    rw [Complex.ofReal_div]
+    field_simp
+    ring
+  rw [this, Complex.exp_neg, Complex.exp_pi_mul_I]
+  norm_num
+
+private theorem Printed.reciprocalPartialHeckeEulerProduct_unshifted_zeros_false_ulift
+    (h : Printed.reciprocalPartialHeckeEulerProduct_unshifted_zeros.{u}) : False := by
+  have : CharZero (ULift.{u} ℚ) := ⟨fun a b hab ↦ by simpa using congrArg ULift.down hab⟩
+  have : NumberField (ULift.{u} ℚ) := ⟨⟩
+  obtain ⟨m, hm⟩ := Ideal.exists_maximal (𝓞 (ULift.{u} ℚ))
+  let v : HeightOneSpectrum (𝓞 (ULift.{u} ℚ)) := ⟨m, hm.isPrime, NeZero.ne m⟩
+  have hq : 1 < Ideal.absNorm v.asIdeal := by
+    have h0 : Ideal.absNorm v.asIdeal ≠ 0 := by
+      rw [Ne, Ideal.absNorm_eq_zero_iff]
+      exact v.ne_bot
+    have h1 : Ideal.absNorm v.asIdeal ≠ 1 := by
+      rw [Ne, Ideal.absNorm_eq_one_iff]
+      exact v.isPrime.ne_top
+    omega
+  have key := h (ULift.{u} ℚ) {v} (fun _ ↦ Real.pi / Real.log (Ideal.absNorm v.asIdeal))
+    ⟨v, Finset.mem_singleton_self v⟩ 0
+  simp only [Int.cast_zero, zero_mul, Complex.ofReal_zero] at key
+  rw [Finset.prod_coe_sort ({v} : Finset _)
+    (fun w ↦ 1 - (w.asIdeal.absNorm : ℂ) ^ (-(0 : ℂ) - ((Real.pi / Real.log
+      (Ideal.absNorm v.asIdeal) : ℝ) : ℂ) * Complex.I)), Finset.prod_singleton] at key
+  exact Printed.reciprocalPartialHeckeEulerProduct_unshifted_zeros_false_factor _ hq key
+
 /-- Paper: Before Lemma 7.1.1.1, p. 313.
 Take the rational field, the singleton place above 2, and tᵥ = π/(2 log 2).
 At m = 0 the factor is 1 − exp(−iπ/2) = 1 + i. -/
 theorem Printed.reciprocalPartialHeckeEulerProduct_unshifted_zeros_false :
-    ¬ Printed.reciprocalPartialHeckeEulerProduct_unshifted_zeros := by sorry
+    ¬ Printed.reciprocalPartialHeckeEulerProduct_unshifted_zeros :=
+  fun h ↦ Printed.reciprocalPartialHeckeEulerProduct_unshifted_zeros_false_ulift h
 
 /-- Paper: Lemma 7.1.2.2(1), p. 317.
 As printed: At every complex place of angular weight k, a nonpositive integer in
@@ -64,12 +109,214 @@ def Printed.sLocalRhoFactor_complex_positive_shift : Prop :=
     m ≤ 0 → (∃ n : ℕ, (m : ℝ) = (p.2.natAbs : ℝ) / 2 - n) →
       meromorphicOrderAt (fun z ↦ sLocalRhoFactor (chart z)) ((m : ℂ) - p.1) < 0
 
+/-- The number `exp i` is not a root of unity, since `π` is irrational. -/
+private theorem Printed.sLocalRhoFactor_complex_positive_shift_false_exp_I_pow (n : ℕ)
+    (hn : 0 < n) : Complex.exp Complex.I ^ n ≠ 1 := by
+  intro h
+  rw [← Complex.exp_nat_mul, Complex.exp_eq_one_iff] at h
+  obtain ⟨k, hk⟩ := h
+  have h1 : (n : ℝ) = k * (2 * Real.pi) := by
+    have := congrArg Complex.im hk
+    simpa using this
+  have hk0 : (k : ℝ) ≠ 0 := by
+    rintro h0
+    rw [h0, zero_mul] at h1
+    exact hn.ne' (by exact_mod_cast h1)
+  apply irrational_pi
+  refine ⟨n / (2 * k), ?_⟩
+  push_cast
+  field_simp
+  linarith
+
+/-- With a single infinite place, which is complex, and no finite places, some unitary
+character is nontrivial on the class of `exp i` inserted at that place. -/
+private theorem Printed.sLocalRhoFactor_complex_positive_shift_false_exists_character
+    (F : Type u) [Field F] [NumberField F] (w : InfinitePlace F)
+    (hw : w.IsComplex) (huniq : ∀ w' : InfinitePlace F, w' = w) :
+    ∃ η : PontryaginDual Jₛ(F, ∅),
+      sLocalInfiniteRestriction w ((circleToComplex).comp η)
+        (Units.map (InfinitePlace.Completion.ringEquivComplexOfIsComplex hw).symm.toMonoidHom
+          (Units.mk0 (Complex.exp Complex.I) (Complex.exp_ne_zero _))) ≠ 1 := by
+  classical
+  let S : Finset Places(F) := ∅
+  let x0 : w.Completionˣ :=
+    Units.map (InfinitePlace.Completion.ringEquivComplexOfIsComplex hw).symm.toMonoidHom
+      (Units.mk0 (Complex.exp Complex.I) (Complex.exp_ne_zero _))
+  let f : (v : InfinitePlace F) → v.Completionˣ := @Pi.mulSingle _ _ _ (Classical.decEq _) w x0
+  have hf : f w = x0 := Pi.mulSingle_eq_same _ _
+  let g : (SAdeleRing F S)ˣ :=
+    (ContinuousMulEquiv.prodUnits (InfiniteAdeleRing F) ((i : S) → i.val.adicCompletion F)).symm
+      (ContinuousMulEquiv.piUnits.symm f, 1)
+  have hg : (QuotientGroup.mk g : Jₛ(F, S)) ≠ 1 := by
+    intro he
+    obtain ⟨u, hu⟩ := (sIdeleQuotient_mk_eq_one F S g).mp he
+    have ha := congrArg (fun a : (SAdeleRing F S)ˣ ↦ a.val.1 w) hu
+    change ((f w : w.Completionˣ) : w.Completion) =
+      algebraMap F w.Completion (u.val : F) at ha
+    rw [hf] at ha
+    have hb := congrArg (InfinitePlace.Completion.ringEquivComplexOfIsComplex hw) ha
+    have hx0 : InfinitePlace.Completion.ringEquivComplexOfIsComplex hw (x0 : w.Completion) =
+        Complex.exp Complex.I := by
+      simp [x0]
+    rw [hx0, InfinitePlace.Completion.ringEquivComplexOfIsComplex_apply,
+      AbsoluteValue.Completion.algebraMap_def,
+      InfinitePlace.Completion.extensionEmbedding_coe] at hb
+    have hwu : w (u.val : F) = 1 := by
+      rw [← InfinitePlace.norm_embedding_eq]
+      have := congrArg norm hb
+      have h1 : ‖Complex.exp Complex.I‖ = 1 := by simpa using Complex.norm_exp_ofReal_mul_I 1
+      rw [h1] at this
+      exact this.symm
+    have hint : IsIntegral ℤ (u.val : F) := by
+      have hmem : (u.val : F) ∈ ((∅ : Finset Places(F)) : Set Places(F)).integer F := (u.val).2
+      simp only [Finset.coe_empty, IsDedekindDomain.integer_empty, Algebra.mem_bot] at hmem
+      obtain ⟨a, ha⟩ := hmem
+      rw [← ha]
+      exact a.isIntegral_coe
+    obtain ⟨n, hn, hpow⟩ := Embeddings.pow_eq_one_of_norm_eq_one F ℂ hint (fun φ ↦ by
+      rw [← InfinitePlace.apply, huniq (InfinitePlace.mk φ), hwu])
+    apply Printed.sLocalRhoFactor_complex_positive_shift_false_exp_I_pow n hn
+    have := congrArg w.embedding hpow
+    rw [map_pow, map_one] at this
+    rw [hb]
+    exact this
+  let : LocallyCompactSpace (SAdeleRing F S)ˣ := (sIdeleGroup_description F S).2.2.1
+  have := isClosed_sProjectedDiagonal (F := F) (S := S)
+  obtain ⟨η, hη⟩ := exists_pontryaginDual_apply_ne_one hg
+  exact ⟨η, fun h ↦ hη (Subtype.ext h)⟩
+
+
+/-- A field whose only infinite place is complex refutes the printed pole list: the square
+of the character above has even nonzero weight, and zero is listed but is not a pole. -/
+private theorem Printed.sLocalRhoFactor_complex_positive_shift_false_of_unique
+    (F : Type u) [Field F] [NumberField F] (w : InfinitePlace F)
+    (hw : w.IsComplex) (huniq : ∀ w' : InfinitePlace F, w' = w)
+    (h : Printed.sLocalRhoFactor_complex_positive_shift.{u}) : False := by
+  classical
+  obtain ⟨η, hη⟩ :=
+    Printed.sLocalRhoFactor_complex_positive_shift_false_exists_character F w hw huniq
+  let S : Finset Places(F) := ∅
+  have hzero : ∀ θ : PontryaginDual Jₛ(F, S),
+      twistₛ(F, S) ((circleToComplex).comp θ) 0 = (circleToComplex).comp θ := by
+    intro θ
+    ext1 g
+    change ((circleToComplex).comp θ) g * _ ^ (0 : ℂ) = ((circleToComplex).comp θ) g
+    simp
+  let χ : PontryaginDual Jₛ(F, S) := η * η
+  let e : ℂˣ →* w.Completionˣ :=
+    Units.map (InfinitePlace.Completion.ringEquivComplexOfIsComplex hw).symm.toMonoidHom
+  let c := sLocalInfiniteRestriction w (twistₛ(F, S) ((circleToComplex).comp χ) 0)
+  let c' := sLocalInfiniteRestriction w (twistₛ(F, S) ((circleToComplex).comp η) 0)
+  let p := (complexLocalEulerParameters w hw c).exists.choose
+  let q := (complexLocalEulerParameters w hw c').exists.choose
+  have hq : ∀ x : ℂˣ, c' (e x) =
+      ((‖(x : ℂ)‖ ^ 2 : ℝ) : ℂ) ^ q.1 * ((x : ℂ) / (‖(x : ℂ)‖ : ℂ)) ^ q.2 :=
+    (complexLocalEulerParameters w hw c').exists.choose_spec
+  have hcc : ∀ y, c y = c' y * c' y := by
+    intro y
+    change twistₛ(F, S) ((circleToComplex).comp χ) 0 _ =
+      twistₛ(F, S) ((circleToComplex).comp η) 0 _ * twistₛ(F, S) ((circleToComplex).comp η) 0 _
+    rw [hzero, hzero]
+    change (((η * η) _ : Circle) : ℂ) = ((η _ : Circle) : ℂ) * ((η _ : Circle) : ℂ)
+    rfl
+  have hq0 : q.2 ≠ 0 := by
+    intro hk
+    apply hη
+    have h1 := hq (Units.mk0 (Complex.exp Complex.I) (Complex.exp_ne_zero _))
+    have hn : ‖Complex.exp Complex.I‖ = 1 := by simpa using Complex.norm_exp_ofReal_mul_I 1
+    rw [hk] at h1
+    simp only [Units.val_mk0, hn, zpow_zero, mul_one, one_pow, Complex.ofReal_one,
+      Complex.one_cpow] at h1
+    rw [← h1]
+    change _ = twistₛ(F, S) ((circleToComplex).comp η) 0 _
+    rw [hzero]
+    rfl
+  have hp : p = (2 * q.1, q.2 * 2) := by
+    refine (complexLocalEulerParameters w hw c).unique
+      (complexLocalEulerParameters w hw c).exists.choose_spec ?_
+    intro x
+    rw [hcc, hq x]
+    change _ = ((‖(x : ℂ)‖ ^ 2 : ℝ) : ℂ) ^ (((2 : ℕ) : ℂ) * q.1) *
+      ((x : ℂ) / (‖(x : ℂ)‖ : ℂ)) ^ (q.2 * 2)
+    rw [Complex.cpow_nat_mul, zpow_mul, show (2 : ℤ) = ((2 : ℕ) : ℤ) from rfl, zpow_natCast]
+    ring
+  have key := h F S χ w hw 0 le_rfl ⟨q.2.natAbs, by
+    change ((0 : ℤ) : ℝ) = (p.2.natAbs : ℝ) / 2 - q.2.natAbs
+    rw [hp]
+    simp only [Int.natAbs_mul]
+    push_cast
+    ring⟩
+  have hpole := (sLocalRhoFactor_poles_iff χ _).1 key
+  rcases hpole with ⟨w', hw', -, -⟩ | ⟨w', hw', n, hs⟩ | ⟨v, -⟩
+  · exact (InfinitePlace.not_isReal_iff_isComplex.mpr hw) (huniq w' ▸ hw')
+  · obtain rfl := huniq w'
+    change ((0 : ℤ) : ℂ) - p.1 = -p.1 - (p.2.natAbs : ℂ) / 2 - (n : ℂ) at hs
+    have h2 : |(p.2 : ℝ)| / 2 + n = 0 := by
+      have := congrArg Complex.re hs
+      simp at this
+      linarith
+    have h3 : (p.2 : ℝ) = 0 := abs_eq_zero.mp (by
+      linarith [abs_nonneg (p.2 : ℝ), (Nat.cast_nonneg n : (0 : ℝ) ≤ n)])
+    have h4 : p.2 = 0 := by exact_mod_cast h3
+    rw [hp] at h4
+    exact hq0 (by simpa using h4)
+  · exact absurd v.2 (Finset.notMem_empty _)
+
+
+/-- A quadratic field containing a primitive fourth root of unity has exactly one infinite
+place, and it is complex. -/
+private theorem Printed.sLocalRhoFactor_complex_positive_shift_false_unique_place
+    (F : Type u) [Field F] [NumberField F] (hd : Module.finrank ℚ F = 2)
+    (ζ : F) (hζ : IsPrimitiveRoot ζ 4) :
+    ∃ w : InfinitePlace F, w.IsComplex ∧ ∀ w' : InfinitePlace F, w' = w := by
+  classical
+  have hr := InfinitePlace.IsPrimitiveRoot.nrRealPlaces_eq_zero_of_two_lt (by norm_num) hζ
+  have h2 := InfinitePlace.card_add_two_mul_card_eq_rank (K := F)
+  have hc : Fintype.card (InfinitePlace F) = 1 := by
+    rw [InfinitePlace.card_eq_nrRealPlaces_add_nrComplexPlaces]
+    omega
+  obtain ⟨w, hw⟩ := Fintype.card_eq_one_iff.mp hc
+  refine ⟨w, ?_, hw⟩
+  rcases InfinitePlace.isReal_or_isComplex w with h | h
+  · have : 0 < InfinitePlace.nrRealPlaces F :=
+      Fintype.card_pos_iff.mpr ⟨⟨w, h⟩⟩
+    omega
+  · exact h
+
+/-- The Gaussian field `ℚ(i)`, lifted to universe `u`, refutes the printed pole list. -/
+private theorem Printed.sLocalRhoFactor_complex_positive_shift_false_ulift
+    (h : Printed.sLocalRhoFactor_complex_positive_shift.{u}) : False := by
+  have : NeZero ((4 : ℕ) : ℚ) := ⟨by norm_num⟩
+  have : IsCyclotomicExtension {4} ℚ (CyclotomicField 4 ℚ) :=
+    CyclotomicField.isCyclotomicExtension 4 ℚ
+  have : CharZero (ULift.{u} (CyclotomicField 4 ℚ)) := ⟨fun a b hab ↦ by
+    have := congrArg ULift.down hab
+    simpa using this⟩
+  have : FiniteDimensional ℚ (ULift.{u} (CyclotomicField 4 ℚ)) :=
+    LinearEquiv.finiteDimensional (ULift.moduleEquiv (R := ℚ) (M := CyclotomicField 4 ℚ)).symm
+  have : NumberField (ULift.{u} (CyclotomicField 4 ℚ)) := ⟨⟩
+  have hd : Module.finrank ℚ (ULift.{u} (CyclotomicField 4 ℚ)) = 2 := by
+    rw [LinearEquiv.finrank_eq (ULift.moduleEquiv (R := ℚ) (M := CyclotomicField 4 ℚ)),
+      IsCyclotomicExtension.finrank (CyclotomicField 4 ℚ)
+        (Polynomial.cyclotomic.irreducible_rat (n := 4) (by norm_num))]
+    decide
+  have hζ : IsPrimitiveRoot
+      (ULift.up.{u} (IsCyclotomicExtension.zeta 4 ℚ (CyclotomicField 4 ℚ))) 4 :=
+    (IsCyclotomicExtension.zeta_spec 4 ℚ (CyclotomicField 4 ℚ)).map_of_injective
+      (f := (ULift.ringEquiv (R := CyclotomicField 4 ℚ)).symm.toRingHom)
+      ULift.ringEquiv.symm.injective
+  obtain ⟨w, hw, huniq⟩ := Printed.sLocalRhoFactor_complex_positive_shift_false_unique_place
+    (ULift.{u} (CyclotomicField 4 ℚ)) hd _ hζ
+  exact Printed.sLocalRhoFactor_complex_positive_shift_false_of_unique
+    (ULift.{u} (CyclotomicField 4 ℚ)) w hw huniq h
+
 /-- Paper: Lemma 7.1.2.2(1), p. 317.
 Take ℚ(i) with only its complex place and the character `(z/|z|)^4`, which descends
 through the four units. The printed list includes zero, but the numerator Γℂ(s + 2)
 and the denominator Γℂ(3 − s) are regular and nonzero there. -/
 theorem Printed.sLocalRhoFactor_complex_positive_shift_false :
-    ¬ Printed.sLocalRhoFactor_complex_positive_shift := by sorry
+    ¬ Printed.sLocalRhoFactor_complex_positive_shift :=
+  fun h ↦ Printed.sLocalRhoFactor_complex_positive_shift_false_ulift h
 
 section Theta
 
@@ -515,12 +762,123 @@ def Printed.sLocalIdelicZFunction_verticalIntegrable_neg : Prop :=
       Complex.VerticalIntegrable
         (fun s ↦ sLocalIdelicZFunction f (twistₛ(F, S) ((circleToComplex).comp χ) s)) (-A)
 
+/-- At a simple pole the vertical restriction dominates a constant times `1 / |t|`. -/
+private theorem sLocalIdelicZFunction_verticalIntegrable_neg_simplePole {Z : ℂ → ℂ} {σ : ℝ}
+    (hZ : MeromorphicAt Z (σ : ℂ)) (hp : meromorphicOrderAt Z (σ : ℂ) = -1) :
+    ¬ Complex.VerticalIntegrable Z σ := by
+  obtain ⟨g, hg, hg₀, he⟩ := (meromorphicOrderAt_eq_int_iff (n := -1) hZ).mp hp
+  let l (t : ℝ) : ℂ := σ + t * Complex.I
+  have hl : Tendsto l (𝓝 (0 : ℝ)) (𝓝 (σ : ℂ)) := by
+    have hc : Continuous l := by dsimp [l]; fun_prop
+    simpa [l] using hc.tendsto 0
+  have hle : Tendsto l (𝓝[≠] (0 : ℝ)) (𝓝[≠] (σ : ℂ)) := by
+    apply tendsto_nhdsWithin_iff.mpr
+    refine ⟨hl.mono_left nhdsWithin_le_nhds, ?_⟩
+    filter_upwards [self_mem_nhdsWithin (α := ℝ) (a := 0) (s := {0}ᶜ)] with t ht
+    simpa [l] using ht
+  have hpos : 0 < ‖g (σ : ℂ)‖ := norm_pos_iff.mpr hg₀
+  have hbound : ∀ᶠ t in 𝓝[≠] (0 : ℝ), ‖g (σ : ℂ)‖ / 2 < ‖g (l t)‖ :=
+    ((hg.continuousAt.norm.tendsto.comp hl).eventually
+      (lt_mem_nhds (half_lt_self hpos))).filter_mono nhdsWithin_le_nhds
+  have hO : (fun t : ℝ ↦ (t - 0)⁻¹) =O[𝓝[≠] 0] (fun t ↦ Z (l t)) := by
+    refine isBigO_iff''.mpr ⟨_, half_pos hpos, ?_⟩
+    filter_upwards [hbound, hle.eventually he] with t ht heq
+    simp only [heq, norm_smul, zpow_neg_one, norm_inv, show l t - (σ : ℂ) = t * Complex.I by simp [l],
+      norm_mul, Complex.norm_I, mul_one, Complex.norm_real, sub_zero]
+    rw [mul_comm (‖g (σ : ℂ)‖ / 2)]
+    exact mul_le_mul_of_nonneg_left ht.le (by positivity)
+  intro hi
+  exact not_intervalIntegrable_of_sub_inv_isBigO_punctured hO zero_ne_one left_mem_uIcc
+    (hi.intervalIntegrable (a := 0) (b := 1))
+
+/-- For a field with just one place at infinity, real, transport a test realizing the local
+simple pole at −2. Its S-local transform agrees with the local one by continuation. -/
+private theorem sLocalIdelicZFunction_verticalIntegrable_neg_onePlace (F : Type u) [Field F] [NumberField F]
+    [Unique (InfinitePlace F)] (hw : (default : InfinitePlace F).IsReal) :
+    ∃ f : Tests(F, ∅), ¬ Complex.VerticalIntegrable
+      (fun s ↦ sLocalIdelicZFunction f (twistₛ(F, ∅) ((circleToComplex).comp
+        (1 : PontryaginDual Jₛ(F, ∅))) s)) (-2) := by
+  classical
+  let w := (default : InfinitePlace F)
+  let χ := (1 : PontryaginDual Jₛ(F, ∅))
+  let chart := twistₛ(F, ∅) ((circleToComplex).comp χ)
+  let localChart := quasiCharacterNormTwist (Units.map nnNormHom.toMonoidHom ^ w.mult)
+    (continuous_infiniteLocalModule w) ((circleToComplex).comp (1 : PontryaginDual w.Completionˣ))
+  obtain ⟨g, hgp⟩ := (infiniteLocalIdelicZFunction_real_poles w hw 1 0
+    (fun x ↦ by simp only [Fin.val_zero, pow_zero, Complex.cpow_zero, mul_one]; rfl) (-2)).2.mpr
+      ⟨1, by norm_num⟩
+  let D := infiniteLocalIdelicZFunction w g ∘ localChart
+  let e : SAdeleRing F ∅ ≃ₜ w.Completion := (Homeomorph.prodUnique _ _).trans
+    (Homeomorph.piUnique fun v : InfinitePlace F ↦ v.Completion)
+  let E : Multiplicative (SAdeleRing F ∅) ≃ₜ* Multiplicative w.Completion :=
+    ContinuousMulEquiv.mk' e (fun _ _ ↦ rfl)
+  have : LocallyCompactSpace (Multiplicative w.Completion) :=
+    inferInstanceAs (LocallyCompactSpace w.Completion)
+  have : LocallyCompactSpace (Multiplicative (SAdeleRing F ∅)) :=
+    e.isOpenEmbedding.locallyCompactSpace
+  have : T2Space (Multiplicative (SAdeleRing F ∅)) := e.isEmbedding.t2Space
+  let f : Tests(F, ∅) := ⟨g.val ∘ E, schwartzBruhat_mem_comp_equiv E g.property⟩
+  let Z (s : ℂ) := sLocalIdelicZFunction f (chart s)
+  let a (v : InfinitePlace F) : SchwartzBruhat (Multiplicative v.Completion) :=
+    Subsingleton.elim w v ▸ g
+  let b (v : (∅ : Finset Places(F))) : SchwartzBruhat (Multiplicative (v.val.adicCompletion F)) := 0
+  have hf (x : SAdeleRing F ∅) : f (Multiplicative.ofAdd x) =
+      (∏ v, a v (Multiplicative.ofAdd (x.1 v))) *
+        ∏ v : (∅ : Finset Places(F)), b v (Multiplicative.ofAdd (x.2 v)) := by
+    simp only [Finset.univ_eq_empty (α := (∅ : Finset Places(F))), Finset.prod_empty, mul_one]
+    rw [Fintype.prod_subsingleton (fun v ↦ a v (Multiplicative.ofAdd (x.1 v))) w]
+    rfl
+  have hch (s : ℂ) : sLocalInfiniteRestriction w (chart s) = localChart s := by
+    ext1 x
+    rw [sLocalInfiniteRestriction_normTwist]
+    exact (one_mul _).symm
+  have heq (s : ℂ) (hs : 0 < s.re) : Z s = D s := by
+    have hc := sLocalIdelicZFunction_eq_integral f (x := chart s) ⟨χ, s, hs, rfl⟩
+    have ht := sLocalIdelicZetaIntegral_pureTensor (chart s) ⟨χ, s, hs, rfl⟩ f a b hf
+    simp only [Finset.univ_eq_empty (α := (∅ : Finset Places(F))), Finset.prod_empty, mul_one] at ht
+    rw [Fintype.prod_subsingleton _ w, hch] at ht
+    exact hc.trans (ht.trans (infiniteLocalIdelicZFunction_eq_integral w g 1 hs).symm)
+  have hZ : MeromorphicNFOn Z univ := sLocalIdelicZFunction_meromorphic f χ
+  have hD : MeromorphicNFOn D univ :=
+    ((infiniteLocalIdelicZFunction_existsUnique w g).exists.choose_spec 1).1
+  have hZD : Z = D := by
+    funext s
+    have hnear : Z =ᶠ[𝓝[≠] (1 : ℂ)] D := by
+      have hpos : ∀ᶠ z : ℂ in 𝓝 (1 : ℂ), 0 < z.re :=
+        (isOpen_lt continuous_const Complex.continuous_re).mem_nhds (by norm_num)
+      exact (hpos.filter_mono nhdsWithin_le_nhds).mono (fun z hz ↦ heq z hz)
+    have h0 := (hZ.meromorphicOn.sub hD.meromorphicOn).meromorphicOrderAt_eq_top_of_isPreconnected
+      isPreconnected_univ (mem_univ (1 : ℂ)) (mem_univ s)
+      (meromorphicOrderAt_eq_top_iff.mpr (hnear.mono fun _ hz ↦ sub_eq_zero.mpr hz))
+    have h1 : Z =ᶠ[𝓝[≠] s] D := (meromorphicOrderAt_eq_top_iff.mp h0).mono fun _ hz ↦ sub_eq_zero.mp hz
+    exact (((hZ (mem_univ s)).eventuallyEq_nhdsNE_iff_eventuallyEq_nhds (hD (mem_univ s))).mp h1).self_of_nhds
+  refine ⟨f, sLocalIdelicZFunction_verticalIntegrable_neg_simplePole (hZ (mem_univ _)).meromorphicAt ?_⟩
+  change meromorphicOrderAt Z ((-2 : ℝ) : ℂ) = -1
+  rw [hZD]
+  simpa using hgp
+
 /-- Paper: Proof of Theorem 7.1.2.3, p. 322.
 Take ℚ(√2), only its two real places, the trivial character, and at each place
 `x² exp(-πx²)`. The zeta transform is a nonzero constant times Γℝ(s + 2)².
 At A = 2 its norm on the vertical line is of order `|Im s|⁻²` near −2. -/
 theorem Printed.sLocalIdelicZFunction_verticalIntegrable_neg_false :
-    ¬ Printed.sLocalIdelicZFunction_verticalIntegrable_neg := by sorry
+    ¬ Printed.sLocalIdelicZFunction_verticalIntegrable_neg := by
+  classical
+  intro h
+  have : CharZero (ULift ℚ) := ⟨fun a b hab ↦ by simpa using congrArg ULift.down hab⟩
+  have : NumberField (ULift ℚ) := ⟨⟩
+  let F := ULift ℚ
+  have hd : Module.finrank ℚ F = 1 := by simp [F, finrank_ulift]
+  have hr := InfinitePlace.nrRealPlaces_eq_one_of_finrank_eq_one hd
+  have hc := InfinitePlace.nrComplexPlaces_eq_zero_of_finrank_eq_one hd
+  have hcard : Fintype.card (InfinitePlace F) = 1 := by
+    rw [InfinitePlace.card_eq_nrRealPlaces_add_nrComplexPlaces, hr, hc, add_zero]
+  let : Unique (InfinitePlace F) := (Fintype.card_eq_one_iff_nonempty_unique.mp hcard).some
+  obtain ⟨v⟩ : Nonempty {v : InfinitePlace F // v.IsReal} :=
+    Fintype.card_pos_iff.mp (by change 0 < InfinitePlace.nrRealPlaces F; omega)
+  have hw : (default : InfinitePlace F).IsReal := Subsingleton.elim v.val default ▸ v.property
+  obtain ⟨f, hf⟩ := sLocalIdelicZFunction_verticalIntegrable_neg_onePlace F hw
+  exact hf (h F ∅ 1 f 2 (by norm_num))
 
 /-- Paper: Discussion of Theorem 7.1.2.3, p. 320.
 As printed: Each nonnegative Laurent coefficient at c is an S-local eigendistribution

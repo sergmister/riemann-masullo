@@ -33,6 +33,149 @@ def Printed.sampledHardySobolevTopology_independent : Prop :=
       (∀ b ∈ frontier I, MapClusterPt b atTop d) →
       Printed.sampledHardySobolevTopology s c = Printed.sampledHardySobolevTopology s d
 
+/-- The tilted Gaussians `exp(m(z − 1) + z²)` are entire test functions. -/
+private theorem printed_sampledHardySobolev_tiltedGaussian_mem (m : ℕ) :
+    (fun z : ℂ ↦ Complex.exp ((m : ℂ) * (z - 1) + z ^ 2)) ∈
+      schwartzBergmanSubmodule (univ : Set ℝ) := by
+  refine ⟨fun z hz ↦ (hz (mem_univ _)).elim, ?_, ?_⟩
+  · exact (by fun_prop : Differentiable ℂ
+      (fun z : ℂ ↦ Complex.exp ((m : ℂ) * (z - 1) + z ^ 2))).differentiableOn
+  · intro a b _ _ N
+    let M := max |a| |b|
+    refine ⟨N.factorial * Real.exp (1 + 2 * M ^ 2 + m * (M + 1)), ?_⟩
+    rintro _ ⟨z, hz, rfl⟩
+    have hstrip : z.re ∈ Icc a b := hz
+    have hM : |z.re| ≤ M := abs_le_max_abs_abs hstrip.1 hstrip.2
+    have hsq : z.re ^ 2 ≤ M ^ 2 := by
+      simpa using pow_le_pow_left₀ (abs_nonneg _) hM 2
+    have hweight : ‖z‖ ^ N ≤ N.factorial * Real.exp ‖z‖ := by
+      have h := (div_le_iff₀ (show 0 < (N.factorial : ℝ) by positivity)).mp
+        (Real.pow_div_factorial_le_exp ‖z‖ (norm_nonneg z) N)
+      simpa [mul_comm] using h
+    have hre : ((m : ℂ) * (z - 1) + z ^ 2).re = m * (z.re - 1) + (z ^ 2).re := by simp
+    have hlin : (m : ℝ) * (z.re - 1) ≤ m * (M + 1) :=
+      mul_le_mul_of_nonneg_left (by linarith [le_abs_self z.re]) (Nat.cast_nonneg m)
+    simp only [norm_mul, norm_pow, Complex.norm_exp]
+    rw [hre]
+    calc
+      _ ≤ (N.factorial * Real.exp ‖z‖) * Real.exp (m * (z.re - 1) + (z ^ 2).re) :=
+        mul_le_mul_of_nonneg_right hweight (Real.exp_pos _).le
+      _ = N.factorial * Real.exp (‖z‖ + (z ^ 2).re + m * (z.re - 1)) := by
+        rw [mul_assoc, ← Real.exp_add]; congr 2; ring
+      _ ≤ _ := by
+        apply mul_le_mul_of_nonneg_left (Real.exp_le_exp.mpr ?_) (by positivity)
+        have : ‖z‖ + (z ^ 2).re ≤ 1 + 2 * M ^ 2 := by
+          rw [pow_two, Complex.mul_re]
+          nlinarith [Complex.sq_norm_sub_sq_re z, sq_nonneg (‖z‖ - 1 / 2)]
+        linarith
+
+/-- On the line of abscissa `σ`, the `m`-th tilted Gaussian has `exp(m(σ − 1))` times
+the L² norm of the Gaussian. -/
+private theorem printed_sampledHardySobolev_tiltedGaussian_line (m : ℕ) (σ : ℝ) :
+    eLpNorm (fun y : ℝ ↦ Complex.exp ((m : ℂ) * (((σ : ℂ) + (y : ℂ) * Complex.I) - 1) +
+        ((σ : ℂ) + (y : ℂ) * Complex.I) ^ 2)) 2 volume =
+      ENNReal.ofReal (Real.exp (m * (σ - 1))) *
+        eLpNorm (fun y : ℝ ↦ Complex.exp (((σ : ℂ) + (y : ℂ) * Complex.I) ^ 2)) 2 volume := by
+  rw [← Real.eNorm_eq_ofReal (Real.exp_pos _).le, ← eLpNorm_const_smul]
+  apply eLpNorm_congr_norm_ae (Continuous.aestronglyMeasurable (by fun_prop))
+    (Continuous.aestronglyMeasurable (by fun_prop))
+  refine Filter.Eventually.of_forall fun y ↦ ?_
+  rw [Pi.smul_apply, norm_smul, Complex.norm_exp, Complex.norm_exp,
+    Real.norm_of_nonneg (Real.exp_pos _).le, ← Real.exp_add]
+  congr 1
+  simp
+
+/-- The Gaussian has finite L² norm on every vertical line. -/
+private theorem printed_sampledHardySobolev_gaussian_line_lt_top (σ : ℝ) :
+    eLpNorm (fun y : ℝ ↦ Complex.exp (((σ : ℂ) + (y : ℂ) * Complex.I) ^ 2)) 2 volume < ⊤ := by
+  have h := (schwartzBergman_trace_memLp (univ : Set ℝ) ⟨σ, mem_univ σ⟩ 2 (by norm_num)
+    (by norm_num) 0 ⟨_, printed_sampledHardySobolev_tiltedGaussian_mem 0⟩).eLpNorm_lt_top
+  refine lt_of_eq_of_lt ?_ h
+  congr 1
+  funext y
+  simp [weightedVerticalTrace]
+
+/-- The Gaussian has nonzero L² norm on every vertical line. -/
+private theorem printed_sampledHardySobolev_gaussian_line_ne_zero (σ : ℝ) :
+    eLpNorm (fun y : ℝ ↦ Complex.exp (((σ : ℂ) + (y : ℂ) * Complex.I) ^ 2)) 2 volume ≠ 0 := by
+  intro h0
+  obtain ⟨y, hy⟩ := ((eLpNorm_eq_zero_iff (by norm_num)).mp h0).exists
+  exact Complex.exp_ne_zero _ hy
+
+/-- If all sampled abscissas lie left of `1` and only order zero is used, the tilted
+Gaussians `exp(m(z − 1) + z²)` tend to zero in the sampled topology. -/
+private theorem printed_sampledHardySobolev_tiltedGaussian_tendsto (s : ℝ)
+    (hs : Nat.floor (s / 2) = 0) (c : ℕ → ℝ) (hc : ∀ n, c n < 1) :
+    Tendsto (β := AS) (fun m : ℕ ↦ ⟨_, printed_sampledHardySobolev_tiltedGaussian_mem m⟩) atTop
+      (@nhds AS (Printed.sampledHardySobolevTopology s c) 0) := by
+  refine TopologicalSpace.tendsto_nhds_generateFrom_iff.mpr ?_
+  rintro U ⟨n, k, hk, v, ε, hε, rfl⟩ h0
+  obtain rfl : k = 0 := by omega
+  simp only [mem_ofPred_eq, iteratedDeriv_zero] at h0
+  simp only [iteratedDeriv_zero]
+  set A := eLpNorm (fun y : ℝ ↦ v.val ((c n : ℂ) + (y : ℂ) * Complex.I)) 2 volume
+  set G := eLpNorm (fun y : ℝ ↦ Complex.exp ((((c n : ℝ) : ℂ) + (y : ℂ) * Complex.I) ^ 2))
+    2 volume
+  set K := ENNReal.ofReal (2 * Real.pi)
+  have hK : K ≠ 0 := by simp [K, Real.pi_pos]
+  have hA' : eLpNorm (fun y : ℝ ↦ (0 - v).val ((c n : ℂ) + (y : ℂ) * Complex.I)) 2 volume = A :=
+    (congrArg (eLpNorm · 2 volume)
+      (zero_sub (fun y : ℝ ↦ v.val ((c n : ℂ) + (y : ℂ) * Complex.I)))).trans
+      (eLpNorm_neg _ _ _)
+  have hA : A / K < ε := lt_of_eq_of_lt (congrArg (· / K) hA'.symm) h0
+  have hexp : Tendsto (fun m : ℕ ↦ ENNReal.ofReal (Real.exp (m * (c n - 1)))) atTop (𝓝 0) := by
+    have h1 : Tendsto (fun m : ℕ ↦ (m : ℝ) * (c n - 1)) atTop atBot :=
+      tendsto_natCast_atTop_atTop.atTop_mul_const_of_neg (by linarith [hc n])
+    simpa using ENNReal.tendsto_ofReal (Real.tendsto_exp_atBot.comp h1)
+  have hT : Tendsto (fun m : ℕ ↦ (ENNReal.ofReal (Real.exp (m * (c n - 1))) * G + A) / K)
+      atTop (𝓝 ((0 * G + A) / K)) :=
+    ENNReal.Tendsto.div_const ((ENNReal.Tendsto.mul_const hexp
+      (Or.inr (printed_sampledHardySobolev_gaussian_line_lt_top (c n)).ne)).add_const A)
+      (Or.inr hK)
+  rw [zero_mul, zero_add] at hT
+  filter_upwards [hT.eventually (gt_mem_nhds hA)] with m hm
+  refine lt_of_le_of_lt (ENNReal.div_le_div_right ?_ K) hm
+  change eLpNorm ((fun y : ℝ ↦ Complex.exp ((m : ℂ) * ((((c n : ℝ) : ℂ) + (y : ℂ) * Complex.I)
+    - 1) + (((c n : ℝ) : ℂ) + (y : ℂ) * Complex.I) ^ 2)) -
+      fun y : ℝ ↦ v.val ((c n : ℂ) + y * Complex.I)) 2 volume ≤ _
+  exact (eLpNorm_sub_le (by norm_num)).trans
+    (add_le_add (le_of_eq (printed_sampledHardySobolev_tiltedGaussian_line m (c n))) le_rfl)
+
+/-- The abscissas `(−1)ⁿ (1 − 1/(n+2))` lie in `(−1, 1)`, left of `1`. -/
+private theorem printed_sampledHardySobolev_abscissa_lt (n : ℕ) :
+    (-1 : ℝ) ^ n * (1 - 1 / ((n : ℝ) + 2)) < 1 := by
+  have hpos : (0 : ℝ) < 1 / ((n : ℝ) + 2) := by positivity
+  have hlt : 1 / ((n : ℝ) + 2) < 1 := (div_lt_one (by positivity)).mpr (by linarith [n.cast_nonneg (α := ℝ)])
+  calc (-1 : ℝ) ^ n * (1 - 1 / ((n : ℝ) + 2)) ≤ |(-1 : ℝ) ^ n * (1 - 1 / ((n : ℝ) + 2))| :=
+        le_abs_self _
+    _ = |1 - 1 / ((n : ℝ) + 2)| := by simp [abs_mul]
+    _ < 1 := abs_lt.mpr ⟨by linarith, by linarith⟩
+
+/-- The abscissas `(−1)ⁿ (1 − 1/(n+2))` accumulate at both ends of `[−1, 1]`. -/
+private theorem printed_sampledHardySobolev_abscissa_cluster :
+    ∀ b ∈ frontier (Icc (-1 : ℝ) 1),
+      MapClusterPt b atTop (fun n : ℕ ↦ (-1 : ℝ) ^ n * (1 - 1 / ((n : ℝ) + 2))) := by
+  have he : Tendsto (fun n : ℕ ↦ 1 / ((n : ℝ) + 2)) atTop (𝓝 0) :=
+    tendsto_const_nhds.div_atTop (tendsto_atTop_add_const_right _ _ tendsto_natCast_atTop_atTop)
+  have h2 : Tendsto (fun n : ℕ ↦ 2 * n) atTop atTop :=
+    tendsto_atTop_mono (fun n ↦ by dsimp only [id]; omega) tendsto_id
+  have h3 : Tendsto (fun n : ℕ ↦ 2 * n + 1) atTop atTop :=
+    tendsto_atTop_mono (fun n ↦ by dsimp only [id]; omega) tendsto_id
+  rw [frontier_Icc (by norm_num)]
+  rintro b (rfl | rfl)
+  · refine MapClusterPt.of_comp h3 (Tendsto.mapClusterPt ?_)
+    have : Tendsto (fun n : ℕ ↦ -(1 - 1 / (((2 * n + 1 : ℕ) : ℝ) + 2))) atTop (𝓝 (-(1 - 0))) :=
+      (tendsto_const_nhds.sub (he.comp h3)).neg
+    convert this using 2 with n
+    · simp [pow_succ, pow_mul]
+    · norm_num
+  · refine MapClusterPt.of_comp h2 (Tendsto.mapClusterPt ?_)
+    have : Tendsto (fun n : ℕ ↦ 1 - 1 / (((2 * n : ℕ) : ℝ) + 2)) atTop (𝓝 (1 - 0)) :=
+      tendsto_const_nhds.sub (he.comp h2)
+    convert this using 2 with n
+    · simp [pow_mul]
+    · norm_num
+
 /-- Paper: Proposition 9.2.2.4(1), p. 414. Take degree zero and base [−1, 1]. Let
 `c` interleave the lines with abscissas 1 − 1/(n+2) and −1 + 1/(n+2), and let `d`
 prepend the line at 1 to `c`. For a nonzero smooth bump `h` supported in (0, 1),
@@ -41,7 +184,52 @@ abscissa σ of `c` the order-zero line norm is a constant times exp((σ−1)n).
 At the prepended line the norm is the fixed positive norm of the transform of
 x ↦ exp(x) h(x), with the normalization of (9.2.2.19). -/
 theorem Printed.sampledHardySobolevTopology_independent_false :
-    ¬ Printed.sampledHardySobolevTopology_independent := by sorry
+    ¬ Printed.sampledHardySobolevTopology_independent := by
+  intro h
+  let c : ℕ → ℝ := fun n ↦ (-1 : ℝ) ^ n * (1 - 1 / ((n : ℝ) + 2))
+  let d : ℕ → ℝ := fun n ↦ if n = 0 then 1 else c (n - 1)
+  have hc := printed_sampledHardySobolev_abscissa_cluster
+  have hd : ∀ b ∈ frontier (Icc (-1 : ℝ) 1), MapClusterPt b atTop d := by
+    intro b hb
+    refine MapClusterPt.of_comp (tendsto_add_atTop_nat 1) ?_
+    have : d ∘ (fun n ↦ n + 1) = c := by funext n; simp [d]
+    rw [this]
+    exact hc b hb
+  have heq := h (Icc (-1) 1) isClosed_Icc ordConnected_Icc (nonempty_Icc.mpr (by norm_num)) 0
+    le_rfl c d hc hd
+  have hT := printed_sampledHardySobolev_tiltedGaussian_tendsto 0 (by simp) c
+    printed_sampledHardySobolev_abscissa_lt
+  rw [heq] at hT
+  have hε : 0 < eLpNorm (fun y : ℝ ↦ Complex.exp ((((1 : ℝ) : ℂ) + (y : ℂ) * Complex.I) ^ 2))
+      2 volume / ENNReal.ofReal (2 * Real.pi) :=
+    ENNReal.div_pos (printed_sampledHardySobolev_gaussian_line_ne_zero 1) ENNReal.ofReal_ne_top
+  let U : Set AS := {u | eLpNorm (fun y : ℝ ↦ iteratedDeriv 0 (u - 0).val
+      ((d 0 : ℂ) + (y : ℂ) * Complex.I)) 2 volume / ENNReal.ofReal (2 * Real.pi) <
+    eLpNorm (fun y : ℝ ↦ Complex.exp ((((1 : ℝ) : ℂ) + (y : ℂ) * Complex.I) ^ 2))
+      2 volume / ENNReal.ofReal (2 * Real.pi)}
+  have hU : IsOpen[Printed.sampledHardySobolevTopology 0 d] U :=
+    TopologicalSpace.isOpen_generateFrom_of_mem ⟨0, 0, Nat.zero_le _, 0, _, hε, rfl⟩
+  have h0 : (0 : AS) ∈ U := by
+    change eLpNorm (fun y : ℝ ↦ iteratedDeriv 0 ((0 : AS) - 0).val
+      ((d 0 : ℂ) + (y : ℂ) * Complex.I)) 2 volume / ENNReal.ofReal (2 * Real.pi) < _
+    rw [sub_zero]
+    simp only [iteratedDeriv_zero]
+    change eLpNorm (fun _ : ℝ ↦ (0 : ℂ)) 2 volume / ENNReal.ofReal (2 * Real.pi) < _
+    rwa [eLpNorm_fun_zero, ENNReal.zero_div]
+  obtain ⟨m, hm⟩ := Filter.nonempty_of_mem (Filter.mem_map.mp
+    (hT (@IsOpen.mem_nhds AS (Printed.sampledHardySobolevTopology 0 d) _ _ hU h0)))
+  change eLpNorm (fun y : ℝ ↦ iteratedDeriv 0
+      ((⟨_, printed_sampledHardySobolev_tiltedGaussian_mem m⟩ : AS) - 0).val
+      ((d 0 : ℂ) + (y : ℂ) * Complex.I)) 2 volume / ENNReal.ofReal (2 * Real.pi) < _ at hm
+  rw [sub_zero] at hm
+  simp only [iteratedDeriv_zero] at hm
+  have hd0 : d 0 = 1 := by simp [d]
+  have hline : eLpNorm (fun y : ℝ ↦ Complex.exp ((m : ℂ) * ((((d 0 : ℝ) : ℂ) +
+      (y : ℂ) * Complex.I) - 1) + (((d 0 : ℝ) : ℂ) + (y : ℂ) * Complex.I) ^ 2)) 2 volume =
+      eLpNorm (fun y : ℝ ↦ Complex.exp ((((1 : ℝ) : ℂ) + (y : ℂ) * Complex.I) ^ 2)) 2 volume := by
+    rw [printed_sampledHardySobolev_tiltedGaussian_line, hd0, sub_self, mul_zero, Real.exp_zero,
+      ENNReal.ofReal_one, one_mul]
+  exact lt_irrefl _ (hline ▸ hm)
 
 /-- Paper: Corollary 9.2.2.5(2), p. 414. As printed: At each boundary point of a
 nonempty closed base interval, the order-k evaluation is continuous exactly when
@@ -61,6 +249,27 @@ nonzero smooth bump `h` supported in (0, 1), the Mellin transforms of the log pr
 exp(−n) h(x−n) tend to zero on every sampled line. Their values at 1 are the same
 positive number ∫ exp(x) h(x) dx, although the printed floor allows k = 0. -/
 theorem Printed.sampledHardySobolev_eval_boundary_iff_false :
-    ¬ Printed.sampledHardySobolev_eval_boundary_iff := by sorry
+    ¬ Printed.sampledHardySobolev_eval_boundary_iff := by
+  intro h
+  let c : ℕ → ℝ := fun n ↦ (-1 : ℝ) ^ n * (1 - 1 / ((n : ℝ) + 2))
+  have hfr : (1 : ℂ).re ∈ frontier (Icc (-1 : ℝ) 1) := by
+    rw [frontier_Icc (by norm_num)]; simp
+  have hcont := (h (Icc (-1) 1) isClosed_Icc ordConnected_Icc (nonempty_Icc.mpr (by norm_num)) 1
+    zero_le_one c printed_sampledHardySobolev_abscissa_cluster 1 (by norm_num) hfr 0).mpr
+    (by norm_num)
+  have hT := (@Continuous.tendsto AS ℂ (Printed.sampledHardySobolevTopology 1 c) _ _ hcont 0).comp (printed_sampledHardySobolev_tiltedGaussian_tendsto 1
+    (by norm_num) c printed_sampledHardySobolev_abscissa_lt)
+  have h1 : (fun u : AS ↦ iteratedDeriv 0 u.val 1) ∘
+      (fun m : ℕ ↦ (⟨_, printed_sampledHardySobolev_tiltedGaussian_mem m⟩ : AS)) =
+        fun _ ↦ Complex.exp 1 := by
+    funext m
+    simp only [iteratedDeriv_zero]
+    change Complex.exp ((m : ℂ) * (1 - 1) + 1 ^ 2) = Complex.exp 1
+    simp
+  have h2 : iteratedDeriv 0 (0 : AS).val 1 = 0 := by
+    simp only [iteratedDeriv_zero]
+    rfl
+  rw [h1, h2] at hT
+  exact Complex.exp_ne_zero 1 (tendsto_nhds_unique tendsto_const_nhds hT)
 
 end RiemannMasullo

@@ -40,6 +40,54 @@ At `x = 1` the transform is `exp(-2πi/3)`, since the character is constant on t
 and the printed phase gives `exp(2πi/3)`. -/
 theorem Printed.padicTamagawaFourier_translatedScaledIntegers_false :
     ¬ Printed.padicTamagawaFourier_translatedScaledIntegers := by
-  sorry
+  intro h
+  have h1 := (h 3 0 (1 / 3) 0).1
+  simp only [] at h1
+  have : BorelSpace ℚ_[3] := ⟨rfl⟩
+  set μ := padicTamagawaMeasure 3
+  have : μ.IsAddHaarMeasure :=
+    (Classical.choose_spec (padicTamagawaMeasure_existsUnique 3).exists).1
+  have hball : μ (Metric.closedBall (0 : ℚ_[3]) 1) = 1 :=
+    (Classical.choose_spec (padicTamagawaMeasure_existsUnique 3).exists).2.2
+  have hχ0 : padicStandardCharacter 3 0 = 1 := by
+    simpa using padicStandardCharacter_div_pow 3 0 0
+  -- left side: the mass of the translated ball
+  have hS : (fun t : ℚ_[3] ↦ 1 / 3 + ((3 : ℕ) : ℚ_[3]) ^ (0 : ℤ) * t) '' Metric.closedBall 0 1 =
+      (fun t ↦ -(1 / 3) + t) ⁻¹' Metric.closedBall 0 1 := by
+    simp only [zpow_zero, one_mul]
+    rw [image_add_left]
+  have hSm : MeasurableSet ((fun t : ℚ_[3] ↦ -(1 / 3) + t) ⁻¹' Metric.closedBall 0 1) :=
+    (measurableSet_closedBall).preimage (measurable_const_add _)
+  have hL : tamagawaFourier μ (fun t ↦ (padicStandardCharacter 3 t)⁻¹)
+      (((fun t : ℚ_[3] ↦ 1 / 3 + ((3 : ℕ) : ℚ_[3]) ^ (0 : ℤ) * t) '' Metric.closedBall 0 1).indicator
+        (fun _ ↦ (1 : ℂ))) 0 = 1 := by
+    unfold tamagawaFourier
+    simp only [mul_zero, hχ0, inv_one, Circle.coe_one, star_one, mul_one]
+    rw [hS, integral_indicator_const _ hSm, measureReal_def, measure_preimage_add, hball]
+    simp
+  -- right side: the unit-ball transform at -1/3
+  have hR : tamagawaFourier μ (fun t ↦ (padicStandardCharacter 3 t)⁻¹)
+      ((Metric.closedBall (0 : ℚ_[3]) 1).indicator (fun _ ↦ (1 : ℂ)))
+      (((3 : ℕ) : ℚ_[3]) ^ (0 : ℤ) * (0 - 1 / 3)) = 0 := by
+    have hlib := congrFun (padicTamagawaFourier_scaledIntegers 3 0) (-(1 / 3))
+    have hnot : (-(1 / 3) : ℚ_[3]) ∉ Metric.closedBall (0 : ℚ_[3]) 1 := by
+      intro hm
+      rw [Metric.mem_closedBall, dist_zero_right, norm_neg, norm_div, norm_one] at hm
+      have h3 : ‖(3 : ℚ_[3])‖ = 3⁻¹ := by exact_mod_cast Padic.norm_p (p := 3)
+      rw [h3] at hm
+      norm_num at hm
+    simp only [zpow_zero, one_mul, neg_zero, image_id', Pi.smul_apply,
+      indicator_of_notMem hnot, smul_zero] at hlib
+    unfold tamagawaFourier at hlib ⊢
+    simp only [zpow_zero, one_mul, zero_sub]
+    have hconj := congrArg (starRingEnd ℂ) hlib
+    rw [← integral_conj, map_zero] at hconj
+    rw [← hconj]
+    congr 1
+    funext t
+    rw [Circle.coe_inv_eq_conj]
+    by_cases ht : t ∈ Metric.closedBall (0 : ℚ_[3]) 1 <;> simp [ht]
+  rw [hL, hR] at h1
+  norm_num at h1
 
 end RiemannMasullo

@@ -6,15 +6,18 @@ sources we expect to draw on.
 | Directory | Upstream | License | Status |
 |---|---|---|---|
 | [`PrimeNumberTheoremAnd/`](PrimeNumberTheoremAnd/) | <https://github.com/AlexKontorovich/PrimeNumberTheoremAnd> | Apache-2.0 | vendored at `a4fb698`: `StrongPNT.lean` (general part: Borel–Carathéodory, Blaschke products, Landau's bound for logarithmic derivatives) |
-| [`TauCeti/`](TauCeti/) | <https://github.com/TauCetiProject/TauCeti> | Apache-2.0 | planned (selected modules) |
+| [`AlgebraicNumberTheoryLean/`](AlgebraicNumberTheoryLean/) | <https://github.com/jonhanke/algebraic-number-theory-lean> | Apache-2.0 | vendored at `5ea368e`: rational idelic Dirichlet character and its descent to idele classes |
+| [`Grh/`](Grh/) | <https://github.com/thatnealpatel/grh> | MIT | Vendored at `e55aab2` for good heights, zero-free disk estimates, weighted spectral jet kernels, and logarithmic derivative reflection |
+| [`TauCeti/`](TauCeti/) | <https://github.com/TauCetiProject/TauCeti> | Apache-2.0 | vendored at `8794ab3` for Montel's subsequence theorem in §1.4.3, and Runge's approximation theorem on `ℂ` with its import closure (97 files) for Lemma B.5.3.4(2) |
+| [`GaussianField/`](GaussianField/) | <https://github.com/mrdouglasny/gaussian-field> | Apache-2.0 | Vendored at `1283a27` for real one-dimensional Hermite completeness, orthonormality, and Schwartz seminorm growth |
 | [`Stacks/`](Stacks/) | <https://github.com/AxiomMath/Stacks> | Apache-2.0 | under consideration |
 
-Further candidates found by scouting ([issue #3](https://github.com/mccorvie/riemann-masullo/issues/3)
-has exact declarations and pinned commits); none has a directory yet:
+Further material found by scouting. The exact declarations and pinned commits are listed in
+[issue #3](https://github.com/mccorvie/riemann-masullo/issues/3).
 
 | Upstream | License | What it offers |
 |---|---|---|
-| <https://github.com/jonhanke/algebraic-number-theory-lean> | Apache-2.0 | Tate's thesis: adelic theta functions and Poisson summation, the global zeta integral and its functional equation, the functional equation of Hecke L-functions, continuation of the Dedekind zeta function, Pontryagin duality (Chapters 2–3, Appendix D.1) |
+| <https://github.com/jonhanke/algebraic-number-theory-lean> | Apache-2.0 | Additional material on Tate's thesis: adelic theta functions and Poisson summation, the global zeta integral and its functional equation, the functional equation of Hecke L-functions, continuation of the Dedekind zeta function, Pontryagin duality (Chapters 2–3, Appendix D.1) |
 | <https://github.com/anthropics/fermats-last-theorem> | Apache-2.0 | adelic Schwartz–Bruhat functions and the Tate global zeta integral on their span (§2.1, §3.2) |
 | <https://github.com/ImperialCollegeLondon/FLT> | Apache-2.0 | Haar measure scaling on the adeles (Appendix A.3) |
 

@@ -1,6 +1,8 @@
 module
 
 public import RiemannMasullo.Ch04_PeriodicSchauderBases.Sec3b
+import Mathlib.MeasureTheory.Measure.Count
+import Mathlib.MeasureTheory.Measure.Regular
 
 /-! # Chapter 4.3: printed properties of averaging over subsets -/
 
@@ -46,7 +48,34 @@ The average multiplies by 1/π and the normalized average by 2/π. The fixed
 subspace and the kernel of the average are both zero. Its range and the
 weakly closed span of the differences are both ℂ. -/
 theorem Printed.relativelyCompactActionAverage_properties_false :
-    ¬ Printed.relativelyCompactActionAverage_properties := by sorry
+    ¬ Printed.relativelyCompactActionAverage_properties := by
+  let : MeasurableSpace ℤˣ := borel ℤˣ
+  let : BorelSpace ℤˣ := ⟨rfl⟩
+  let : Measure.IsHaarMeasure (Measure.count : Measure ℤˣ) := {}
+  let ρ : ℤˣ →* (ℂ →L[ℂ] ℂ) :=
+    { toFun := fun g ↦ (g.val : ℂ) • ContinuousLinearMap.id ℂ ℂ
+      map_one' := by ext; simp
+      map_mul' := by intro g h; ext; simp [mul_smul, mul_comm] }
+  have hcont : Continuous (fun p : ℤˣ × ℂ ↦ ρ p.1 p.2) := by
+    change Continuous (fun p : ℤˣ × ℂ ↦ (p.1.val : ℂ) * p.2)
+    exact ((continuous_of_discreteTopology : Continuous (fun g : ℤˣ ↦ (g.val : ℂ))).comp continuous_fst).mul continuous_snd
+  have hp : IsPettisIsotypicAverageOn Measure.count {(-1 : ℤˣ)} ρ 1 (ρ (-1)) := by
+    intro u
+    have hm : (Measure.count : Measure ℤˣ).restrict {(-1 : ℤˣ)} = Measure.dirac (-1) := by
+      rw [Measure.restrict_singleton, Measure.count_singleton, one_smul]
+    rw [hm]
+    have hi : Integrable (fun g : ℤˣ ↦ star ((1 : PontryaginDual ℤˣ) g : ℂ) • ρ g u) (Measure.dirac (-1)) := by
+      exact integrable_dirac (by simp)
+    simpa using Integrable.hasPettisIntegral hi
+  intro h
+  have hr := (h ℤˣ ℂ Measure.count ρ hcont {(-1 : ℤˣ)}
+    (by simp) (isOpen_discrete _).isLocallyClosed (by rw [(isOpen_discrete _).interior_eq]; exact ⟨-1, by simp⟩)
+    (Or.inl (fun K hK ↦ equicontinuousAt_finite.mpr (fun g ↦ (ρ g).continuous.continuousAt)))
+    (ρ (-1)) hp).1
+  have hm : (-1 : ℂ) ∈ Set.range (ρ (-1)) := ⟨1, by simp [ρ]⟩
+  rw [hr] at hm
+  have hh := hm (-1) (by simp)
+  norm_num [ρ] at hh
 
 /-- Paper: Corollary 4.3.3.8(2)–(3), p. 188. As printed: for every continuous
 character ω and every relatively compact subset of nonempty interior, under
@@ -85,6 +114,47 @@ def Printed.relativelyCompactActionIsotypicAverage_properties : Prop :=
 The normalized average multiplies by 2/π. The eigenspace and the kernel are
 zero, while the range and the weakly closed span of the twisted differences are ℂ. -/
 theorem Printed.relativelyCompactActionIsotypicAverage_properties_false :
-    ¬ Printed.relativelyCompactActionIsotypicAverage_properties := by sorry
+    ¬ Printed.relativelyCompactActionIsotypicAverage_properties := by
+  let : MeasurableSpace ℤˣ := borel ℤˣ
+  let : BorelSpace ℤˣ := ⟨rfl⟩
+  let : Measure.IsHaarMeasure (Measure.count : Measure ℤˣ) := {}
+  let ρ : ℤˣ →* (ℂ →L[ℂ] ℂ) :=
+    { toFun := fun g ↦ (g.val : ℂ) • ContinuousLinearMap.id ℂ ℂ
+      map_one' := by ext; simp
+      map_mul' := by intro g h; ext; simp [mul_smul, mul_comm] }
+  have hcont : Continuous (fun p : ℤˣ × ℂ ↦ ρ p.1 p.2) := by
+    change Continuous (fun p : ℤˣ × ℂ ↦ (p.1.val : ℂ) * p.2)
+    exact ((continuous_of_discreteTopology : Continuous (fun g : ℤˣ ↦ (g.val : ℂ))).comp continuous_fst).mul continuous_snd
+  have hborn (p : Seminorm ℂ ℂ) : Continuous p := by
+    have he : (p : ℂ → ℝ) = fun z ↦ ‖z‖ * p 1 := by
+      funext z
+      change p.toAddGroupSeminorm z = ‖z‖ * p.toAddGroupSeminorm 1
+      simpa using p.smul' z (1 : ℂ)
+    rw [he]
+    fun_prop
+  have hseq (u : ℕ → ℂ) (v : ℂ) (hu : Tendsto u atTop (nhds v)) (K : Set ℤˣ) :
+      TendstoUniformlyOn (fun n g ↦ ρ g (u n)) (fun g ↦ ρ g v) atTop K := by
+    intro d hd
+    have hh : ∀ g : ℤˣ, ∀ᶠ n in atTop, (ρ g v, ρ g (u n)) ∈ d := by
+      intro g
+      exact (tendsto_left_nhds_uniformity.comp ((ρ g).continuous.tendsto v |>.comp hu)) hd
+    filter_upwards [Filter.eventually_all.mpr hh] with n hn
+    exact fun g hg ↦ hn g
+  have hp (u : ℂ) : HasPettisIntegral (.positive (Measure.count : Measure ℤˣ))
+      (({(-1 : ℤˣ)} : Set ℤˣ).indicator (fun g ↦ star ((1 : PontryaginDual ℤˣ) g : ℂ) • ρ g u)) (ρ (-1) u) := by
+    have hi : Integrable (fun g : ℤˣ ↦ star ((1 : PontryaginDual ℤˣ) g : ℂ) • ρ g u)
+        ((Measure.count : Measure ℤˣ).restrict {(-1 : ℤˣ)}) := by
+      rw [Measure.restrict_singleton, Measure.count_singleton, one_smul]
+      exact integrable_dirac (by simp)
+    have hind := (integrable_indicator_iff (measurableSet_singleton (-1))).mpr hi
+    simpa using Integrable.hasPettisIntegral hind
+  intro h
+  have hr := (h ℤˣ ℂ Measure.count ρ hcont {(-1 : ℤˣ)}
+    (by simp) (by rw [(isOpen_discrete _).interior_eq]; exact ⟨-1, by simp⟩)
+    (fun p hp ↦ hborn p) (fun u v hu K hK ↦ hseq u v hu K) 1 (ρ (-1)) hp).1
+  have hm : (-1 : ℂ) ∈ Set.range (ρ (-1)) := ⟨1, by simp [ρ]⟩
+  rw [hr] at hm
+  have hh := hm (-1) (by simp)
+  norm_num [ρ] at hh
 
 end RiemannMasullo

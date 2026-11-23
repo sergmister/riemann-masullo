@@ -2880,6 +2880,42 @@ theorem exists_projectiveTensorCompletion_traceClassIsometry :
   change (∑' n, approximationNumber (A z) n ^ (1 : ℝ)) ^ (1 / (1 : ℝ)) = Completion.extension g z
   simpa only [Real.rpow_one, div_one, hext] using (hsum z).tsum_eq
 
+section TraceClassLimits
+
+/-- Trace-norm convergence of operators represented by algebraic Hilbert-space tensors
+gives convergence of the tensors in the completed projective tensor product. -/
+theorem exists_tendsto_projectiveTensor_of_traceNorm {ι : Type*} (l : Filter ι)
+    (w : ι → StrongDual ℂ E ⊗[ℂ] F) (T : traceClassOperators E F)
+    (S : ι → traceClassOperators E F) (hS : ∀ i, tensorToFiniteRank (w i) = (S i).val)
+    (hc : Tendsto (fun i ↦ schattenNorm (S i - T)) l (𝓝 0)) :
+    ∃ k : Completion πP, Tendsto (fun i ↦ ((show πP from w i) : Completion πP)) l (𝓝 k) := by
+  let toW : πP →L[ℂ] πW := toProjectiveSeminorm
+  let fromW : πW →L[ℂ] πP := fromProjectiveSeminorm
+  let R (i) : Completion πW := ↑(toW (w i))
+  let L := projectiveModelToOperator (E := E) (F := F)
+  obtain ⟨k, hk⟩ := exists_projectiveModel_preimage T
+  have hn (v : Completion πW) (S : traceClassOperators E F) (hS : L v = S.val) :
+      ‖v‖ = schattenNorm S := by
+    obtain ⟨d, hd⟩ := projectiveModel_singular_sum (E := E) (F := F) v
+    change _ = (∑' n, approximationNumber S.val n ^ (1 : ℝ)) ^ (1 / (1 : ℝ))
+    rw [← hS]
+    simpa only [d.coeff_eq_approximationNumber, Real.rpow_one, div_one, L] using hd.tsum_eq.symm
+  have hconv : Tendsto R l (𝓝 k) := by
+    rw [tendsto_iff_norm_sub_tendsto_zero]
+    apply hc.congr
+    intro i
+    apply Eq.symm
+    apply hn (R i - k) _
+    change L (R i - k) = (S i).val - T.val
+    rw [← hS i]
+    rw [map_sub, show L (R i) = tensorToFiniteRank (w i) from projectiveModelToOperator_coe _,
+      show L k = T.val from hk]
+  refine ⟨fromW.completion k, (fromW.completion.continuous.continuousAt.tendsto.comp hconv).congr ?_⟩
+  intro i
+  exact (fromW.completion_apply_coe (toW (w i))).trans rfl
+
+end TraceClassLimits
+
 omit [CompleteSpace F] in
 /-- Every functional on the dual of a Hilbert space is evaluation at a vector of the same
 norm. -/

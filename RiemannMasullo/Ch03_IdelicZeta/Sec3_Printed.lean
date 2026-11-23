@@ -1,7 +1,6 @@
 module
 
 public import RiemannMasullo.Ch03_IdelicZeta.Sec3
-import all RiemannMasullo.Ch03_IdelicZeta.Sec3
 import all RiemannMasullo.Ch03_IdelicZeta.Sec3b
 import Mathlib.NumberTheory.NumberField.Cyclotomic.Embeddings
 import RiemannMasullo.ForMathlib.Analysis.SpecialFunctions.Gamma.VerticalStripRatio

@@ -3,7 +3,9 @@ module
 public import RiemannMasullo.Ch10_TraceSpectral.Sec2
 
 import all RiemannMasullo.Ch03_IdelicZeta.Sec2
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
+import RiemannMasullo.Ch10_TraceSpectral.Sec1
+import Mathlib.Analysis.InnerProductSpace.l2Space
+import Mathlib.Logic.Equiv.Nat
 
 /-! # §10.2 assertions that are false as printed -/
 
@@ -52,12 +54,6 @@ def Printed.spectralLineMarkushevichBasis : Prop :=
         (x : J → Q) (Λ : J → StrongDual ℂ Q), IsSpectralMarkushevichBasis x Λ ∧
         ∀ j, D (Λ j) = (h j).toLp (η j)
 
-/-- Paper: Theorem 10.2.1.1, p. 440. The squared Artin factor of the
-splitting field of X³−2 supplies a double zero. At s = 3 its first
-derivative is among the printed jets and fails square integrability. -/
-theorem Printed.spectralLineMarkushevichBasis_false :
-    ¬ Printed.spectralLineMarkushevichBasis := by sorry
-
 /-- Paper: Theorem 10.2.1.1 and (10.2.1.6), p. 440. The printed floor cutoff
 makes each selected jet belong to the negative Sobolev space on the line. -/
 def Printed.spectralLineJet_memLp : Prop :=
@@ -73,6 +69,17 @@ two-dimensional Artin factor. That factor occurs squared in the Dedekind
 zeta function. The cutoff includes k = 1, whose squared norm has a 1/|x|
 tail in the log norm coordinate x. -/
 theorem Printed.spectralLineJet_memLp_false : ¬ Printed.spectralLineJet_memLp := by sorry
+
+/-- Paper: Theorem 10.2.1.1, p. 440. The squared Artin factor of the
+splitting field of X³−2 supplies a double zero. At s = 3 its first
+derivative is among the printed jets and fails square integrability. -/
+theorem Printed.spectralLineMarkushevichBasis_false :
+    ¬ Printed.spectralLineMarkushevichBasis := by
+  intro h
+  apply Printed.spectralLineJet_memLp_false
+  intro F _ _ χ hχ a s hs ω t k hk
+  obtain ⟨hh, _⟩ := (h F χ hχ a s hs).2
+  simpa only [neg_zero] using hh ⟨(ω, t, k), hk⟩
 
 /-- Paper: Proposition 10.2.1.3, p. 443. The printed annulus statement uses
 all derivative orders below the full zero multiplicity. -/
@@ -163,13 +170,104 @@ def Printed.spectralRegular_dual_bounded : Prop :=
     (∀ v : E, (∀ i, Λ i v = 0) → v = 0) → IsRegularSpectralFamily x →
     ∃ C : ℝ, ∀ n, ‖Λ n‖ ≤ C
 
+/-- Let `b` be a Hilbert basis indexed by `ℕ ⊕ ℕ`. Put `x (inl n) = b (inl n)` and
+`x (inr n) = b (inl n) + (n + 1)⁻¹ • b (inr n)`. Then `x` has a total biorthogonal family `Λ`
+with `‖Λ (inr n)‖ ≥ n + 1`. -/
+private theorem Printed.spectralRegular_dual_bounded_false_exists {E : Type} [NormedAddCommGroup E]
+    [InnerProductSpace ℂ E] [CompleteSpace E] (b : HilbertBasis (ℕ ⊕ ℕ) ℂ E) :
+    ∃ (x : ℕ ⊕ ℕ → E) (Λ : ℕ ⊕ ℕ → StrongDual ℂ E),
+      (∀ i, Λ i (x i) = 1) ∧ (∀ i j, i ≠ j → Λ j (x i) = 0) ∧
+      Dense (Submodule.span ℂ (Set.range x) : Set E) ∧
+      (∀ v : E, (∀ i, Λ i v = 0) → v = 0) ∧ (∀ i, 1 ≤ ‖x i‖) ∧
+      ∀ n : ℕ, (n : ℝ) + 1 ≤ ‖Λ (Sum.inr n)‖ := by
+  classical
+  have hb : ∀ i j, inner ℂ (b i) (b j) = if i = j then (1 : ℂ) else 0 :=
+    orthonormal_iff_ite.mp b.orthonormal
+  have hn1 : ∀ i, ‖b i‖ = 1 := b.orthonormal.1
+  have hne : ∀ n : ℕ, ((n : ℂ) + 1) ≠ 0 := fun n => Nat.cast_add_one_ne_zero n
+  refine ⟨Sum.elim (fun n => b (Sum.inl n))
+      (fun n => b (Sum.inl n) + ((n : ℂ) + 1)⁻¹ • b (Sum.inr n)),
+    Sum.elim
+      (fun n => innerSL ℂ (b (Sum.inl n)) - ((n : ℂ) + 1) • innerSL ℂ (b (Sum.inr n)))
+      (fun n => ((n : ℂ) + 1) • innerSL ℂ (b (Sum.inr n))), ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · rintro (n | n)
+    · simp [hb, hn1, innerSL_apply_apply]
+    · simp [hb, hn1, innerSL_apply_apply, inner_add_right, inner_smul_right, hne n]
+  · rintro (n | n) (m | m) hij
+    · have : m ≠ n := fun h => hij (by rw [h])
+      simp [hb, innerSL_apply_apply, this]
+    · simp [hb, innerSL_apply_apply]
+    · by_cases hmn : m = n
+      · subst hmn
+        simp [hb, hn1, innerSL_apply_apply, inner_add_right, inner_smul_right, hne m]
+      · simp [hb, innerSL_apply_apply, inner_add_right, inner_smul_right, hmn]
+    · have : m ≠ n := fun h => hij (by rw [h])
+      simp [hb, innerSL_apply_apply, inner_add_right, inner_smul_right, this]
+  · rw [Submodule.dense_iff_topologicalClosure_eq_top, eq_top_iff, ← b.dense_span]
+    refine Submodule.topologicalClosure_mono (Submodule.span_le.mpr ?_)
+    rintro _ ⟨(n | n), rfl⟩
+    · exact Submodule.subset_span ⟨Sum.inl n, rfl⟩
+    · have hx : b (Sum.inr n) = ((n : ℂ) + 1) •
+          ((b (Sum.inl n) + ((n : ℂ) + 1)⁻¹ • b (Sum.inr n)) - b (Sum.inl n)) := by
+        rw [add_sub_cancel_left, smul_smul, mul_inv_cancel₀ (hne n), one_smul]
+      rw [SetLike.mem_coe, hx]
+      exact Submodule.smul_mem _ _ (Submodule.sub_mem _ (Submodule.subset_span ⟨Sum.inr n, rfl⟩)
+        (Submodule.subset_span ⟨Sum.inl n, rfl⟩))
+  · intro v hv
+    have hr : ∀ n : ℕ, inner ℂ (b (Sum.inr n)) v = 0 := by
+      intro n
+      have := hv (Sum.inr n)
+      simpa [innerSL_apply_apply, hne n] using this
+    have hl : ∀ n : ℕ, inner ℂ (b (Sum.inl n)) v = 0 := by
+      intro n
+      have := hv (Sum.inl n)
+      simpa [innerSL_apply_apply, hr n] using this
+    have hall : ∀ k, b.repr v k = 0 := by
+      rintro (n | n)
+      · rw [b.repr_apply_apply, hl n]
+      · rw [b.repr_apply_apply, hr n]
+    have hs := b.hasSum_repr v
+    simp only [hall, zero_smul] at hs
+    exact hs.unique hasSum_zero
+  · rintro (n | n)
+    · simp [hn1]
+    · have h1 : inner ℂ (b (Sum.inl n))
+          (b (Sum.inl n) + ((n : ℂ) + 1)⁻¹ • b (Sum.inr n)) = 1 := by
+        rw [inner_add_right, inner_smul_right, hb, hb]
+        simp
+      have h2 := norm_inner_le_norm (𝕜 := ℂ) (b (Sum.inl n))
+        (b (Sum.inl n) + ((n : ℂ) + 1)⁻¹ • b (Sum.inr n))
+      rw [h1, hn1, one_mul, norm_one] at h2
+      simpa using h2
+  · intro n
+    have h := ContinuousLinearMap.le_opNorm (((n : ℂ) + 1) • innerSL ℂ (b (Sum.inr n)))
+      (b (Sum.inr n))
+    have hv : (((n : ℂ) + 1) • innerSL ℂ (b (Sum.inr n))) (b (Sum.inr n)) =
+        ((n : ℕ) + 1 : ℕ) := by
+      simp [hn1, innerSL_apply_apply]
+    rw [hv, hn1, mul_one, Complex.norm_natCast] at h
+    simpa using h
+
 /-- Paper: Terminology 10.2.1.2(2), p. 444. In complex ℓ² take
 x₂ₙ = e₂ₙ and x₂ₙ₊₁ = e₂ₙ + (n+1)⁻¹ e₂ₙ₊₁. If eⱼ* is coordinate evaluation,
 the dual pair is e₂ₙ* − (n+1)e₂ₙ₊₁* and (n+1)e₂ₙ₊₁*. Both spans contain
 the finite-support families, every x has norm at least one, and the dual
 norms are unbounded. -/
 theorem Printed.spectralRegular_dual_bounded_false :
-    ¬ Printed.spectralRegular_dual_bounded := by sorry
+    ¬ Printed.spectralRegular_dual_bounded := by
+  intro h
+  obtain ⟨x, Λ, h1, h2, h3, h4, h5, h6⟩ := Printed.spectralRegular_dual_bounded_false_exists
+    (HilbertBasis.ofRepr (LinearIsometryEquiv.refl ℂ (lp (fun _ : ℕ ⊕ ℕ => ℂ) 2)))
+  let σ : ℕ ≃ ℕ ⊕ ℕ := Equiv.natSumNatEquivNat.symm
+  obtain ⟨C, hC⟩ := h (lp (fun _ : ℕ ⊕ ℕ => ℂ) 2) (x ∘ σ) (Λ ∘ σ)
+    (fun i => h1 (σ i)) (fun i j hij => h2 (σ i) (σ j) (σ.injective.ne hij))
+    (by rwa [σ.surjective.range_comp])
+    (fun v hv => h4 v (fun k => by simpa using hv (σ.symm k)))
+    ⟨1, one_pos, fun i => h5 (σ i)⟩
+  obtain ⟨n, hn⟩ := exists_nat_gt C
+  have hCn := hC (σ.symm (Sum.inr n))
+  simp only [Function.comp_apply, Equiv.apply_symm_apply] at hCn
+  linarith [h6 n]
 
 /-- Paper: Corollary 10.2.1.4, p. 444. The printed floor-indexed
 line jets form a normalized basis in the image of the quotient dual. -/
@@ -249,7 +347,12 @@ def Printed.spectralStripMarkushevichBasis : Prop :=
 /-- Paper: Theorem 10.2.2.1, p. 446. On the singleton strip with s = 1
 a Riemann zeta zero supplies a zeroth jet with divergent squared norm. -/
 theorem Printed.spectralStripMarkushevichBasis_false :
-    ¬ Printed.spectralStripMarkushevichBasis := by sorry
+    ¬ Printed.spectralStripMarkushevichBasis := by
+  intro hall
+  apply Printed.spectralLineJet_memLp_false
+  intro F _ _ χ hχ a s hs ω t k hk
+  let h := (hall F χ hχ a 0 s le_rfl (zero_lt_one.trans hs).le).2.choose
+  exact h ⟨(ω, 0, t, k), by simpa using hk⟩
 
 /-- Paper: Theorem 10.2.2.1 and (10.2.2.5)–(10.2.2.6), p. 446.
 The printed floor cutoff on the boundary and the full cutoff in the interior
@@ -373,7 +476,12 @@ is strip-integrable in squared norm and vanishes on polar-free weighted theta
 tests by the forward zeta integral factorization. An empty family cannot span
 this dual. -/
 theorem Printed.spectralStripMarkushevichBasis_normalized_false :
-    ¬ Printed.spectralStripMarkushevichBasis_normalized := by sorry
+    ¬ Printed.spectralStripMarkushevichBasis_normalized := by
+  intro hall
+  apply Printed.spectralLineJet_memLp_false
+  intro F _ _ χ hχ a s hs ω t k hk
+  let h := (hall F χ hχ a 0 s le_rfl hs).2.choose
+  exact h ⟨(ω, 0, t, k), Nat.zero_lt_of_lt (hk.trans_le (min_le_left _ _)), by simpa using hk⟩
 
 /-- Paper: Theorem 10.2.1.1, proof after (10.2.1.7), p. 441.
 As printed: the exponential-decay topology is generated by the seminorms
@@ -386,12 +494,54 @@ def Printed.spectralLineTestTopology : Prop :=
     ∀ (m n : ℕ) (f : E), p (m, n) f =
       ⨆ x : ℝ, Real.exp (-(m : ℝ) * |x|) * ‖iteratedDeriv n f.val x‖
 
+open scoped ContDiff in
 /-- Paper: Theorem 10.2.1.1, proof after (10.2.1.7), p. 441.
 In x = log t take a nonzero smooth bump h supported in (0, 1) and the
 profiles fⱼ(x) = exp(−j/2) h(x − j). Every printed seminorm tends to zero,
 since its weight is at most one. The genuine topology includes the zeroth
 Schwartz seminorm after the exp(x) twist, which grows as exp(j/2). -/
-theorem Printed.spectralLineTestTopology_false : ¬ Printed.spectralLineTestTopology := by sorry
+theorem Printed.spectralLineTestTopology_false : ¬ Printed.spectralLineTestTopology := by
+  rintro ⟨p, hp, hval⟩
+  let E := PositiveRealExponentialDecay (univ : Set ℝ)
+  let b : ContDiffBump (0 : ℝ) := ⟨1, 2, one_pos, one_lt_two⟩
+  let h (x : ℝ) : ℂ := b x
+  have hc : HasCompactSupport h := b.hasCompactSupport.comp_left Complex.ofReal_zero
+  have hd : ContDiff ℝ ∞ h := Complex.ofRealCLM.contDiff.comp b.contDiff
+  let u := hc.toSchwartzMap hd
+  let f (t : ℝ) : E := ⟨fun x ↦ h (x - t),
+    mem_logExponentialDecaySubmodule_of_hasCompactSupport univ
+      (by
+        have ht := hc.comp_homeomorph (Homeomorph.addRight (-t))
+        change HasCompactSupport (fun x ↦ h (x + -t)) at ht
+        simpa only [sub_eq_add_neg] using ht)
+      (hd.comp (contDiff_id.sub contDiff_const))⟩
+  have hb : Bornology.IsVonNBounded ℂ (range f) := by
+    apply hp.isVonNBounded_iff_seminorm_bounded.mpr
+    rintro ⟨m,n⟩
+    let C := SchwartzMap.seminorm ℂ 0 n u
+    refine ⟨C + 1, by positivity, ?_⟩
+    rintro _ ⟨t, rfl⟩
+    rw [hval]
+    apply lt_of_le_of_lt (ciSup_le fun x ↦ ?_) (lt_add_one C)
+    have hw : Real.exp (-(m : ℝ) * |x|) ≤ 1 :=
+      Real.exp_le_one_iff.mpr (mul_nonpos_of_nonpos_of_nonneg (neg_nonpos.mpr (Nat.cast_nonneg m)) (abs_nonneg _))
+    change _ * ‖iteratedDeriv n (fun z ↦ h (z - t)) x‖ ≤ C
+    rw [iteratedDeriv_comp_sub_const]
+    apply (mul_le_of_le_one_left (norm_nonneg _) hw).trans
+    rw [← norm_iteratedFDeriv_eq_norm_iteratedDeriv]
+    exact SchwartzMap.norm_iteratedFDeriv_le_seminorm ℂ u n (x - t)
+  obtain ⟨T, -, hT⟩ := positiveRealExponentialDecay_continuous_inclusion univ (mem_univ (0 : ℝ))
+  obtain ⟨R, hR, hbound⟩ := (schwartz_withSeminorms ℂ ℝ ℂ).isVonNBounded_iff_seminorm_bounded.mp
+    (hb.image T) (1, 0)
+  have hlt := hbound (T (f R)) ⟨f R, ⟨R, rfl⟩, rfl⟩
+  have hle := SchwartzMap.norm_pow_mul_le_seminorm ℂ (T (f R)) 1 R
+  have hx : T (f R) R = 1 := by
+    rw [hT]
+    change (b (R - R) : ℂ) = 1
+    rw [sub_self, b.one_of_mem_closedBall (Metric.mem_closedBall_self b.rIn_pos.le)]
+    rfl
+  rw [hx, norm_one, mul_one, pow_one, Real.norm_eq_abs, abs_of_pos hR] at hle
+  exact (not_lt_of_ge hle) hlt
 
 section BandProjection
 

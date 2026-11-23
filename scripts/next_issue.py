@@ -117,7 +117,9 @@ def main(argv):
                 order.append((file, number))
             else:
                 rest.append((file, number))
-        order += rest
+        # Show saturated files in the listing, but never assign them automatically.
+        if "--list" in argv:
+            order += rest
     if "--list" in argv:
         i = argv.index("--list")
         count = int(argv[i + 1]) if len(argv) > i + 1 else 20

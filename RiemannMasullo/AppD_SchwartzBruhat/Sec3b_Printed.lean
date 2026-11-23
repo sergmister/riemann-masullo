@@ -2,6 +2,7 @@ module
 
 public import RiemannMasullo.AppD_SchwartzBruhat.Sec3b
 import RiemannMasullo.ForMathlib.MeasureTheory.Group.Arithmetic
+import Mathlib.Analysis.Calculus.BumpFunction.InnerProduct
 
 /-! # Appendix D.3.5: the printed Poisson summation formula -/
 
@@ -84,14 +85,141 @@ def Printed.modulatedPoissonSummation : Prop :=
               (χ₀⁻¹ * Printed.modulationFrequency m (-frequency n + t₀)) *
             (Circle.exp (frequency n * logModule x) : ℂ)) atTop (𝓝 periodized)
 
-/-- Paper: Proposition D.3.5.1, p. 818. Take G = ℝ₊ˣ with identity module and
-section, γ = exp(1), χ₀ = 1, t₀ = 0, and no designated jump points.
-Take f to be a smooth bump in the log coordinate, supported in (1/8, 3/8) and
-equal to one at 1/4. At x = exp(1/4) the left series equals one. The transform
-conjugates its character, so the frequency signs in (D.3.5.3) make the right
-series sample the periodization at −1/4 in the log coordinate, where it is zero. -/
-theorem Printed.modulatedPoissonSummation_false : ¬ Printed.modulatedPoissonSummation := by
-  sorry
+/-- For a radial character of phase `t`, the printed shift cancels the
+character at every Fourier coefficient. -/
+private theorem Printed.modulatedPoissonSummation_false_cancel_phase {G : Type*} [CommGroup G]
+    [TopologicalSpace G] (m : G →ₜ* ℝ≥0ˣ) (a t : ℝ) :
+    (Printed.modulationFrequency m t)⁻¹ * Printed.modulationFrequency m (-a + t) =
+      Printed.modulationFrequency m (-a) := by
+  apply DFunLike.ext
+  intro x
+  change (Circle.exp (t * _))⁻¹ * Circle.exp ((-a + t) * _) = Circle.exp (-a * _)
+  rw [add_mul, Circle.exp_add, mul_comm (Circle.exp (-a * _)) _, inv_mul_cancel_left]
+
+/-- A bump around one with outer radius at most one isolates the integer one. -/
+private theorem Printed.modulatedPoissonSummation_false_bump_int (b : ContDiffBump (1 : ℝ)) (hb : b.rOut ≤ 1)
+    (n : ℤ) : b (n : ℝ) = if n = 1 then 1 else 0 := by
+  split_ifs with h
+  · subst n
+    simpa using b.one_of_mem_closedBall (Metric.mem_closedBall_self b.rIn_pos.le)
+  · apply b.zero_of_le_dist
+    apply hb.trans
+    change (1 : ℝ) ≤ |(n : ℝ) - 1|
+    have hn : (1 : ℤ) ≤ |n - 1| := by rw [abs_eq_max_neg]; omega
+    exact_mod_cast hn
+
+/-- At the identity the two sides of the printed formula give incompatible
+dependence on the phase, at every type level. -/
+private theorem Printed.modulatedPoissonSummation_false_of
+    (h : Printed.modulatedPoissonSummation.{u}) : False := by
+  have : LocallyCompactSpace {x : ℝ // 0 < x} := isOpen_Ioi.locallyCompactSpace
+  have : LocallyCompactSpace ℝ≥0ˣ :=
+    (Nonneg.unitsHomeomorphPos ℝ).isOpenEmbedding.locallyCompactSpace
+  have : SecondCountableTopology ℝ≥0ˣ := Units.isEmbedding_val₀.secondCountableTopology
+  have : BorelSpace ℝ≥0ˣ := borelSpace_units_of_continuousInv₀ ℝ≥0
+  have : LocallyCompactSpace (ULift.{u} ℝ≥0ˣ) :=
+    Homeomorph.ulift.isClosedEmbedding.locallyCompactSpace
+  have : SecondCountableTopology (ULift.{u} ℝ≥0ˣ) :=
+    Homeomorph.ulift.isEmbedding.secondCountableTopology
+  let m : ULift.{u} ℝ≥0ˣ →ₜ* ℝ≥0ˣ := ⟨MulEquiv.ulift.toMonoidHom, continuous_uliftDown⟩
+  let τ : ℝ≥0ˣ →ₜ* ULift.{u} ℝ≥0ˣ :=
+    ⟨(MulEquiv.ulift (α := ℝ≥0ˣ)).symm.toMonoidHom, continuous_uliftUp⟩
+  let expUnit (s : ℝ) : ℝ≥0ˣ := (Nonneg.unitsHomeomorphPos ℝ).symm (Real.expOrderIso s)
+  let γ := τ (expUnit 1)
+  have hγ : 1 < (m γ).val := by
+    apply NNReal.coe_lt_coe.mp
+    change 1 < Real.exp 1
+    exact Real.one_lt_exp_iff.mpr one_pos
+  have hm : IsModulation m := ⟨Homeomorph.ulift.isProperMap, γ, fun heq ↦ by
+    simp [heq] at hγ⟩
+  let logModule (x : ULift.{u} ℝ≥0ˣ) := Real.log ((m x).val : ℝ)
+  have hL : logModule γ = 1 := Real.log_exp 1
+  have hker (g : m.toMonoidHom.ker) : g.val = 1 :=
+    MulEquiv.ulift.injective (MonoidHom.mem_ker.mp g.property)
+  let b : ContDiffBump (1 : ℝ) := ⟨1 / 4, 1 / 2, by norm_num, by norm_num⟩
+  let f (x : ULift.{u} ℝ≥0ˣ) : ℂ := b (logModule x)
+  have horbit (n : ℤ) : f (γ ^ n) = if n = 1 then 1 else 0 := by
+    have hn : logModule (γ ^ n) = n := by
+      change Real.log ((m (γ ^ n)).val : ℝ) = _
+      rw [map_zpow, Units.val_zpow_eq_zpow_val, NNReal.coe_zpow, Real.log_zpow]
+      change (n : ℝ) * logModule γ = _
+      rw [hL, mul_one]
+    change (b (logModule (γ ^ n)) : ℂ) = _
+    rw [hn, Printed.modulatedPoissonSummation_false_bump_int b (by norm_num [b])]
+    split <;> simp
+  have hyp (t : ℝ) :
+      Printed.ModulatedPoissonHypotheses m (Printed.modulationFrequency m t) τ f ∅ := by
+    refine ⟨⟨1, fun x ↦ ?_⟩, ?_, ?_, fun s ↦ (Finset.notMem_empty _ s.2).elim,
+      fun s ↦ (Finset.notMem_empty _ s.2).elim, ?_⟩
+    · exact (Complex.norm_of_nonneg b.nonneg).le.trans b.le_one
+    · intro N _
+      refine ⟨2, 1, by norm_num, one_pos, fun x hx ↦ ?_⟩
+      change 2 < |logModule x| at hx
+      have hdist : b.rOut ≤ dist (logModule x) 1 := by
+        change (1 : ℝ) / 2 ≤ |logModule x - 1|
+        rcases lt_abs.mp hx with hneg | hpos
+        · exact le_abs.mpr (Or.inl (by linarith))
+        · exact le_abs.mpr (Or.inr (by linarith))
+      simp only [f, b.zero_of_le_dist hdist, Complex.ofReal_zero, norm_zero, one_mul]
+      exact (Real.exp_pos _).le
+    · let profile (s : ℝ) : ℂ := b s
+      let radial (g : m.toMonoidHom.ker) (s : ℝ) := f (τ (expUnit s) * g.val)
+      have hprofile (g : m.toMonoidHom.ker) : radial g = profile := by
+        funext s
+        change f (τ (expUnit s) * g.val) = _
+        rw [hker g, mul_one]
+        change (b (Real.log (Real.exp s)) : ℂ) = b s
+        rw [Real.log_exp]
+      have hsmooth : ContDiff ℝ ∞ profile := Complex.ofRealCLM.contDiff.comp b.contDiff
+      constructor
+      · intro g
+        change Continuous (radial g) ∧ ContDiffOn ℝ ∞ (radial g) _
+        rw [hprofile g]
+        exact ⟨hsmooth.continuous, hsmooth.contDiffOn⟩
+      · intro k
+        change ContinuousOn (fun p : ℝ × m.toMonoidHom.ker ↦ iteratedDeriv k (radial p.2) p.1) _
+        simp_rw [hprofile]
+        exact ((hsmooth.continuous_iteratedDeriv k (by simp)).comp continuous_fst).continuousOn
+    · intro g x
+      simp [hker g]
+  let sums (N : ℕ) := ∑ n ∈ Finset.Icc (-(N : ℤ)) (N : ℤ),
+    lcaFourier (canonicalModulatedHaar m hm) f
+      (Printed.modulationFrequency m (-(2 * Real.pi * (n : ℝ))))
+  have limit (t : ℝ) (ht : t ∈ Ico 0 (2 * Real.pi)) :
+      Tendsto sums atTop (𝓝 (Circle.exp t : ℂ)) := by
+    have ht' : t ∈ Ico 0 (2 * Real.pi / logModule γ) := by simpa only [hL, div_one] using ht
+    obtain ⟨z, hsum, hlim⟩ := h _ m hm γ hγ (Printed.modulationFrequency m t) τ (fun _ ↦ rfl)
+      f ∅ (hyp t) t ht' rfl 1
+    have hphase : Printed.modulationFrequency m t γ = Circle.exp t := by
+      change Circle.exp (t * logModule γ) = _
+      rw [hL, mul_one]
+    simp only [modulatedJumpMidpointProfile, Finset.notMem_empty, ↓reduceDIte,
+      mul_inv_cancel_left, mul_one] at hsum
+    have hz : z = (Circle.exp t : ℂ) := by
+      apply hsum.unique
+      apply (hasSum_ite_eq (1 : ℤ) (Circle.exp t : ℂ)).congr_fun
+      intro n
+      by_cases hn : n = 1
+      · subst n
+        have h1 : f γ = 1 := by simpa using horbit 1
+        simp [h1, hphase]
+      · simp [horbit, hn]
+    rw [← hz]
+    change Real.log ((m γ).val : ℝ) = 1 at hL
+    simpa only [modulatedJumpMidpointProfile, Finset.notMem_empty, ↓reduceDIte,
+      mul_inv_cancel_left, hL, div_one, Complex.ofReal_one, inv_one, one_mul, map_one,
+      Units.val_one, NNReal.coe_one, Real.log_one, mul_zero, Circle.exp_zero, Circle.coe_one,
+      mul_one, Printed.modulatedPoissonSummation_false_cancel_phase, sums] using hlim
+  have heq := tendsto_nhds_unique (limit Real.pi ⟨Real.pi_pos.le, by linarith [Real.pi_pos]⟩)
+    (limit 0 ⟨le_rfl, by positivity⟩)
+  exact Circle.exp_pi_ne_one (Subtype.ext (by simpa using heq))
+
+/-- Paper: Proposition D.3.5.1, p. 818. With identity modulation, γ = exp(1),
+and a smooth log-coordinate bump isolating the lattice point 1, the left side
+of (D.3.5.3) at the identity is 1 for phase 0 and −1 for phase π. The printed
+frequency shift gives identical Fourier partial sums for both phases. -/
+theorem Printed.modulatedPoissonSummation_false : ¬ Printed.modulatedPoissonSummation :=
+  fun h ↦ Printed.modulatedPoissonSummation_false_of h
 
 /-- Paper: (D.3.5.5), p. 819. The last equality in the proof of Proposition
 D.3.5.1 identifies the radial integral of ψ = χ₀φ against the conjugate character

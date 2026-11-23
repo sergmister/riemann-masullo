@@ -2,7 +2,8 @@ module
 
 public import RiemannMasullo.Ch10_TraceSpectral.Sec4b
 public import RiemannMasullo.Ch04_PeriodicSchauderBases.Sec6
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
+import all RiemannMasullo.Ch03_IdelicZeta.Sec2
+import RiemannMasullo.Ch10_TraceSpectral.Sec1
 
 /-! # False assertions in §10.4.3 -/
 
@@ -61,7 +62,56 @@ def Printed.unshiftedHeckeRegularization_entire : Prop :=
 L-function is completed zeta at z + i. Its pole at 1 − i survives
 multiplication by z(z − 1)/2, which is nonzero there. -/
 theorem Printed.unshiftedHeckeRegularization_entire_false :
-    ¬ Printed.unshiftedHeckeRegularization_entire := by sorry
+    ¬ Printed.unshiftedHeckeRegularization_entire := by
+  intro h
+  let c := ideleClassNormTwist (1 : PontryaginDual C𝔽(ℚ)) Complex.I
+  have hunit (g : C𝔽(ℚ)) : ‖c g‖ = 1 := by
+    change ‖(1 : ℂ) * ((((ideleClassNorm ℚ g).val : ℝ) : ℂ) ^ Complex.I)‖ = 1
+    rw [one_mul, Complex.norm_cpow_eq_rpow_re_of_pos (NNReal.coe_pos.mpr (Units.zero_lt _))]
+    simp
+  let χ : PontryaginDual C𝔽(ℚ) :=
+    { toFun := fun g ↦ ⟨c g, mem_sphere_zero_iff_norm.mpr (hunit g)⟩
+      map_one' := Subtype.ext c.map_one
+      map_mul' := fun g k ↦ Subtype.ext (c.map_mul g k)
+      continuous_toFun := c.continuous.subtype_mk _ }
+  have hk (g : C₁(ℚ)) : χ g.val = 1 := by
+    apply Subtype.ext
+    change (1 : ℂ) * ((((ideleClassNorm ℚ g.val).val : ℝ) : ℂ) ^ Complex.I) = 1
+    rw [MonoidHom.mem_ker.mp g.property]
+    simp
+  have htwist : ideleClassNormTwist χ 0 = ideleClassNormTwist (1 : PontryaginDual C𝔽(ℚ))
+      (-Complex.I * ((-1 : ℝ) : ℂ)) := by
+    simp only [Complex.ofReal_neg, Complex.ofReal_one, mul_neg_one, neg_neg]
+    ext1 g
+    change c g * _ ^ (0 : ℂ) = c g
+    simp
+  obtain ⟨hL, hEq⟩ := continuedCompletedHeckeL_spec χ
+  have hker : χ.toMonoidHom.comp (ideleClassNorm ℚ).ker.subtype = 1 := by
+    ext1 g
+    exact hk g
+  obtain ⟨t, ht, -⟩ := completedHeckeL_continuation_simplePoles χ _ hL hEq hker
+  have ht' := (existsUnique_ideleClassNormTwist χ hker).unique ht.1 htwist
+  have hpole : meromorphicOrderAt (continuedCompletedHeckeL χ) (1 - Complex.I) = -1 := by
+    simpa [ht', sub_eq_add_neg] using ht.2.2.1
+  let P := fun z : ℂ ↦ z * (z - 1) / 2
+  have hP : Differentiable ℂ P := by
+    dsimp [P]
+    fun_prop
+  have hPne : P (1 - Complex.I) ≠ 0 := by
+    dsimp [P]
+    apply div_ne_zero (mul_ne_zero _ _) (by norm_num)
+    · intro he
+      have := congrArg Complex.re he
+      norm_num at this
+    · simp
+  have hentire := h ℚ χ
+  simp only [ite_eq_left hk, pow_one] at hentire
+  change Differentiable ℂ (toMeromorphicNFOn (P * continuedCompletedHeckeL χ) univ) at hentire
+  have hnonneg := (hentire.analyticAt (1 - Complex.I)).meromorphicOrderAt_nonneg
+  have hm : MeromorphicOn P univ := fun z _ ↦ (hP.analyticAt z).meromorphicAt
+  rw [meromorphicOrderAt_toMeromorphicNFOn (hm.mul hL.meromorphicOn) (mem_univ _),
+    meromorphicOrderAt_mul_of_ne_zero (hP.analyticAt _) hPne, hpole] at hnonneg
+  exact (by decide : ¬ (0 : WithTop ℤ) ≤ -1) hnonneg
 
 /-- Paper: (10.4.3.5), p. 466. For a fixed character and shift, a unique
 family of isotypic exponential-decay tests is biorthogonal to the zero jets.

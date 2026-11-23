@@ -1,8 +1,9 @@
 module
 
 public import RiemannMasullo.Ch01_Introduction.Sec4
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
-import all RiemannMasullo.AppB_AnalyticNT.Sec4b
+import RiemannMasullo.Ch13_ZerosHecke.Targets
+import RiemannMasullo.Ch10_TraceSpectral.Sec1
+import RiemannMasullo.AppB_AnalyticNT.Sec4b
 
 /-! # Printed claims in the introduction's deduction of GRH -/
 
@@ -240,12 +241,77 @@ def Printed.introTrace_regularized_logDeriv_analytic : Prop :=
         if ∀ u : (ideleClassNorm F).ker, χ u.val = 1
         then 1 / (z + 1 / 2) + 1 / (z - 1 / 2) else 0) (right(a) \ {1 / 2})
 
+open scoped ComplexOrder in
+private theorem introTrace_regularized_logDeriv_neg (x : ℝ) (hx : 1 < x) :
+    (logDeriv (finiteHeckeL_exists_continuation (1 : U[ℚ])).choose x).re < 0 := by
+  let L := (finiteHeckeL_exists_continuation (1 : U[ℚ])).choose
+  have hnear : L =ᶠ[𝓝 (x : ℂ)] riemannZeta := by
+    filter_upwards [(isOpen_lt continuous_const Complex.continuous_re).mem_nhds hx] with z hz
+    calc
+      L z = finiteHeckeL (1 : U[ℚ]) ⟨z, hz⟩ :=
+        (finiteHeckeL_exists_continuation (1 : U[ℚ])).choose_spec.2 ⟨z, hz⟩
+      _ = dedekindZeta ℚ z := finiteHeckeL_one_eq_dedekindZeta ⟨z, hz⟩
+      _ = riemannZeta z := dedekindZeta_rat_eq_riemannZeta hz
+  let a (n : ℕ) : ℂ := ArithmeticFunction.vonMangoldt n
+  have hpos : 0 < LSeries a (x : ℂ) := by
+    have hterm (n : ℕ) : 0 ≤ LSeries.term a x n :=
+      LSeries.term_nonneg (Complex.zero_le_real.mpr ArithmeticFunction.vonMangoldt_nonneg) x
+    apply (ArithmeticFunction.LSeriesSummable_vonMangoldt hx).tsum_pos hterm 2
+    apply LSeries.term_pos (by decide)
+    apply Complex.zero_lt_real.mpr
+    rw [ArithmeticFunction.vonMangoldt_apply_prime Nat.prime_two]
+    exact Real.log_pos one_lt_two
+  change (logDeriv L x).re < 0
+  rw [(logDeriv_congr_nhds hnear).eq_of_nhds]
+  rw [show LSeries a (x : ℂ) = -logDeriv riemannZeta x by
+    simpa only [logDeriv_apply, neg_div] using
+      ArithmeticFunction.LSeries_vonMangoldt_eq_deriv_riemannZeta_div hx] at hpos
+  exact (Complex.lt_def.mp (neg_pos.mp hpos)).1
+
 /-- Paper: §1.4.5, p. 30. With the trivial rational character and
 half-width one quarter, the shifted log derivative has residue minus one
 at one half because zeta has a simple pole at one. Subtracting the
 printed correction gives residue minus two there. -/
 theorem Printed.introTrace_regularized_logDeriv_analytic_false :
-    ¬ Printed.introTrace_regularized_logDeriv_analytic := by sorry
+    ¬ Printed.introTrace_regularized_logDeriv_analytic := by
+  intro hall
+  obtain ⟨H, han, heq⟩ := hall ℚ 1 (1 / 4) (fun _ ↦ rfl) (by norm_num)
+  have hhalf := (han _ (show (1 / 2 : ℂ) ∈ right(1 / 4) by norm_num)).continuousAt
+  have hcont : ContinuousAt (fun t : ℝ ↦ (t - 1) * (H ((t : ℂ) - 1 / 2)).re) 1 := by
+    apply (continuousAt_id.sub continuousAt_const).mul
+    apply Complex.continuous_re.continuousAt.comp
+    apply ContinuousAt.comp (g := H) _ (Complex.continuous_ofReal.continuousAt.sub_const _)
+    convert hhalf using 1
+    norm_num
+  have hlim : Tendsto (fun t : ℝ ↦ (t - 1) * (H ((t : ℂ) - 1 / 2)).re)
+      (𝓝[>] 1) (𝓝 0) := by
+    simpa using hcont.tendsto.mono_left nhdsWithin_le_nhds
+  -- The logarithmic derivative is negative to the right of one. The printed
+  -- correction subtracts a further 1/(t-1), even arbitrarily close to one.
+  have hbound : (0 : ℝ) ≤ -1 := by
+    apply le_of_tendsto hlim
+    filter_upwards [self_mem_nhdsWithin] with t (ht : 1 < t)
+    have hz : (t : ℂ) - 1 / 2 ∈ right(1 / 4) \ {(1 / 2 : ℂ)} := by
+      constructor
+      · change 1 / 4 < ((t : ℂ) - 1 / 2).re
+        norm_num
+        linarith
+      · intro h
+        have := congrArg Complex.re (mem_singleton_iff.mp h)
+        norm_num at this
+        linarith
+    have he := heq hz
+    have htriv : ∀ u : (ideleClassNorm ℚ).ker, (1 : U[ℚ]) u.val = 1 := fun _ ↦ rfl
+    simp only [ite_eq_left htriv, sub_add_cancel, show (t : ℂ) - 1 / 2 - 1 / 2 = t - 1 by ring] at he
+    have hreal : (H ((t : ℂ) - 1 / 2)).re =
+        (logDeriv (finiteHeckeL_exists_continuation (1 : U[ℚ])).choose t).re - (1 / t + 1 / (t - 1)) := by
+      simpa only [← Complex.ofReal_one, ← Complex.ofReal_sub, ← Complex.ofReal_div,
+        ← Complex.ofReal_add, Complex.sub_re, Complex.ofReal_re] using congrArg Complex.re he
+    rw [hreal, mul_sub, mul_add, mul_one_div_cancel (sub_ne_zero.mpr ht.ne')]
+    have hneg := introTrace_regularized_logDeriv_neg t ht
+    nlinarith [mul_nonpos_of_nonneg_of_nonpos (sub_nonneg.mpr ht.le) hneg.le,
+      mul_nonneg (sub_nonneg.mpr ht.le) (show 0 ≤ 1 / t by positivity)]
+  linarith
 
 -- Section 1.1.4 (p. 12) chooses χ = 1 on the pure-norm component. In that
 -- coordinate the possible pole of the shifted logarithmic derivative is at 1/2.

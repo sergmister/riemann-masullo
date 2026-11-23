@@ -1,0 +1,69 @@
+{
+  "upstream": "https://github.com/thatnealpatel/grh",
+  "commit": "e55aab27b744bfb62a4aaa57ea9f13818aad1055",
+  "files": [
+    {
+      "path": "Lemmas/AnalyticGoodHeightDisk.lean",
+      "upstream_path": "Proofs/Lemmas/AnalyticGoodHeightDisk.lean",
+      "upstream_lines": "1-215",
+      "upstream_sha256": "4c342adfa265d90d9ccf75055300115eb0a78d89c3487b44b21a6ec7c2536c71",
+      "sha256": "40281341c9e31e0c8c1833cd885cea30f38e3089c2df344893bec529599cc2f8"
+    },
+    {
+      "path": "Lemmas/EntireFiniteFactors.lean",
+      "upstream_path": "Proofs/Lemmas/EntireFiniteFactors.lean",
+      "upstream_lines": "1-68",
+      "upstream_sha256": "00286bd2c712e4f8a1de8e1abf51adaa130b90001f95e41ab4340e98988c6aa4",
+      "sha256": "b0370f1f59bf7b4aed9ee6442cefa8322c3726c2c0fb96d59f6f6e04a1f1f89e"
+    },
+    {
+      "path": "Lemmas/ExpAbsDecay.lean",
+      "upstream_path": "Proofs/Lemmas/ExpAbsDecay.lean",
+      "upstream_lines": "1-24",
+      "upstream_sha256": "d8fe50dafa850ed74a445a4919d5bf1a8c0491ec10c3667ca061aca42e3878dc",
+      "sha256": "1ca4221548759eeab5b72e7683ceff69116d06a18ecc5fd7f94a4101bda691d2"
+    },
+    {
+      "path": "Lemmas/InteriorLogJet.lean",
+      "upstream_path": "Proofs/Lemmas/InteriorLogJet.lean",
+      "upstream_lines": "1-173",
+      "upstream_sha256": "341749cf8e7f6e1013ac1f75102309715aa2eec0f521fa5b94c71440fceecffa",
+      "sha256": "cfad5874b27ece55237948fdfda4819928d44dfbe8e77b8c27a3f4c4448b4cb4"
+    },
+    {
+      "path": "Lemmas/LogLossGoodHeight.lean",
+      "upstream_path": "Proofs/Lemmas/LogLossGoodHeight.lean",
+      "upstream_lines": "1-92",
+      "upstream_sha256": "6d1e35c8b842e30d6c702827e487220347cab10f229277aa348624bf5b3cfdbc",
+      "sha256": "2ebb1296f36daf55a2ffc9f5575953ab78f20304539c9c4c1c403ae4b275ca7e"
+    },
+    {
+      "path": "Lemmas/SobolevJetTail.lean",
+      "upstream_path": "Proofs/Lemmas/SobolevJetTail.lean",
+      "upstream_lines": "1-85",
+      "upstream_sha256": "9598e4ff3da2da97be9d73595cafbfad9d65ea719d0aca66e501665eccff4497",
+      "sha256": "0f7b51efc7f71c069d797069e17206c4a7e1e720a595cb6d3b583430156f126b"
+    },
+    {
+      "path": "Lemmas/ZeroFreeDiskLogDeriv.lean",
+      "upstream_path": "Proofs/Lemmas/ZeroFreeDiskLogDeriv.lean",
+      "upstream_lines": "1-117",
+      "upstream_sha256": "79b20a271add75f10f12a4488775b51f1bc04a1274e2a141f66fcee187b36d63",
+      "sha256": "bb221df594c3b60cdb77a980a926e724c2547d78fa8012b8c868faae2332d7fd"
+    },
+    {
+      "path": "Props/HeckeContourReflection.lean",
+      "upstream_path": "Proofs/Props/HeckeContourReflection.lean",
+      "upstream_lines": "26-49",
+      "upstream_sha256": "7b663c24090a47765883fc8dc59ca2ffe54d873a2d5f752c9970ca966e365691",
+      "sha256": "80f503e95061d78b334f3326222a26cf2f7aa2cf21ade9000e3db1e8784f714a"
+    },
+    {
+      "path": "LICENSE",
+      "upstream_path": "LICENSE",
+      "upstream_lines": "1-21",
+      "upstream_sha256": "9114a56f2f2f0ab22f07abe23d7dfc49f6c4483e292f1287091547241479e7f8",
+      "sha256": "9114a56f2f2f0ab22f07abe23d7dfc49f6c4483e292f1287091547241479e7f8"
+    }
+  ]
+}

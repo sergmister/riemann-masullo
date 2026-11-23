@@ -3,7 +3,7 @@ module
 public import RiemannMasullo.Ch02_AdelicTheta.Sec3
 import all RiemannMasullo.Ch02_AdelicTheta.Sec3
 import all RiemannMasullo.AppA_AlgebraicNT.Sec5a
-import all RiemannMasullo.AppD_SchwartzBruhat.Sec1b
+import RiemannMasullo.AppD_SchwartzBruhat.Sec1b
 import Mathlib.Analysis.SpecialFunctions.Log.Basic
 import Mathlib.Analysis.SpecificLimits.Normed
 import Mathlib.NumberTheory.NumberField.InfiniteAdeleRing

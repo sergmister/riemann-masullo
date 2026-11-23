@@ -18,6 +18,7 @@
   --wip: #9a5800; --wip-fill: #f0a92b; --wip-soft: #fcefd3;
   --defn: #5a667d; --edge: #8a94a4; --hatch: rgba(21, 25, 34, .045);
   --series-filed: #2a78d6; --series-closed: #15803d;
+  --bad: #b42318; --bad-soft: #fde8e6; --fix: #2563eb; --fix-soft: #e3ecfd; --imp: #8b5cf6; --miss: #5a667d;
   --shadow: 0 1px 2px rgba(21, 25, 34, .06), 0 6px 24px rgba(21, 25, 34, .08);
   --font-ui: Inter, "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
   --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
@@ -33,6 +34,7 @@
     --wip: #f0b648; --wip-fill: #d89614; --wip-soft: #3a2d0f;
     --defn: #9aa6ba; --edge: #5f6a7a; --hatch: rgba(232, 235, 240, .05);
     --series-filed: #3987e5; --series-closed: #2ea043;
+    --bad: #f47067; --bad-soft: #3d1a17; --fix: #6ea8fe; --fix-soft: #16264a; --imp: #b392f0; --miss: #9aa6ba;
     --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 28px rgba(0, 0, 0, .45);
     color-scheme: dark;
   }
@@ -46,6 +48,7 @@
   --wip: #f0b648; --wip-fill: #d89614; --wip-soft: #3a2d0f;
   --defn: #9aa6ba; --edge: #5f6a7a; --hatch: rgba(232, 235, 240, .05);
   --series-filed: #3987e5; --series-closed: #2ea043;
+  --bad: #f47067; --bad-soft: #3d1a17; --fix: #6ea8fe; --fix-soft: #16264a; --imp: #b392f0; --miss: #9aa6ba;
   --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 28px rgba(0, 0, 0, .45);
   color-scheme: dark;
 }
@@ -146,6 +149,8 @@ button { font: inherit; color: inherit; }
 .g.open { border-color: var(--ink-3); }
 .g.unfiled { border-style: dashed; }
 .g.helper { width: 7px; height: 7px; border-width: 1.25px; }
+.g.printed { border-color: var(--fix); background: var(--fix-soft); }
+.g.refute { box-shadow: 0 0 0 1.5px var(--surface), 0 0 0 3px var(--fix); }
 
 /* Grid diagrams */
 .dg-wrap { overflow-x: auto; padding-bottom: 4px; }
@@ -201,6 +206,39 @@ button { font: inherit; color: inherit; }
 .sec.digesting { border-color: var(--wip); }
 .sec.extra { border-style: dotted; }
 .sec.complete { background: var(--ok-soft); border-color: var(--ok); box-shadow: inset 0 0 0 1px var(--ok); }
+
+/* Problems view of the map: cards tinted by the problems ERRATA.md lists in their pages. */
+.sec .r4, .legend.prob, .colorby-prob .legend.prog { display: none; }
+.colorby-prob .legend.prob { display: flex; }
+.colorby-prob .sec .r3 { display: none; }
+.colorby-prob .sec .r4 { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--ink-3); min-width: 0; white-space: nowrap; overflow: hidden; }
+.colorby-prob .sec, .colorby-prob .sec.complete, .colorby-prob .sec.blocked {
+  background: color-mix(in srgb, var(--fix) calc(var(--heat, 0) * 24%), var(--surface));
+  border-color: var(--line-2); border-style: solid; box-shadow: none; }
+.colorby-prob .sec.norepair { border-color: var(--bad); box-shadow: inset 0 0 0 1.5px var(--bad); }
+.colorby-prob .sec .n, .colorby-prob .sec .t { color: var(--ink); }
+.pk { display: inline-flex; align-items: baseline; gap: 2px; font-variant-numeric: tabular-nums; }
+.pk b { font: 700 10px/1 var(--font-ui); letter-spacing: .02em; padding: 2px 3px; border-radius: 3px; color: #fff; }
+.pk.F b { background: var(--fix); } .pk.I b { background: var(--imp); } .pk.M b, .pk.R b { background: var(--miss); }
+.pk.nr b { background: var(--bad); }
+.pk.gap b { background: transparent; color: var(--bad); box-shadow: inset 0 0 0 1.25px var(--bad); }
+.colorby { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-2); }
+.colorby button { font: inherit; font-size: 12px; padding: 3px 9px; border-radius: 6px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink-2); cursor: pointer; }
+.colorby button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.heatkey { display: inline-block; width: 70px; height: 10px; border-radius: 3px; border: 1px solid var(--line-2);
+  background: linear-gradient(90deg, var(--surface), color-mix(in srgb, var(--fix) 24%, var(--surface))); }
+.normark { display: inline-block; width: 16px; height: 11px; border-radius: 3px; border: 1.5px solid var(--bad); box-shadow: inset 0 0 0 1px var(--bad); }
+
+/* Problems panel and lists */
+.probs { border-top: 1px solid var(--line); padding-top: 18px; display: flex; flex-direction: column; gap: 12px; }
+.probs .stats { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.probs .stat .v.F { color: var(--fix); } .probs .stat .v.I { color: var(--imp); } .probs .stat .v.M { color: var(--miss); } .probs .stat .v.nr { color: var(--bad); }
+.plist { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.plist td { padding: 6px 8px; border-top: 1px solid var(--line); vertical-align: top; }
+.plist td.id { white-space: nowrap; }
+.plist td.where { color: var(--ink-2); min-width: 9em; }
+.plist .st { font-size: 11.5px; color: var(--ink-3); white-space: nowrap; }
+.plist .st.ok { color: var(--ok); } .plist .st.bad { color: var(--bad); }
 .ico { flex: none; display: block; }
 .word { font-weight: 600; letter-spacing: .02em; }
 .word.complete { color: var(--ok); }
@@ -353,6 +391,7 @@ function glyphClass(d) {
     c += ' ' + (d[STATE] === 'proved' && (d[BELOW] > 0 || (d[FLAGS] & 4)) ? 'soft' : d[STATE]);
   }
   if (d[FLAGS] & 8) c += ' helper';
+  if (/^Printed\./.test(d[N])) c += d[KIND] === 't' ? ' refute' : ' printed';
   return c;
 }
 function stateText(d) {
@@ -656,6 +695,7 @@ function legendGlyphs() {
     item('g d', 'definition'), item('g t proved', 'theorem, proved'),
     item('g t soft', 'proved, rests on open lemmas'), item('g t claimed', 'claimed'),
     item('g t open', 'open'), item('g t unfiled', 'no issue yet'), item('g t open helper', 'smaller: helper lemma'),
+    item('g d printed', 'claim false as printed'), item('g t proved refute', 'its refutation'),
   ];
 }
 function legendEdge(dashed, text) {
@@ -663,6 +703,78 @@ function legendEdge(dashed, text) {
     s('path', { d: 'M1 5H22', fill: 'none', stroke: 'var(--edge)', 'stroke-width': 1.4, 'stroke-dasharray': dashed ? '3 2.5' : null }),
     s('path', { d: 'M22 1.5L29 5L22 8.5Z', fill: 'var(--edge)' }));
   return h('span', null, svg, text);
+}
+
+/* ---------- problems in the paper (ERRATA.md) ---------- */
+const ER = D.errata || { entries: [], gaps: [] };
+const E_ID = 0, E_KIND = 1, E_CHECK = 2, E_PAGE = 3, E_WHERE = 4, E_TEXT = 5, E_GROUP = 6, E_REFS = 7, E_NOREP = 8;
+const PROB_KINDS = ['F', 'I', 'M', 'R'];
+const KIND_WORD = { F: 'false as stated', I: 'imprecise or wrongly justified', M: 'missing material', R: 'reported from reading' };
+const errataUrl = repo + '/blob/' + sha + '/ERRATA.md';
+const probsByGroup = D.groups.map(() => []), gapsByGroup = D.groups.map(() => []);
+ER.entries.forEach(e => { if (e[E_GROUP] >= 0) probsByGroup[e[E_GROUP]].push(e); });
+ER.gaps.forEach(gp => { if (gp.group >= 0) gapsByGroup[gp.group].push(gp); });
+const probWeight = list => list.reduce((a, e) => a + (e[E_KIND] === 'F' ? 3 : e[E_KIND] === 'M' ? 2 : 1), 0);
+const heatMax = Math.max(1, ...probsByGroup.map(probWeight));
+const probCount = (list, k) => list.filter(e => e[E_KIND] === k).length;
+// A false statement is refuted in Lean once the Printed.…_false theorems it names are proved.
+const isRefutation = i => D.decls[i][KIND] === 't' && /_false$/.test(D.decls[i][N]);
+function refState(e) {
+  const r = e[E_REFS].filter(isRefutation);
+  if (!r.length) return e[E_CHECK] === 'Lean' ? 'refuted' : null;
+  if (!r.every(i => D.decls[i][STATE] === 'proved')) return 'open';
+  // A proof with no sorry of its own may still use theorems that are unproved: that is not yet
+  // a checked refutation (ERRATA.md marks a row Lean only when nothing unproved lies below).
+  return r.every(i => !(D.decls[i][BELOW] > 0) && !(D.decls[i][FLAGS] & 4)) ? 'refuted' : 'resting';
+}
+function probBadges(list, gaps) {
+  return [PROB_KINDS.map(k => { const n = probCount(list, k);
+      return n ? h('span', { class: 'pk ' + k, title: n + ' ' + KIND_WORD[k] }, h('b', null, k), n) : null; }),
+    gaps.length ? h('span', { class: 'pk gap', title: plural(gaps.length, 'place') + ' with no known repair' }, h('b', null, '!'), gaps.length) : null];
+}
+function probList(list) {
+  return h('div', { class: 'tbl' }, h('table', { class: 'plist' }, h('tbody', null, list.map(e => {
+    const rs = refState(e);
+    return h('tr', null,
+      h('td', { class: 'id' }, h('span', { class: 'pk ' + e[E_KIND] + (e[E_NOREP] ? ' nr' : ''), title: KIND_WORD[e[E_KIND]] + (e[E_NOREP] ? ', no known repair' : '') }, h('b', null, e[E_ID]))),
+      h('td', { class: 'where' }, e[E_WHERE]),
+      h('td', null, e[E_TEXT], e[E_REFS].length ? h('div', { class: 'tags', style: 'margin-top:4px' },
+        e[E_REFS].map(i => h('span', { class: 'tag' }, h('i', { class: glyphClass(D.decls[i]) }), declLink(i)))) : null),
+      h('td', { class: 'st' + (rs === 'refuted' ? ' ok' : e[E_NOREP] ? ' bad' : '') },
+        rs === 'refuted' ? 'refuted in Lean' : rs === 'resting' ? 'proved from open statements' : rs === 'open' ? 'refutation open' : 'checked on the page',
+        e[E_NOREP] ? h('div', null, 'no known repair') : null));
+  }))));
+}
+function gapList(gaps) {
+  return h('div', { class: 'tbl' }, h('table', { class: 'plist' }, h('tbody', null, gaps.map(gp => h('tr', null,
+    h('td', { class: 'id' }, h('span', { class: 'pk gap' }, h('b', null, '!'))),
+    h('td', null, h('b', null, gp.item), h('div', { class: 'muted' }, gp.missing)),
+    h('td', { class: 'where' }, gp.group >= 0 ? h('a', { href: '#' + D.groups[gp.group].key }, D.groups[gp.group].num) : null,
+      h('div', { class: 'st' }, gp.ids.join(', '))),
+    h('td', { class: 'st' }, 'used later: ' + gp.later))))));
+}
+function problemsPanel() {
+  const E = ER.entries;
+  if (!E.length) return null;
+  // Entries that belong to a place with no known repair are counted there, in red, and not in the first two figures.
+  const F = E.filter(e => e[E_KIND] === 'F' && !e[E_NOREP]);
+  const I = E.filter(e => e[E_KIND] === 'I' && !e[E_NOREP]);
+  const unrepaired = E.filter(e => e[E_NOREP]).length;
+  const refuted = F.filter(e => refState(e) === 'refuted').length, refOpen = F.filter(e => refState(e) === 'open').length;
+  const refResting = F.filter(e => refState(e) === 'resting').length;
+  const stat = (k, v, cls, d) => h('div', { class: 'stat' }, h('span', { class: 'k' }, k),
+    h('span', { class: 'v ' + cls }, v), d ? h('span', { class: 'd' }, d) : null);
+  const outside = E.filter(e => e[E_GROUP] < 0);
+  return h('section', { class: 'probs' },
+    h('div', { class: 'chart-head' }, h('h3', null, 'Problems found in the paper'), ext(errataUrl, 'ERRATA.md')),
+    h('div', { class: 'stats' },
+      stat('False as stated', F.length, 'F', refuted + ' refuted in Lean' + (refResting ? ', ' + refResting + ' proved from statements still open' : '') + (refOpen ? ', ' + refOpen + ' with the refutation still open' : '')),
+      stat('Imprecise or wrongly justified', I.length, 'I', 'a definition or a step of a proof that needed fixing'),
+      stat('Missing material', probCount(E, 'M') + probCount(E, 'R'), 'M', 'placeholders, empty sections and missing references, and reports from reading'),
+      stat('No repair known', ER.gaps.length, 'nr', plural(ER.gaps.length, 'place') + ' (' + plural(unrepaired, 'entry', 'entries') + ') that later results depend on')),
+    h('div', { class: 'since' }, 'From ERRATA.md, without the withdrawn entries. Most problems come with a repair: the Lean states a corrected form and the proof builds on that. Where it does not, the entry says what the Lean has instead (a part left out, or a marked gap). A false statement is also kept as printed, as a proposition Printed.<name>, next to a theorem Printed.<name>_false that proves its negation; "refuted in Lean" counts those whose proof is finished and uses no theorem that is still unproved. Switch the map below to "Problems in the paper" to see which sections they are in.'),
+    h('details', { class: 'block' }, h('summary', null, 'The ' + ER.gaps.length + ' places with no known repair'), gapList(ER.gaps)),
+    outside.length ? h('details', { class: 'block' }, h('summary', null, 'Problems outside the stated sections (' + outside.length + ')'), probList(outside)) : null);
 }
 
 /* ---------- overview ---------- */
@@ -703,6 +815,7 @@ function overview() {
   timeline(right);
   frag.push(h('section', { class: 'totals' }, left, right));
   frag.push(pulse());
+  frag.push(problemsPanel());
 
   /* map */
   const secs = D.groups.filter(g => g.id != null);
@@ -723,6 +836,12 @@ function overview() {
       g.defs ? h('span', { class: 'r3' }, plural(g.defs, 'definition')) :
       h('span', { class: 'r3' }, h('span', { class: 'word ' + g.state }, STATE_WORD[g.state]),
         g.state === 'digesting' ? null : h('span', { class: 'pp' }, fmtPages(g.pages))));
+    const gi = D.groups.indexOf(g), pl = probsByGroup[gi], gl = gapsByGroup[gi];
+    if (gl.length) el.classList.add('norepair');
+    el.style.setProperty('--heat', Math.sqrt(probWeight(pl) / heatMax).toFixed(3));
+    el.appendChild(h('span', { class: 'r4' }, pl.length || gl.length ? probBadges(pl, gl) : 'no problems listed'));
+    if (pl.length) el.title += '; ' + PROB_KINDS.filter(k => probCount(pl, k)).map(k => probCount(pl, k) + ' ' + KIND_WORD[k]).join(', ') +
+      (gl.length ? ', ' + plural(gl.length, 'place') + ' with no known repair' : '');
     el.setAttribute('data-issue', g.id);
     el.addEventListener('mouseenter', () => dg.hover(g.id));
     el.addEventListener('mouseleave', () => dg.hover(null));
@@ -737,16 +856,34 @@ function overview() {
       heads: lanes.map((c, i) => ({ row: 0, col: i, h: 50, el: h('div', { class: 'lane-head' }, h('b', null, c.label), h('span', null, c.title)) })),
     }),
   });
-  const legend = h('div', { class: 'legend' },
+  const legend = h('div', { class: 'legend prog' },
     ['complete', 'stated', 'digesting', 'ready', 'blocked'].map(st => h('span', null, stateIcon(st),
       st === 'complete' ? 'complete (every theorem proved, none resting on a sorry)' : STATE_WORD[st])),
     h('i', { class: 'sep' }),
     h('span', null, h('span', { class: 'bar', style: 'width:38px;flex:none' }, h('i', { class: 'b-ok', style: 'width:40%' })), 'theorems proved / stated'),
     legendEdge(false, 'needs (arrow points at the section that waits)'));
+  const legendProb = h('div', { class: 'legend prob' },
+    PROB_KINDS.slice(0, 3).map(k => h('span', null, h('span', { class: 'pk ' + k }, h('b', null, k)), KIND_WORD[k])),
+    h('span', null, h('span', { class: 'pk gap' }, h('b', null, '!')), 'no known repair'),
+    h('i', { class: 'sep' }),
+    h('span', null, h('span', { class: 'heatkey' }), 'more problems found in the section’s pages'),
+    h('span', null, h('span', { class: 'normark' }), 'has a place with no known repair'));
+  const colorKey = 'progress-map-color';
+  const colorBtns = [['prog', 'Proof progress'], ['prob', 'Problems in the paper']].map(([m, label]) =>
+    h('button', { type: 'button', 'data-mode': m, onclick: () => setColor(m) }, label));
+  function setColor(m) {
+    app.classList.toggle('colorby-prob', m === 'prob');
+    colorBtns.forEach(b => b.setAttribute('aria-pressed', String(b.getAttribute('data-mode') === m)));
+    try { localStorage.setItem(colorKey, m); } catch (e) { /* storage may be unavailable */ }
+  }
+  let colorMode = 'prog';
+  try { colorMode = localStorage.getItem(colorKey) === 'prob' ? 'prob' : 'prog'; } catch (e) { /* default */ }
+  setColor(ER.entries.length ? colorMode : 'prog');
+  const colorBy = ER.entries.length ? h('div', { class: 'colorby' }, 'Color by', colorBtns) : null;
   frag.push(h('section', { class: 'section-head' },
     h('h2', null, 'Sections'),
     h('p', null, 'One card per section issue, in a lane per chapter. A section sits below everything it needs, so work flows downward. Select a card to see its items and declarations.'),
-    legend));
+    colorBy, legend, legendProb));
   frag.push(mapBox(dg));
 
   /* extras: ForMathlib and unplaced files */
@@ -754,7 +891,8 @@ function overview() {
   if (extras.length) {
     frag.push(h('p', { class: 'muted' }, 'Outside the sections: ', extras.map((g, i) => [i ? '; ' : '',
       h('a', { href: '#' + g.key }, g.num), ' (' + g.title.charAt(0).toLowerCase() + g.title.slice(1) + '), ' +
-      plural(g.defs, 'definition') + ' and ' + g.proved + ' of ' + plural(g.thms, 'theorem') + ' proved']), '.'));
+      plural(g.defs, 'definition') + ' and ' + g.proved + ' of ' + plural(g.thms, 'theorem') + ' proved' +
+      (g.key === 'external' ? ', not counted in the totals above' : '')]), '.'));
   }
 
   /* waves */
@@ -1108,6 +1246,13 @@ function sectionView(g) {
       h('div', { class: 'muted' }, g.needs.length ? 'It needs ' + g.needs.map(n => groupById[n].num).join(', ') + ' first.' : 'Nothing has been written for this part.'));
   }
   frag.push(h('div', { class: 'split' }, main, panel));
+  {
+    const gi = D.groups.indexOf(g), pl = probsByGroup[gi], gl = gapsByGroup[gi];
+    if (pl.length || gl.length) frag.push(h('details', { class: 'block', open: '' },
+      h('summary', null, 'Problems in the paper (' + pl.length + ')'),
+      h('p', { class: 'muted' }, 'Entries of ', ext(errataUrl, 'ERRATA.md'), ' whose page falls in this section.'),
+      gl.length ? gapList(gl) : null, probList(pl)));
+  }
   showSummary();
 
   /* table of every declaration, built when opened */

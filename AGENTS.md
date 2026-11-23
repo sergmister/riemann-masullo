@@ -48,7 +48,9 @@ import list. Declarations live in `namespace RiemannMasullo`.
 
 ## Rules for Lean code
 
-These exist because many agents work in parallel and nobody rereads everything.
+These exist because many agents work in parallel and nobody rereads everything. The list
+started from Tau Ceti's review rubric (TauCetiProject/TauCetiReview, Apache-2.0) and has since
+been extended.
 
 - **A proof pull request never changes a statement.** Other work is already building on it. If a
   statement is wrong or unprovable, say so on the issue and stop; the integrator decides.
@@ -75,8 +77,15 @@ These exist because many agents work in parallel and nobody rereads everything.
   synonym is built from another the terms grow exponentially, and proofs of trivial facts then
   never finish (#5362, #5398: the tower over `SchwartzBruhat` reaches 10¹⁴ nodes). Give the
   definition the lemmas that characterize it (`mem_…_iff`, the coercion, the defining property),
-  and have later statements and proofs use those, not unfold it. These rules are adapted from
-  Tau Ceti's review rubric (TauCetiProject/TauCetiReview, Apache-2.0).
+  and have later statements and proofs use those, not unfold it.
+- **No `import all`.** It makes a file depend on the private part of the module it imports, so
+  every proof edit there rebuilds the importing file too, and through further `import all`s much
+  of the library: one proof edit in `AppD_SchwartzBruhat/Sec1a` rebuilt 76 modules (#5960). To
+  use a private lemma of another file, make it public with a descriptive name and a docstring, or
+  move it to `RiemannMasullo/ForMathlib/` if it is general. Remove `private` in place, or give a
+  moved lemma a `section` of its own, so that the universe names of later declarations do not
+  change. Leave private instances private. The existing `import all` lines are being removed
+  (#5966); do not add new ones.
 - **Every declaration taken from the paper has a docstring** starting `Paper: <item>, p. <page>.`
   (for example `Paper: Proposition 2.1.3.4, p. 63.`), followed by what the Lean says in plain
   words. Mark any difference from the paper with `Deviation:`.

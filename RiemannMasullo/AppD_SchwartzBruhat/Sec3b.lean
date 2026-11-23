@@ -874,13 +874,51 @@ theorem bruhatCompactSupportStageInclusion_apply (a : BruhatStructuralPair G)
 /-- Paper: Lemma D.3.6.1, p. 819. The topology of the test function space
 is final locally convex for the fixed-support stage inclusions.
 Deviation: We use all compact supports and elementary quotient stages
-in place of choosing a cofinal countable presentation. -/
-abbrev BruhatCompactSupport (G : Type*) [CommGroup G] [TopologicalSpace G]
+in place of choosing a cofinal countable presentation.
+
+This is a `def` with its own instances, not an `abbrev`, so that instance terms over it do
+not spell out its seminorm family (#5398). -/
+def BruhatCompactSupport (G : Type*) [CommGroup G] [TopologicalSpace G]
     [IsTopologicalGroup G] [T2Space G] [LocallyCompactSpace G] :=
   WithGeneratingSeminorms (bruhatCompactSupportSubmodule G)
     (Subtype.val : {p : Seminorm ℂ (bruhatCompactSupportSubmodule G) //
       ∀ (a : BruhatStructuralPair G) (e : ElementaryLCAPresentation a.quotient) (C : Compacts G),
         Continuous (p ∘ bruhatCompactSupportStageInclusion a e C)} → _)
+
+namespace BruhatCompactSupport
+
+variable {H : Type*} [CommGroup H] [TopologicalSpace H] [IsTopologicalGroup H] [T2Space H]
+  [LocallyCompactSpace H]
+
+instance instAddCommGroup : AddCommGroup (BruhatCompactSupport H) :=
+  inferInstanceAs (AddCommGroup (WithGeneratingSeminorms
+    (bruhatCompactSupportSubmodule H) _))
+
+instance instModule : Module ℂ (BruhatCompactSupport H) :=
+  inferInstanceAs (Module ℂ (WithGeneratingSeminorms
+    (bruhatCompactSupportSubmodule H) _))
+
+instance instTopologicalSpace : TopologicalSpace (BruhatCompactSupport H) :=
+  inferInstanceAs (TopologicalSpace (WithGeneratingSeminorms
+    (bruhatCompactSupportSubmodule H) _))
+
+instance instPolynormableSpace : PolynormableSpace ℂ (BruhatCompactSupport H) :=
+  inferInstanceAs (PolynormableSpace ℂ (WithGeneratingSeminorms
+    (bruhatCompactSupportSubmodule H) _))
+
+instance instIsTopologicalAddGroup : IsTopologicalAddGroup (BruhatCompactSupport H) :=
+  inferInstanceAs (IsTopologicalAddGroup (WithGeneratingSeminorms
+    (bruhatCompactSupportSubmodule H) _))
+
+instance instUniformSpace : UniformSpace (BruhatCompactSupport H) :=
+  inferInstanceAs (UniformSpace (WithGeneratingSeminorms
+    (bruhatCompactSupportSubmodule H) _))
+
+instance instIsUniformAddGroup : IsUniformAddGroup (BruhatCompactSupport H) :=
+  inferInstanceAs (IsUniformAddGroup (WithGeneratingSeminorms
+    (bruhatCompactSupportSubmodule H) _))
+
+end BruhatCompactSupport
 
 section RealTestTopology
 

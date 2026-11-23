@@ -35,6 +35,23 @@ stray=$(echo "$files" | awk '!/^RiemannMasullo\/.*\.lean$/ || /^RiemannMasullo\/
 [ -z "$stray" ] || { echo "REFUSED: changes outside the library; read these by hand before running anything:"; echo "$stray" | sed 's/^/  /'; exit 1; }
 git merge -q --no-edit "$head" || { echo "REFUSED: does not merge cleanly into main"; exit 1; }
 
+# Compare the merged candidate with main so existing imports are allowed.
+if lean --run "$main/scripts/CheckImportAll.lean" "$base" HEAD; then
+  :
+else
+  status=$?
+  if [ "$status" = 3 ]; then
+    echo 'REFUSED: adds `import all`. Use ordinary imports and expose the required lemmas (see AGENTS.md).'
+    exit 1
+  fi
+  if [ "$status" = 4 ]; then
+    echo 'REFUSED: invalid Lean import header'
+    exit 1
+  fi
+  echo 'could not check the import policy' >&2
+  exit 2
+fi
+
 # Reuse the launcher's build as a starting point. Copy under its lock so that a
 # seed refresh cannot change the files mid-copy. Lake still builds the exact
 # baseline and merged sources below.

@@ -3203,6 +3203,2637 @@ theorem finiteEigendistributions_rank (v : V) (c : QuasiCharacter (v.adicComplet
     (rank_one_of_unique_normalization _ _ ((finiteEigendistribution_normalized v χ).choose s)
       ((finiteEigendistribution_normalized v χ).choose_spec.2.1 s))
 
+section InfiniteEigendistributionHelpers
+
+open Bornology Filter Function MeasureTheory Set
+open scoped NNReal Topology ContDiff ENNReal
+
+private theorem abs_exp_sub_sum_le (t : ℝ) (M : ℕ) :
+    ‖Real.exp t - ∑ k ∈ Finset.range M, t ^ k / (k.factorial : ℝ)‖ ≤
+      |t| ^ M / (M.factorial : ℝ) * Real.exp |t| := by
+  have hsum : HasSum (fun n : ℕ ↦ t ^ n / (n.factorial : ℝ)) (Real.exp t) := by
+    simpa [Real.exp_eq_exp_ℝ, NormedSpace.exp_eq_tsum_div, div_eq_mul_inv] using
+      (NormedSpace.expSeries_div_hasSum_exp (𝔸 := ℝ) t)
+  have hsplit := (hasSum_nat_add_iff' M).mpr hsum
+  have hdiff : Real.exp t - ∑ k ∈ Finset.range M, t ^ k / (k.factorial : ℝ) =
+      ∑' n : ℕ, t ^ (n + M) / ((n + M).factorial : ℝ) :=
+    hsplit.tsum_eq.symm
+  rw [hdiff]
+  have hsum_abs : HasSum (fun n : ℕ ↦ |t| ^ n / (n.factorial : ℝ)) (Real.exp |t|) := by
+    simpa [Real.exp_eq_exp_ℝ, NormedSpace.exp_eq_tsum_div, div_eq_mul_inv] using
+      (NormedSpace.expSeries_div_hasSum_exp (𝔸 := ℝ) |t|)
+  have hdom : Summable (fun n : ℕ ↦ |t| ^ M / (M.factorial : ℝ) * (|t| ^ n / (n.factorial : ℝ))) :=
+    hsum_abs.summable.mul_left _
+  have hbound (n : ℕ) : ‖t ^ (n + M) / ((n + M).factorial : ℝ)‖ ≤
+      |t| ^ M / (M.factorial : ℝ) * (|t| ^ n / (n.factorial : ℝ)) := by
+    rw [Real.norm_eq_abs, abs_div, abs_pow, Nat.abs_cast]
+    have hfac : (M.factorial : ℝ) * (n.factorial : ℝ) ≤ ((n + M).factorial : ℝ) := by
+      have hmul : M.factorial * n.factorial ≤ (n + M).factorial := by
+        calc
+          M.factorial * n.factorial = 1 * (n.factorial * M.factorial) := by ring
+          _ ≤ (n + M).choose M * n.factorial * M.factorial := by
+            rw [mul_assoc]
+            gcongr
+            exact Nat.choose_pos (Nat.le_add_left M n)
+          _ = (n + M).factorial := Nat.add_choose_mul_factorial_mul_factorial n M
+      exact_mod_cast hmul
+    rw [pow_add, mul_comm (|t| ^ n) (|t| ^ M), div_mul_div_comm]
+    exact div_le_div_of_nonneg_left (by positivity) (by positivity) hfac
+  have hbound' (n : ℕ) : ‖‖t ^ (n + M) / ((n + M).factorial : ℝ)‖‖ ≤
+      |t| ^ M / (M.factorial : ℝ) * (|t| ^ n / (n.factorial : ℝ)) := by
+    simpa only [norm_norm] using hbound n
+  calc
+    ‖∑' n : ℕ, t ^ (n + M) / ((n + M).factorial : ℝ)‖ ≤
+        ∑' n : ℕ, ‖t ^ (n + M) / ((n + M).factorial : ℝ)‖ :=
+      norm_tsum_le_tsum_norm (hdom.of_norm_bounded hbound')
+    _ ≤ ∑' n : ℕ, |t| ^ M / (M.factorial : ℝ) * (|t| ^ n / (n.factorial : ℝ)) :=
+      (hdom.of_norm_bounded hbound').tsum_le_tsum hbound hdom
+    _ = |t| ^ M / (M.factorial : ℝ) * Real.exp |t| := by
+      rw [tsum_mul_left, hsum_abs.tsum_eq]
+
+private theorem realSchwartzBruhat_surjective (w : InfinitePlace F) (hw : w.IsReal) :
+    ∃ Φ : SchwartzMap ℝ ℂ →L[ℂ] SchwartzBruhat (Multiplicative w.Completion),
+      Surjective Φ ∧
+        ∀ (f : SchwartzMap ℝ ℂ) (x : w.Completion),
+          Φ f (Multiplicative.ofAdd x) = f (InfinitePlace.Completion.ringEquivRealOfIsReal hw x) := by
+  obtain ⟨E, hE⟩ := realSchwartzBruhat_equiv
+  let j := InfinitePlace.Completion.isometryEquivRealOfIsReal hw
+  let er : Multiplicative ℝ ≃ₜ* Multiplicative w.Completion :=
+    { toMulEquiv := (InfinitePlace.Completion.ringEquivRealOfIsReal hw).symm.toAddEquiv.toMultiplicative
+      continuous_toFun := j.symm.continuous
+      continuous_invFun := j.continuous }
+  obtain ⟨P, hP⟩ := exists_schwartzBruhat_comp_equivCLM er.symm
+  obtain ⟨Q, hQ⟩ := exists_schwartzBruhat_comp_equivCLM er
+  refine ⟨P.comp E.toContinuousLinearMap, fun g ↦ ?_, fun f x ↦ ?_⟩
+  · refine ⟨E.symm (Q g), Subtype.ext (funext fun x ↦ ?_)⟩
+    change P (E (E.symm (Q g))) x = g x
+    rw [E.apply_symm_apply, hP, hQ, er.apply_symm_apply]
+  · change P (E f) (Multiplicative.ofAdd x) = _
+    rw [hP]
+    exact hE f _
+
+private theorem local_euclideanSchwartzMonomialPartial_eq {m : ℕ} (α β : Fin m → ℕ)
+    (f : SchwartzMap (EuclideanSpace ℝ (Fin m)) ℂ) (x : EuclideanSpace ℝ (Fin m)) :
+    let directions := (List.finRange m).flatMap fun j ↦ List.replicate (β j) j
+    euclideanSchwartzMonomialPartial α β f x =
+      (∏ i, (x i : ℂ) ^ α i) *
+        iteratedFDeriv ℝ directions.length f x
+          (fun j ↦ EuclideanSpace.single (directions.get j) 1) := by
+  intro directions
+  unfold euclideanSchwartzMonomialPartial elementaryPartial
+  congr 1
+  let L : EuclideanSpace ℝ (Fin m) × EuclideanSpace ℝ (Fin 0) →L[ℝ] EuclideanSpace ℝ (Fin m) :=
+    ContinuousLinearMap.fst ℝ (EuclideanSpace ℝ (Fin m)) (EuclideanSpace ℝ (Fin 0))
+  let d : List (EuclideanSpace ℝ (Fin m) × EuclideanSpace ℝ (Fin 0)) :=
+    (List.ofFn fun i : Fin m ↦ List.replicate (β i) (EuclideanSpace.single i 1, 0)).flatten
+  let cd : List (EuclideanSpace ℝ (Fin m)) := directions.map (fun j ↦ EuclideanSpace.single j 1)
+  have hzero : (List.ofFn fun i : Fin 0 ↦ List.replicate ((0 : Fin 0 → ℕ) i)
+      ((0 : EuclideanSpace ℝ (Fin m)), EuclideanSpace.single i (1 : ℝ))).flatten = [] := rfl
+  have hdirs : d ++ (List.ofFn fun i : Fin 0 ↦ List.replicate ((0 : Fin 0 → ℕ) i)
+      ((0 : EuclideanSpace ℝ (Fin m)), EuclideanSpace.single i (1 : ℝ))).flatten = d := by
+    rw [hzero, List.append_nil]
+  have hfn : (fun v : EuclideanSpace ℝ (Fin m) × EuclideanSpace ℝ (Fin 0) ↦
+      f (elementaryCover v (0 : Fin 0 → ℤ) PUnit.unit).1) =
+      (f : EuclideanSpace ℝ (Fin m) → ℂ) ∘ L := rfl
+  dsimp only
+  rw [hdirs, hfn, L.iteratedFDeriv_comp_right (f.smooth ⊤) _ (by simp)]
+  change iteratedFDeriv ℝ d.length f x (fun i ↦ L (d.get i)) = _
+  have hd : d.map L = cd := by
+    simp only [d, cd, directions, List.ofFn_eq_map]
+    induction List.finRange m with
+    | nil => simp
+    | cons a l ih =>
+      rw [List.map_cons, List.flatten_cons, List.map_append, List.flatMap_cons, List.map_append,
+        ih]
+      simp only [List.map_replicate, L]
+      rfl
+  have hcd_eq : iteratedFDeriv ℝ cd.length f x cd.get =
+      iteratedFDeriv ℝ directions.length f x (fun j ↦ EuclideanSpace.single (directions.get j) 1) := by
+    have hcd_get : cd.get =
+        fun j : Fin cd.length ↦ EuclideanSpace.single (directions.get (j.cast (List.length_map _))) 1 := by
+      funext j
+      simp [cd, List.get_eq_getElem]
+    rw [hcd_get]
+    have hcast' {n k : ℕ} (h : n = k) (v : Fin k → EuclideanSpace ℝ (Fin m)) :
+        iteratedFDeriv ℝ n f x (fun i ↦ v (i.cast h)) = iteratedFDeriv ℝ k f x v := by
+      subst n
+      rfl
+    exact hcast' (List.length_map _) (fun j ↦ EuclideanSpace.single (directions.get j) 1)
+  rw [← hcd_eq, ← hd]
+  have hg : (d.map L).get = fun i ↦ L (d.get (i.cast (List.length_map L))) := by
+    funext i
+    simp [List.get_eq_getElem]
+  rw [hg]
+  have hcast {n k : ℕ} (h : n = k) (v : Fin k → EuclideanSpace ℝ (Fin m)) :
+      iteratedFDeriv ℝ n f x (fun i ↦ v (i.cast h)) = iteratedFDeriv ℝ k f x v := by
+    subst n
+    rfl
+  exact (hcast (List.length_map L) (fun i ↦ L (d.get i))).symm
+
+private theorem complexSchwartzBruhat_surjective (w : InfinitePlace F) (hw : w.IsComplex) :
+    ∃ Φ : SchwartzMap ℂ ℂ →L[ℂ] SchwartzBruhat (Multiplicative w.Completion),
+      Surjective Φ ∧
+        ∀ (f : SchwartzMap ℂ ℂ) (x : w.Completion),
+          Φ f (Multiplicative.ofAdd x) = f (InfinitePlace.Completion.ringEquivComplexOfIsComplex hw x) := by
+  classical
+  let m := Module.finrank ℝ ℂ
+  let E := EuclideanSpace ℝ (Fin m)
+  let L : ℂ ≃L[ℝ] E := ContinuousLinearEquiv.ofFinrankEq finrank_euclideanSpace_fin.symm
+  let C1 : SchwartzMap ℂ ℂ →L[ℂ] SchwartzMap E ℂ :=
+    SchwartzMap.compCLMOfContinuousLinearEquiv ℂ L.symm
+  let P := ElementaryLieGroup m 0 0 PUnit.{1}
+  let D := (Fin 0 → AddCircle (1 : ℝ)) × (Fin 0 → ℤ) × PUnit.{1}
+  let : Unique D := uniqueOfSubsingleton 0
+  let p : Multiplicative E ≃ₜ* Multiplicative P :=
+    { toMulEquiv := (AddEquiv.prodUnique (M := E) (N := D)).symm.toMultiplicative
+      continuous_toFun := (continuous_id.prodMk continuous_const :
+        Continuous (fun x : E ↦ (x, (default : D))))
+      continuous_invFun := (continuous_fst : Continuous (Prod.fst : E × D → E)) }
+  let e : ElementaryLCAPresentation (Multiplicative E) :=
+    { realDim := m, torusDim := 0, latticeRank := 0, finiteFactor := PUnit.{1}, equiv := p }
+  have hA := (lca_elementary_iff (G := Multiplicative E)).mpr ⟨e⟩
+  let i : (⊤ : Subgroup (Multiplicative E)) ≃ₜ* Multiplicative E :=
+    { Subgroup.topEquiv with
+      continuous_toFun := continuous_subtype_val
+      continuous_invFun := continuous_id.subtype_mk _ }
+  let a : BruhatStructuralPair (Multiplicative E) := ⟨(⊤, OrderDual.toDual ⊥), by simp,
+    isCompactlyGeneratedGroup_of_continuousMulEquiv i.symm hA.1,
+    isBruhatGoodSubgroup_bot_iff.mpr hA.2, bot_le⟩
+  let q₀ : Multiplicative E →* a.quotient := (QuotientGroup.mk' _).comp i.symm.toMulEquiv.toMonoidHom
+  have hq₀ : IsOpenQuotientMap q₀ :=
+    QuotientGroup.isOpenQuotientMap_mk.comp i.symm.toHomeomorph.isOpenQuotientMap
+  have hinj : Injective q₀ := (MonoidHom.ker_eq_bot_iff q₀).mp (eq_bot_iff.mpr fun x hx ↦
+    (a.quotient_mk_eq_one (i.symm x)).mp hx)
+  let q := (MulEquiv.ofBijective q₀ ⟨hinj, hq₀.surjective⟩).toContinuousMulEquiv
+    (fun _ ↦ hq₀.isQuotientMap.isOpen_preimage)
+  let e₀ : ElementaryLCAPresentation a.quotient :=
+    { realDim := m, torusDim := 0, latticeRank := 0, finiteFactor := PUnit.{1},
+      finiteGroup := e.finiteGroup, finiteFintype := e.finiteFintype,
+      finiteTopology := e.finiteTopology, finiteDiscrete := e.finiteDiscrete,
+      equiv := q.symm.trans e.equiv }
+  let A_lin : SchwartzMap E ℂ →ₗ[ℂ] ElementarySchwartz m 0 0 PUnit.{1} :=
+    { toFun := fun f ↦ ⟨fun y ↦ f y.1, (elementarySchwartzSubmodule_real_iff _).mpr ⟨f, rfl⟩⟩
+      map_add' := fun _ _ ↦ Subtype.ext rfl
+      map_smul' := fun _ _ ↦ Subtype.ext rfl }
+  have hA_cont : Continuous A_lin := by
+    apply (withGeneratingSeminorms_spec _ _).continuous_of_continuous_comp A_lin
+    intro idx
+    let directions := (List.finRange m).flatMap fun j ↦ List.replicate (idx.2.1 j) j
+    let q_semi : Seminorm ℂ (SchwartzMap E ℂ) :=
+      SchwartzMap.seminorm ℂ (∑ k, idx.1 k) directions.length
+    have hq_cont : Continuous q_semi :=
+      (schwartz_withSeminorms ℂ E ℂ).continuous_seminorm (∑ k, idx.1 k, directions.length)
+    refine Seminorm.continuous_of_le (p := (elementarySchwartzSeminorm idx).comp A_lin)
+      (q := q_semi) hq_cont fun f ↦ ?_
+    change (elementarySchwartzBound (A_lin f).val idx).toReal ≤ q_semi f
+    rw [← ENNReal.ofReal_le_ofReal_iff (apply_nonneg q_semi f),
+      ENNReal.ofReal_toReal ((A_lin f).property.2 idx).ne]
+    refine iSup_le fun xt ↦ iSup_le fun aa ↦ iSup_le fun bb ↦ ?_
+    obtain ⟨x, t⟩ := xt
+    obtain rfl : t = 0 := Subsingleton.elim _ _
+    obtain rfl : aa = 0 := Subsingleton.elim _ _
+    cases bb
+    have hpow0 : (∏ k : Fin 0, ((0 : Fin 0 → ℤ) k : ℂ) ^ idx.2.2.2 k) = 1 := by simp
+    have hpart : elementaryPartial (A_lin f).val idx.2.1 idx.2.2.1 (x, 0) 0 PUnit.unit =
+        elementaryPartial (fun g : ElementaryLieGroup m 0 0 PUnit.{1} ↦ f g.1) idx.2.1 0 (x, 0) 0 PUnit.unit := by
+      have hz : idx.2.2.1 = 0 := Subsingleton.elim _ _
+      rw [hz]
+      rfl
+    change (‖(∏ k : Fin m, (x k : ℂ) ^ idx.1 k) *
+      (∏ k : Fin 0, ((0 : Fin 0 → ℤ) k : ℂ) ^ idx.2.2.2 k) *
+      elementaryPartial (A_lin f).val idx.2.1 idx.2.2.1 (x, 0) 0 PUnit.unit‖₊ : ℝ≥0∞) ≤
+      ENNReal.ofReal (q_semi f)
+    rw [hpow0, mul_one, hpart]
+    have hmp := local_euclideanSchwartzMonomialPartial_eq idx.1 idx.2.1 f x
+    change (‖euclideanSchwartzMonomialPartial idx.1 idx.2.1 f x‖₊ : ℝ≥0∞) ≤ ENNReal.ofReal (q_semi f)
+    rw [hmp, ← ENNReal.ofReal_coe_nnreal]
+    refine ENNReal.ofReal_le_ofReal ?_
+    rw [coe_nnNorm]
+    have hnorm : ‖(∏ i, (x i : ℂ) ^ idx.1 i) *
+        iteratedFDeriv ℝ directions.length f x (fun j ↦ EuclideanSpace.single (directions.get j) 1)‖ ≤
+        ‖x‖ ^ (∑ k, idx.1 k) * ‖iteratedFDeriv ℝ directions.length f x‖ := by
+      rw [norm_mul]
+      refine mul_le_mul ?_ ?_ (norm_nonneg _) (by positivity)
+      · rw [norm_prod]
+        calc
+          ∏ i, ‖(x i : ℂ) ^ idx.1 i‖ = ∏ i, ‖x i‖ ^ idx.1 i := by
+            refine Finset.prod_congr rfl fun i _ ↦ ?_
+            simp [Complex.norm_real]
+          _ ≤ ∏ i, ‖x‖ ^ idx.1 i := by
+            gcongr with i
+            exact PiLp.norm_apply_le x i
+          _ = ‖x‖ ^ (∑ k, idx.1 k) := by rw [Finset.prod_pow_eq_pow_sum]
+      · refine (ContinuousMultilinearMap.le_opNorm _ _).trans ?_
+        have hunit : (∏ j : Fin directions.length, ‖EuclideanSpace.single (directions.get j) (1 : ℝ)‖) = 1 := by
+          refine Finset.prod_eq_one fun j _ ↦ ?_
+          rw [PiLp.norm_single, norm_one]
+        rw [hunit, mul_one]
+    exact hnorm.trans (SchwartzMap.le_seminorm ℂ (∑ k, idx.1 k) directions.length f x)
+  let A_clm : SchwartzMap E ℂ →L[ℂ] SchwartzBruhatStage e₀ := ⟨A_lin, hA_cont⟩
+  let J_clm : SchwartzBruhatStage e₀ →L[ℂ] SchwartzBruhat (Multiplicative E) :=
+    ⟨schwartzBruhatStageInclusion a e₀,
+      (withGeneratingSeminorms_spec _ Subtype.val).continuous_of_continuous_comp
+        (schwartzBruhatStageInclusion a e₀) fun p ↦ p.2 a e₀⟩
+  let j := InfinitePlace.Completion.isometryEquivComplexOfIsComplex hw
+  let ec : Multiplicative E ≃ₜ* Multiplicative w.Completion :=
+    { toMulEquiv := ((L.symm.toLinearEquiv.toAddEquiv).trans
+        (InfinitePlace.Completion.ringEquivComplexOfIsComplex hw).symm.toAddEquiv).toMultiplicative
+      continuous_toFun := j.symm.continuous.comp L.symm.continuous
+      continuous_invFun := L.continuous.comp j.continuous }
+  obtain ⟨P_clm, hP⟩ := exists_schwartzBruhat_comp_equivCLM ec.symm
+  let Φ : SchwartzMap ℂ ℂ →L[ℂ] SchwartzBruhat (Multiplicative w.Completion) :=
+    P_clm.comp (J_clm.comp (A_clm.comp C1))
+  have hq_inv : ∀ z, ((e₀.equiv (q z)).toAdd).1 = z.toAdd := fun z ↦ by
+    change ((e.equiv (q.symm (q z))).toAdd).1 = _
+    rw [q.symm_apply_apply]
+    rfl
+  refine ⟨Φ, ?_, ?_⟩
+  · intro g
+    let : T2Space (Multiplicative w.Completion) := ec.symm.toHomeomorph.isEmbedding.t2Space
+    let g₀ : Multiplicative E → ℂ := fun x ↦ g (ec x)
+    have hg₀ : g₀ ∈ schwartzBruhatSubmodule (Multiplicative E) :=
+      schwartzBruhat_mem_comp_equiv ec g.property
+    obtain ⟨s, hs⟩ := (mem_schwartzBruhatSubmodule_euclidean_iff
+      (ContinuousMulEquiv.refl (Multiplicative E)) g₀).mp hg₀
+    refine ⟨SchwartzMap.compCLMOfContinuousLinearEquiv ℂ L s, Subtype.ext (funext fun x ↦ ?_)⟩
+    change P_clm (J_clm (A_clm (C1 (SchwartzMap.compCLMOfContinuousLinearEquiv ℂ L s)))) x = g x
+    rw [hP]
+    change (schwartzBruhatStageInclusion a e₀ (A_clm (C1 _))).val (ec.symm x) = g x
+    rw [schwartzBruhatStageInclusion_apply, schwartzBruhatStageRealization_apply,
+      dite_eq_left (Subgroup.mem_top _)]
+    change s (L (L.symm ((e₀.equiv (q (ec.symm x))).toAdd.1))) = g x
+    rw [L.apply_symm_apply, hq_inv]
+    exact (hs (ec.symm x)).trans (congrArg g (ec.apply_symm_apply x))
+  · intro f x
+    change P_clm (J_clm (A_clm (C1 f))) (Multiplicative.ofAdd x) = _
+    rw [hP]
+    change (schwartzBruhatStageInclusion a e₀ (A_clm (C1 f))).val (ec.symm (Multiplicative.ofAdd x)) = _
+    rw [schwartzBruhatStageInclusion_apply, schwartzBruhatStageRealization_apply,
+      dite_eq_left (Subgroup.mem_top _)]
+    change f (L.symm ((e₀.equiv (q (ec.symm (Multiplicative.ofAdd x)))).toAdd.1)) = _
+    rw [hq_inv]
+    change f (L.symm (L (InfinitePlace.Completion.ringEquivComplexOfIsComplex hw x))) = _
+    rw [L.symm_apply_apply]
+
+section Step2
+
+private lemma one_add_pow_le {t : ℝ} (ht : 0 ≤ t) (m : ℕ) :
+    (1 + t) ^ m ≤ 2 ^ m * (1 + t ^ m) := by
+  rcases le_total t 1 with h1 | h1
+  · calc
+      (1 + t) ^ m ≤ 2 ^ m := pow_le_pow_left₀ (by positivity) (by linarith) m
+      _ ≤ 2 ^ m * (1 + t ^ m) := le_mul_of_one_le_right (by positivity) (by linarith [pow_nonneg ht m])
+  · calc
+      (1 + t) ^ m ≤ (2 * t) ^ m := pow_le_pow_left₀ (by positivity) (by linarith) m
+      _ = 2 ^ m * t ^ m := mul_pow 2 t m
+      _ ≤ 2 ^ m * (1 + t ^ m) := by gcongr; linarith
+
+private lemma iteratedDeriv_exp_neg_mul (h : ℝ) (k : ℕ) (u : ℝ) :
+    iteratedDeriv k (fun y : ℝ ↦ Real.exp (-h * y)) u = (-h) ^ k * Real.exp (-h * u) := by
+  induction k generalizing u with
+  | zero => simp
+  | succ k ih =>
+    rw [iteratedDeriv_succ']
+    have hderiv : deriv (fun y : ℝ ↦ Real.exp (-h * y)) =
+        fun y : ℝ ↦ (-h) * Real.exp (-h * y) := by
+      ext y
+      have hd : HasDerivAt (fun y : ℝ ↦ Real.exp (-h * y)) (Real.exp (-h * y) * (-h)) y := by
+        simpa using ((hasDerivAt_id y).const_mul (-h)).exp
+      rw [hd.deriv, mul_comm]
+    rw [hderiv, iteratedDeriv_const_mul_field, ih]
+    ring
+
+private lemma abs_exp_sub_one_le_of_nonpos {t : ℝ} (ht : t ≤ 0) :
+    |Real.exp t - 1| ≤ |t| := by
+  have h1 : Real.exp t ≤ 1 := Real.exp_le_one_iff.mpr ht
+  have h2 : t + 1 ≤ Real.exp t := Real.add_one_le_exp t
+  rw [abs_of_nonpos (sub_nonpos.mpr h1), abs_of_nonpos ht]
+  linarith
+
+private lemma abs_exp_sub_one_sub_id_le_of_nonpos {t : ℝ} (ht : t ≤ 0) :
+    |Real.exp t - (1 + t)| ≤ t ^ 2 / 2 := by
+  let g : ℝ → ℝ := fun y ↦ Real.exp y - (1 + y + y ^ 2 / 2)
+  have hderiv : ∀ y : ℝ, HasDerivAt g (Real.exp y - 1 - y) y := fun y ↦ by
+    have hsq : HasDerivAt (fun y : ℝ ↦ y ^ 2 / 2) y y := by
+      simpa using (hasDerivAt_pow 2 y).div_const 2
+    have hg : HasDerivAt (fun y : ℝ ↦ Real.exp y - (1 + y + y ^ 2 / 2))
+        (Real.exp y - (0 + 1 + y)) y :=
+      (Real.hasDerivAt_exp y).fun_sub
+        (((hasDerivAt_const y (1 : ℝ)).fun_add (hasDerivAt_id y)).fun_add hsq)
+    convert hg using 1
+    ring
+  have hmono : MonotoneOn g (Iic 0) := by
+    refine monotoneOn_of_deriv_nonneg (convex_Iic 0)
+      (fun y _ ↦ (hderiv y).continuousAt.continuousWithinAt)
+      (fun y _ ↦ (hderiv y).differentiableAt.differentiableWithinAt) fun y _ ↦ ?_
+    rw [(hderiv y).deriv]
+    linarith [Real.add_one_le_exp y]
+  have hgt : g t ≤ g 0 := hmono ht (mem_Iic.mpr le_rfl) ht
+  have hg0 : g 0 = 0 := by simp [g]
+  have hnonneg : 0 ≤ Real.exp t - (1 + t) := by linarith [Real.add_one_le_exp t]
+  rw [abs_of_nonneg hnonneg]
+  dsimp only [g] at hgt hg0
+  linarith
+
+private lemma gauss_diff_quot_bound {h : ℝ} (hh0 : 0 < h) (hh1 : h ≤ 1) (i : ℕ)
+    {u : ℝ} (hu : 0 ≤ u) :
+    ‖iteratedDeriv i (fun y : ℝ ↦ (Real.exp (-h * y) - 1) / h + y) u‖ ≤ h * (1 + u) ^ 2 := by
+  let fh : ℝ → ℝ := fun y ↦ (Real.exp (-h * y) - 1) / h + y
+  have hd1 : deriv fh = fun y ↦ 1 - Real.exp (-h * y) := by
+    ext y
+    have hid : HasDerivAt (fun x : ℝ ↦ x) 1 y := hasDerivAt_id y
+    have h1 : HasDerivAt (fun y : ℝ ↦ Real.exp (-h * y)) (Real.exp (-h * y) * (-h)) y := by
+      simpa using (hid.const_mul (-h)).exp
+    have hd := ((h1.sub_const 1).div_const h).fun_add hid
+    change deriv (fun y : ℝ ↦ (Real.exp (-h * y) - 1) / h + y) y = _
+    rw [hd.deriv]
+    field_simp [hh0.ne']
+    ring
+  match i with
+  | 0 =>
+    rw [iteratedDeriv_zero, Real.norm_eq_abs]
+    have heq : (Real.exp (-h * u) - 1) / h + u = h⁻¹ * (Real.exp (-h * u) - (1 + (-h * u))) := by
+      field_simp [hh0.ne']
+      ring
+    rw [heq, abs_mul, abs_inv, abs_of_pos hh0]
+    have hnonpos : -h * u ≤ 0 := mul_nonpos_of_nonpos_of_nonneg (neg_nonpos.mpr hh0.le) hu
+    have hexp := abs_exp_sub_one_sub_id_le_of_nonpos hnonpos
+    calc
+      h⁻¹ * |Real.exp (-h * u) - (1 + (-h * u))|
+          ≤ h⁻¹ * ((-h * u) ^ 2 / 2) := by gcongr
+      _ = h * u ^ 2 / 2 := by field_simp [hh0.ne']
+      _ ≤ h * (1 + u) ^ 2 := by
+          have hu2 : u ^ 2 ≤ (1 + u) ^ 2 := pow_le_pow_left₀ hu (by linarith) 2
+          nlinarith [hh0]
+  | 1 =>
+    rw [iteratedDeriv_one, hd1, Real.norm_eq_abs, abs_sub_comm]
+    have hnonpos : -h * u ≤ 0 := mul_nonpos_of_nonpos_of_nonneg (neg_nonpos.mpr hh0.le) hu
+    have hexp := abs_exp_sub_one_le_of_nonpos hnonpos
+    calc
+      |Real.exp (-h * u) - 1| ≤ |-h * u| := hexp
+      _ = h * u := by rw [abs_mul, abs_neg, abs_of_pos hh0, abs_of_nonneg hu]
+      _ ≤ h * (1 + u) ^ 2 := by
+          gcongr
+          nlinarith
+  | k + 2 =>
+    rw [iteratedDeriv_succ', hd1, iteratedDeriv_succ']
+    have hd2 : deriv (fun y : ℝ ↦ 1 - Real.exp (-h * y)) =
+        fun y : ℝ ↦ h * Real.exp (-h * y) := by
+      ext y
+      have hd : HasDerivAt (fun y : ℝ ↦ 1 - Real.exp (-h * y)) (0 - Real.exp (-h * y) * (-h)) y := by
+        simpa using (hasDerivAt_const y (1 : ℝ)).fun_sub (((hasDerivAt_id y).const_mul (-h)).exp)
+      rw [hd.deriv]
+      ring
+    rw [hd2, iteratedDeriv_const_mul_field, iteratedDeriv_exp_neg_mul, Real.norm_eq_abs,
+      abs_mul, abs_mul, abs_of_pos hh0, abs_pow, abs_neg, abs_of_pos hh0,
+      abs_of_pos (Real.exp_pos _)]
+    have hexp1 : Real.exp (-h * u) ≤ 1 := Real.exp_le_one_iff.mpr (by nlinarith)
+    have hpow1 : h ^ k ≤ 1 := pow_le_one₀ hh0.le hh1
+    have hu1 : 1 ≤ (1 + u) ^ 2 := by nlinarith
+    calc
+      h * (h ^ k * Real.exp (-h * u)) ≤ h * (1 * 1) := by gcongr
+      _ = h := by ring
+      _ ≤ h * (1 + u) ^ 2 := le_mul_of_one_le_right hh0.le hu1
+
+private theorem gauss_deriv_tendsto {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E]
+    [FiniteDimensional ℝ E] (b : ℝ) (hb : 0 < b) :
+    Tendsto (fun h : ℝ ↦ if hh : 0 < h then
+      (h⁻¹ : ℂ) • ((SchwartzMap.gaussian (b + h) (by linarith) -
+        SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM) +
+      SchwartzMap.smulLeftCLM ℂ (fun x : E ↦ (‖x‖ ^ 2 : ℂ))
+        ((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM)
+      else 0) (nhdsWithin 0 (Ioi 0)) (nhds 0) := by
+  let gR : SchwartzMap E ℝ := SchwartzMap.gaussian b hb
+  have hns : (fun x : E ↦ ‖x‖ ^ 2).HasTemperateGrowth :=
+    Function.hasTemperateGrowth_norm_sq E
+  let normSqR : SchwartzMap E ℝ →L[ℝ] SchwartzMap E ℝ :=
+    SchwartzMap.smulLeftCLM ℝ (fun x : E ↦ ‖x‖ ^ 2)
+  let F : ℝ → SchwartzMap E ℝ := fun h ↦ if hh : 0 < h then
+    h⁻¹ • (SchwartzMap.gaussian (b + h) (by linarith) - gR) + normSqR gR else 0
+  have hF_tendsto : Tendsto F (nhdsWithin 0 (Ioi 0)) (nhds 0) := by
+    rw [(schwartz_withSeminorms ℝ E ℝ).tendsto_nhds _ 0]
+    intro ⟨k, n⟩ ε hε
+    simp only [sub_zero]
+    -- Show SchwartzMap.seminorm ℝ k n (F h) ≤ h * C for h ∈ Ioo 0 1
+    obtain ⟨j, C₀, hC₀⟩ := hns.norm_iteratedFDeriv_le_uniform n
+    let D₀ : ℝ := max C₀ 0 + 1
+    have hD₀ : 1 ≤ D₀ := by simp only [D₀, le_add_iff_nonneg_left]; exact le_max_right C₀ 0
+    have hgauss_bd : ∀ (m i : ℕ), ∃ M : ℝ, 0 ≤ M ∧ ∀ x : E,
+        (1 + ‖x‖) ^ m * ‖iteratedFDeriv ℝ i gR x‖ ≤ M := fun m i ↦ by
+      let M := 2 ^ m * (SchwartzMap.seminorm ℝ 0 i gR + SchwartzMap.seminorm ℝ m i gR)
+      refine ⟨M, by positivity, fun x ↦ ?_⟩
+      calc
+        (1 + ‖x‖) ^ m * ‖iteratedFDeriv ℝ i gR x‖
+            ≤ 2 ^ m * (1 + ‖x‖ ^ m) * ‖iteratedFDeriv ℝ i gR x‖ := by
+          gcongr
+          exact one_add_pow_le (norm_nonneg x) m
+        _ = 2 ^ m * (‖x‖ ^ 0 * ‖iteratedFDeriv ℝ i gR x‖ +
+            ‖x‖ ^ m * ‖iteratedFDeriv ℝ i gR x‖) := by ring
+        _ ≤ M := by
+          dsimp only [M]
+          gcongr
+          · simpa using SchwartzMap.le_seminorm ℝ 0 i gR x
+          · exact SchwartzMap.le_seminorm ℝ m i gR x
+    choose M_fn hM_nn hM_bd using hgauss_bd
+    let C : ℝ := ∑ i ∈ Finset.range (n + 1), (n.choose i : ℝ) *
+      ((n - i).factorial * D₀ ^ (n - i)) * (4 * M_fn (k + 4 + j * (n - i)) i)
+    have hC_nn : 0 ≤ C := Finset.sum_nonneg fun i _ ↦ by
+      have := hM_nn (k + 4 + j * (n - i)) i
+      positivity
+    have hbd_ev : ∀ᶠ h in nhdsWithin 0 (Ioi 0), SchwartzMap.seminorm ℝ k n (F h) ≤ h * C := by
+      have hIoo : Ioo (0 : ℝ) 1 ∈ nhdsWithin (0 : ℝ) (Ioi 0) :=
+        Ioo_mem_nhdsGT one_pos
+      filter_upwards [hIoo] with h hh
+      rcases hh with ⟨hh0, hh1⟩
+      refine SchwartzMap.seminorm_le_bound ℝ k n (F h) (mul_nonneg hh0.le hC_nn) fun x ↦ ?_
+      let fh : ℝ → ℝ := fun y ↦ (Real.exp (-h * y) - 1) / h + y
+      have hfh_smooth : ContDiff ℝ (∞) fh := by
+        have h1 : ContDiff ℝ (∞) (fun y : ℝ ↦ (Real.exp (-h * y) - 1) / h) :=
+          (((Real.contDiff_exp.comp (contDiff_const.mul contDiff_id)).sub contDiff_const).div_const h)
+        exact h1.add contDiff_id
+      have hFun : ((F h : SchwartzMap E ℝ) : E → ℝ) =
+          fun y ↦ gR y * fh (‖y‖ ^ 2) := by
+        ext y
+        simp only [F, dite_eq_left hh0, add_apply, smul_apply,
+          sub_apply, normSqR, SchwartzMap.smulLeftCLM_apply_apply hns, gR,
+          SchwartzMap.gaussian_apply, smul_eq_mul, fh]
+        have hadd : -(b + h) * ‖y‖ ^ 2 = -b * ‖y‖ ^ 2 + -h * ‖y‖ ^ 2 := by ring
+        rw [hadd, Real.exp_add]
+        field_simp [hh0.ne']
+      rw [hFun]
+      have hleib := norm_iteratedFDeriv_mul_le (gR.smooth ⊤)
+        (hfh_smooth.comp (hns.1.of_le (by simp))) x (n := n) (by simp)
+      have hleib' : ‖x‖ ^ k * ‖iteratedFDeriv ℝ n (fun y ↦ gR y * fh (‖y‖ ^ 2)) x‖ ≤
+          ‖x‖ ^ k * ∑ i ∈ Finset.range (n + 1), (n.choose i : ℝ) *
+            ‖iteratedFDeriv ℝ i gR x‖ *
+            ‖iteratedFDeriv ℝ (n - i) (fh ∘ fun y : E ↦ ‖y‖ ^ 2) x‖ :=
+        mul_le_mul_of_nonneg_left hleib (by positivity)
+      calc
+        ‖x‖ ^ k * ‖iteratedFDeriv ℝ n (fun y ↦ gR y * fh (‖y‖ ^ 2)) x‖
+            ≤ ‖x‖ ^ k * ∑ i ∈ Finset.range (n + 1), (n.choose i : ℝ) *
+              ‖iteratedFDeriv ℝ i gR x‖ * ‖iteratedFDeriv ℝ (n - i) (fh ∘ fun y : E ↦ ‖y‖ ^ 2) x‖ :=
+          hleib'
+        _ = ∑ i ∈ Finset.range (n + 1), (n.choose i : ℝ) *
+            (‖x‖ ^ k * ‖iteratedFDeriv ℝ i gR x‖ * ‖iteratedFDeriv ℝ (n - i) (fh ∘ fun y : E ↦ ‖y‖ ^ 2) x‖) := by
+          rw [Finset.mul_sum]
+          refine Finset.sum_congr rfl fun i _ ↦ by ring
+        _ ≤ h * C := by
+          rw [Finset.mul_sum]
+          refine Finset.sum_le_sum fun i hi ↦ ?_
+          have hin : n - i ≤ n := Nat.sub_le n i
+          have hcomp := norm_iteratedFDeriv_comp_le (𝕜 := ℝ) (n := n - i) (N := ∞)
+            hfh_smooth (hns.1.of_le (by simp)) (by simp) x
+            (C := h * (1 + ‖x‖ ^ 2) ^ 2) (D := D₀ * (1 + ‖x‖) ^ j)
+            (fun r hr ↦ by
+              rw [norm_iteratedFDeriv_eq_norm_iteratedDeriv]
+              exact gauss_diff_quot_bound hh0 hh1.le r (sq_nonneg ‖x‖))
+            (fun r hr1 hrn ↦ by
+              have hc : ‖iteratedFDeriv ℝ r (fun y : E ↦ ‖y‖ ^ 2) x‖ ≤ C₀ * (1 + ‖x‖) ^ j :=
+                hC₀.2 r (hrn.trans hin) x
+              have hc' : C₀ * (1 + ‖x‖) ^ j ≤ D₀ * (1 + ‖x‖) ^ j := by
+                gcongr
+                linarith [le_max_left C₀ 0]
+              have hd1 : 1 ≤ D₀ * (1 + ‖x‖) ^ j := by
+                have h1 : 1 ≤ (1 + ‖x‖) ^ j := one_le_pow₀ (by linarith [norm_nonneg x])
+                exact one_le_mul_of_one_le_of_one_le hD₀ h1
+              exact (hc.trans hc').trans (le_self_pow₀ hd1 (by omega)))
+          have hxsq : (1 + ‖x‖ ^ 2) ^ 2 ≤ 4 * (1 + ‖x‖) ^ 4 := by
+            have h1 : 1 + ‖x‖ ^ 2 ≤ 2 * (1 + ‖x‖) ^ 2 := by nlinarith [norm_nonneg x]
+            calc
+              (1 + ‖x‖ ^ 2) ^ 2 ≤ (2 * (1 + ‖x‖) ^ 2) ^ 2 := pow_le_pow_left₀ (by positivity) h1 2
+              _ = 4 * (1 + ‖x‖) ^ 4 := by ring
+          have hxk : ‖x‖ ^ k ≤ (1 + ‖x‖) ^ k := pow_le_pow_left₀ (norm_nonneg x) (by linarith) k
+          have hterm : ‖x‖ ^ k * ‖iteratedFDeriv ℝ i gR x‖ *
+              ‖iteratedFDeriv ℝ (n - i) (fh ∘ fun y : E ↦ ‖y‖ ^ 2) x‖ ≤
+              h * (((n - i).factorial * D₀ ^ (n - i)) * (4 * M_fn (k + 4 + j * (n - i)) i)) := by
+            calc
+              ‖x‖ ^ k * ‖iteratedFDeriv ℝ i gR x‖ *
+                  ‖iteratedFDeriv ℝ (n - i) (fh ∘ fun y : E ↦ ‖y‖ ^ 2) x‖
+                  ≤ (1 + ‖x‖) ^ k * ‖iteratedFDeriv ℝ i gR x‖ *
+                    (((n - i).factorial : ℝ) * (h * (1 + ‖x‖ ^ 2) ^ 2) * (D₀ * (1 + ‖x‖) ^ j) ^ (n - i)) := by
+                  gcongr
+              _ ≤ (1 + ‖x‖) ^ k * ‖iteratedFDeriv ℝ i gR x‖ *
+                    (((n - i).factorial : ℝ) * (h * (4 * (1 + ‖x‖) ^ 4)) * (D₀ * (1 + ‖x‖) ^ j) ^ (n - i)) := by
+                  gcongr
+              _ = h * (((n - i).factorial * D₀ ^ (n - i)) *
+                    (4 * ((1 + ‖x‖) ^ (k + 4 + j * (n - i)) * ‖iteratedFDeriv ℝ i gR x‖))) := by
+                  rw [mul_pow, ← pow_mul, pow_add, pow_add]
+                  ring
+              _ ≤ h * (((n - i).factorial * D₀ ^ (n - i)) * (4 * M_fn (k + 4 + j * (n - i)) i)) := by
+                  gcongr
+                  exact hM_bd (k + 4 + j * (n - i)) i x
+          calc
+            (n.choose i : ℝ) *
+                (‖x‖ ^ k * ‖iteratedFDeriv ℝ i gR x‖ *
+                  ‖iteratedFDeriv ℝ (n - i) (fh ∘ fun y : E ↦ ‖y‖ ^ 2) x‖)
+                ≤ (n.choose i : ℝ) * (h * (((n - i).factorial * D₀ ^ (n - i)) *
+                  (4 * M_fn (k + 4 + j * (n - i)) i))) := by gcongr
+            _ = h * ((n.choose i : ℝ) * ((n - i).factorial * D₀ ^ (n - i)) *
+                (4 * M_fn (k + 4 + j * (n - i)) i)) := by ring
+    have hzero : Tendsto (fun h : ℝ ↦ h * C) (nhdsWithin 0 (Ioi 0)) (nhds 0) := by
+      simpa using (continuous_id.mul_const C).tendsto 0 |>.mono_left nhdsWithin_le_nhds
+    filter_upwards [hbd_ev, hzero.eventually (Iio_mem_nhds hε)] with h h1 h2
+    exact lt_of_le_of_lt h1 h2
+  let P_clm := SchwartzMap.postcompCLM Complex.ofRealCLM (E := E) (𝕜 := ℝ)
+  have hP := P_clm.continuous.tendsto 0 |>.comp hF_tendsto
+  rw [map_zero] at hP
+  refine hP.congr fun h ↦ ?_
+  by_cases hh : 0 < h
+  · simp only [Function.comp_apply, F, dite_eq_left hh, map_add, map_smul, map_sub, P_clm]
+    ext x
+    have hnsC : (fun x : E ↦ (‖x‖ ^ 2 : ℂ)).HasTemperateGrowth := by
+      simpa [Function.comp_def] using Complex.hasTemperateGrowth_ofReal.comp hns
+    simp only [add_apply, smul_apply, SchwartzMap.postcompCLM_apply, Complex.ofRealCLM_apply,
+      sub_apply, normSqR, SchwartzMap.smulLeftCLM_apply_apply hns, smul_eq_mul, Complex.real_smul,
+      gR, SchwartzMap.gaussian_apply]
+    change _ = _ + (SchwartzMap.smulLeftCLM ℂ (fun x : E ↦ (‖x‖ ^ 2 : ℂ))
+      ((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM)) x
+    rw [SchwartzMap.smulLeftCLM_apply_apply hnsC]
+    simp only [SchwartzMap.postcompCLM_apply, Complex.ofRealCLM_apply, SchwartzMap.gaussian_apply,
+      smul_eq_mul]
+    push_cast
+    rfl
+  · simp [F, hh]
+
+private theorem schwartzDual_normSq_pow_mul_gauss_eq_zero {E : Type*} [NormedAddCommGroup E]
+    [InnerProductSpace ℝ E] [FiniteDimensional ℝ E] (T : StrongDual ℂ (SchwartzMap E ℂ))
+    {P : E → ℂ} (hP : P.HasTemperateGrowth)
+    (hvan : ∀ (b : ℝ) (hb : 0 < b),
+      T (SchwartzMap.smulLeftCLM ℂ P ((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM)) = 0)
+    (j : ℕ) (b : ℝ) (hb : 0 < b) :
+    T (SchwartzMap.smulLeftCLM ℂ (fun x : E ↦ (‖x‖ ^ 2 : ℂ) ^ j * P x)
+      ((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM)) = 0 := by
+  have hnsC : (fun x : E ↦ (‖x‖ ^ 2 : ℂ)).HasTemperateGrowth := by
+    simpa [Function.comp_def] using
+      Complex.hasTemperateGrowth_ofReal.comp (Function.hasTemperateGrowth_norm_sq E)
+  induction j generalizing b with
+  | zero =>
+    simpa using hvan b hb
+  | succ j ih =>
+    let Q : E → ℂ := fun x : E ↦ (‖x‖ ^ 2 : ℂ) ^ j * P x
+    have hQ : Q.HasTemperateGrowth := (hnsC.pow j).mul hP
+    let MQ : SchwartzMap E ℂ →L[ℂ] SchwartzMap E ℂ := SchwartzMap.smulLeftCLM ℂ Q
+    have hlim : Tendsto (fun h : ℝ ↦ T (MQ (if hh : 0 < h then
+        (h⁻¹ : ℂ) • ((SchwartzMap.gaussian (b + h) (by linarith) -
+          SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM) +
+        SchwartzMap.smulLeftCLM ℂ (fun x : E ↦ (‖x‖ ^ 2 : ℂ))
+          ((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM)
+        else 0))) (nhdsWithin 0 (Ioi 0)) (nhds 0) := by
+      have hc : Continuous (fun f : SchwartzMap E ℂ ↦ T (MQ f)) :=
+        T.continuous.comp MQ.continuous
+      simpa [map_zero, Function.comp_def] using (hc.tendsto 0).comp (gauss_deriv_tendsto b hb)
+    have hconst : Tendsto (fun _ : ℝ ↦
+        T (SchwartzMap.smulLeftCLM ℂ (fun x : E ↦ (‖x‖ ^ 2 : ℂ) ^ (j + 1) * P x)
+          ((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM)))
+        (nhdsWithin 0 (Ioi 0)) (nhds 0) := by
+      refine hlim.congr' ?_
+      filter_upwards [self_mem_nhdsWithin] with h (hh : 0 < h)
+      have h1 : T (MQ ((SchwartzMap.gaussian (b + h) (by linarith)).postcompCLM Complex.ofRealCLM)) = 0 :=
+        ih (b + h) (by linarith)
+      have h2 : T (MQ ((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM)) = 0 :=
+        ih b hb
+      simp only [dite_eq_left hh, map_add, map_smul, map_sub, h1, h2, sub_zero, smul_zero, zero_add]
+      congr 1
+      ext x
+      have hQ_succ : (fun x : E ↦ (‖x‖ ^ 2 : ℂ) ^ (j + 1) * P x).HasTemperateGrowth :=
+        (hnsC.pow (j + 1)).mul hP
+      rw [SchwartzMap.smulLeftCLM_apply_apply hQ, SchwartzMap.smulLeftCLM_apply_apply hnsC,
+        SchwartzMap.smulLeftCLM_apply_apply hQ_succ]
+      simp only [Q, smul_eq_mul, pow_succ]
+      ring
+    exact tendsto_nhds_unique tendsto_const_nhds hconst
+
+end Step2
+
+section Step3a
+
+private lemma exp_tail_deriv (N i : ℕ) :
+    iteratedDeriv i (fun u : ℝ ↦ Real.exp u - ∑ k ∈ Finset.range N, u ^ k / (k.factorial : ℝ)) =
+      fun u : ℝ ↦ Real.exp u - ∑ k ∈ Finset.range (N - i), u ^ k / (k.factorial : ℝ) := by
+  induction i with
+  | zero => simp
+  | succ i ih =>
+    rw [iteratedDeriv_succ, ih]
+    cases hM : N - i with
+    | zero =>
+      ext u
+      simp [show N - (i + 1) = 0 by omega]
+    | succ M =>
+      ext u
+      have hsum : HasDerivAt (fun y : ℝ ↦ ∑ k ∈ Finset.range (M + 1), y ^ k / (k.factorial : ℝ))
+          (∑ k ∈ Finset.range M, u ^ k / (k.factorial : ℝ)) u := by
+        have hd : ∀ k ∈ Finset.range (M + 1),
+            HasDerivAt (fun y : ℝ ↦ y ^ k / (k.factorial : ℝ))
+              (if k = 0 then 0 else u ^ (k - 1) / ((k - 1).factorial : ℝ)) u := by
+          intro k _
+          cases k with
+          | zero => simp [hasDerivAt_const]
+          | succ m =>
+            simp only [Nat.succ_ne_zero, ite_false, Nat.add_sub_cancel]
+            have h1 := (hasDerivAt_pow (m + 1) u).div_const (((m + 1).factorial : ℝ))
+            convert h1 using 1
+            rw [Nat.factorial_succ]
+            push_cast
+            field_simp [Nat.factorial_ne_zero m]
+        convert HasDerivAt.fun_sum hd using 1
+        rw [Finset.sum_range_succ']
+        simp
+      have hd_sub := (Real.hasDerivAt_exp u).fun_sub hsum
+      have hsub : N - (i + 1) = M := by omega
+      simpa [hsub] using hd_sub.deriv
+
+private noncomputable def gaussianPolyC (c : ℝ) (m : ℕ) : ℝ :=
+  2 ^ m * (1 + (1 + (m.factorial : ℝ) / c ^ m))
+
+private lemma gaussianPolyC_nonneg {c : ℝ} (hc : 0 < c) (m : ℕ) : 0 ≤ gaussianPolyC c m := by
+  unfold gaussianPolyC; positivity
+
+private lemma gaussian_poly_bound (c : ℝ) (hc : 0 < c) (m : ℕ) :
+    ∀ t : ℝ, 0 ≤ t → (1 + t) ^ m * Real.exp (-c * t ^ 2) ≤ gaussianPolyC c m := by
+  have hexp : ∀ r : ℝ, 0 ≤ r → r ^ m * Real.exp (-c * r ^ 2) ≤ 1 + (m.factorial : ℝ) / c ^ m := by
+    intro r hr
+    rcases le_total r 1 with h1 | h1
+    · calc
+        r ^ m * Real.exp (-c * r ^ 2) ≤ 1 * 1 := by
+          gcongr
+          · exact pow_le_one₀ hr h1
+          · exact Real.exp_le_one_iff.mpr (by nlinarith [sq_nonneg r])
+        _ = 1 := mul_one 1
+        _ ≤ 1 + (m.factorial : ℝ) / c ^ m := le_add_of_nonneg_right (by positivity)
+    · have hp := Real.pow_div_factorial_le_exp (c * r ^ 2) (by positivity) m
+      have hr2 : r ^ m ≤ r ^ (2 * m) := pow_le_pow_right₀ h1 (by omega)
+      calc
+        r ^ m * Real.exp (-c * r ^ 2) ≤ r ^ (2 * m) * Real.exp (-c * r ^ 2) := by gcongr
+        _ = ((c * r ^ 2) ^ m / (m.factorial : ℝ)) * ((m.factorial : ℝ) / c ^ m) * Real.exp (-c * r ^ 2) := by
+          rw [mul_pow, ← pow_mul, mul_comm 2 m]
+          field_simp [hc.ne', Nat.factorial_ne_zero m]
+        _ ≤ Real.exp (c * r ^ 2) * ((m.factorial : ℝ) / c ^ m) * Real.exp (-c * r ^ 2) := by gcongr
+        _ = (m.factorial : ℝ) / c ^ m := by
+          rw [mul_right_comm, ← Real.exp_add]
+          simp
+        _ ≤ 1 + (m.factorial : ℝ) / c ^ m := le_add_of_nonneg_left zero_le_one
+  intro t ht
+  unfold gaussianPolyC
+  calc
+    (1 + t) ^ m * Real.exp (-c * t ^ 2) ≤ 2 ^ m * (1 + t ^ m) * Real.exp (-c * t ^ 2) := by
+      gcongr; exact one_add_pow_le ht m
+    _ = 2 ^ m * (1 * Real.exp (-c * t ^ 2) + t ^ m * Real.exp (-c * t ^ 2)) := by ring
+    _ ≤ 2 ^ m * (1 * 1 + (1 + (m.factorial : ℝ) / c ^ m)) := by
+      gcongr
+      · exact Real.exp_le_one_iff.mpr (by nlinarith [sq_nonneg t])
+      · exact hexp t ht
+    _ = 2 ^ m * (1 + (1 + (m.factorial : ℝ) / c ^ m)) := by ring
+
+private lemma pow_div_factorial_mul_exp_neg_sq_le (A c : ℝ) (hA : 0 ≤ A) (hc : 0 < c)
+    (M : ℕ) (t : ℝ) (ht : 0 ≤ t) :
+    (A * t) ^ M / (M.factorial : ℝ) * Real.exp (-c * t ^ 2) ≤
+      (1 + t) * max A 1 * ((max A 1 ^ 2 / c) ^ (M / 2) / ((M / 2).factorial : ℝ)) := by
+  let p := M / 2
+  let r := M % 2
+  have hM : M = 2 * p + r := by omega
+  have hr : r ≤ 1 := Nat.lt_succ_iff.mp (Nat.mod_lt M two_pos)
+  have hfac_p : p.factorial * p.factorial ≤ (2 * p).factorial := by
+    calc
+      p.factorial * p.factorial = 1 * (p.factorial * p.factorial) := by ring
+      _ ≤ (2 * p).choose p * (p.factorial * p.factorial) := by
+        gcongr; exact Nat.choose_pos (by omega)
+      _ = (2 * p).factorial := by
+        have h := Nat.add_choose_mul_factorial_mul_factorial p p
+        rw [two_mul, ← mul_assoc]
+        exact h
+  have hfac : p.factorial * p.factorial ≤ M.factorial :=
+    hfac_p.trans (Nat.factorial_le (by omega))
+  have hfac_real : (p.factorial : ℝ) * (p.factorial : ℝ) ≤ (M.factorial : ℝ) := by
+    exact_mod_cast hfac
+  have ht_r : t ^ r ≤ 1 + t := by
+    interval_cases r
+    · simp; linarith
+    · simp
+  have hA_M : A ^ M ≤ max A 1 ^ (2 * p + 1) := by
+    calc
+      A ^ M ≤ max A 1 ^ M := pow_le_pow_left₀ hA (le_max_left A 1) M
+      _ ≤ max A 1 ^ (2 * p + 1) := pow_le_pow_right₀ (le_max_right A 1) (by omega)
+  have hexp_p := Real.pow_div_factorial_le_exp (c * t ^ 2) (by positivity) p
+  calc
+    (A * t) ^ M / (M.factorial : ℝ) * Real.exp (-c * t ^ 2)
+        = A ^ M * (t ^ r * t ^ (2 * p)) / (M.factorial : ℝ) * Real.exp (-c * t ^ 2) := by
+      rw [mul_pow, hM, pow_add]; ring
+    _ ≤ max A 1 ^ (2 * p + 1) * ((1 + t) * t ^ (2 * p)) /
+          ((p.factorial : ℝ) * (p.factorial : ℝ)) * Real.exp (-c * t ^ 2) := by
+      gcongr
+    _ = (1 + t) * max A 1 * ((max A 1 ^ 2 / c) ^ p / (p.factorial : ℝ)) *
+          (((c * t ^ 2) ^ p / (p.factorial : ℝ)) * Real.exp (-c * t ^ 2)) := by
+      rw [pow_succ, mul_pow, div_pow]
+      have hp2 : t ^ (2 * p) = (t ^ 2) ^ p := by rw [← pow_mul, mul_comm]
+      have hA2 : max A 1 ^ (2 * p) = (max A 1 ^ 2) ^ p := by rw [← pow_mul]
+      rw [hp2, hA2]
+      field_simp [hc.ne', Nat.factorial_ne_zero p]
+    _ ≤ (1 + t) * max A 1 * ((max A 1 ^ 2 / c) ^ p / (p.factorial : ℝ)) *
+          (Real.exp (c * t ^ 2) * Real.exp (-c * t ^ 2)) := by gcongr
+    _ = (1 + t) * max A 1 * ((max A 1 ^ 2 / c) ^ (M / 2) / ((M / 2).factorial : ℝ)) := by
+      rw [← Real.exp_add]
+      simp [p]
+
+private lemma gauss_taylor_pointwise_le {E : Type*} [NormedAddCommGroup E]
+    [InnerProductSpace ℝ E] [FiniteDimensional ℝ E] (b : ℝ) (hb : 0 < b) (y : E)
+    (k n N i j : ℕ) (C₀ D₀ : ℝ) (hD₀ : 1 ≤ D₀)
+    (hC₀ : ∀ r ≤ n, ∀ x : E, ‖iteratedFDeriv ℝ r (fun z : E ↦ ‖z‖ ^ 2) x‖ ≤ C₀ * (1 + ‖x‖) ^ j)
+    (hD_bd : b * max C₀ 0 + 1 ≤ D₀)
+    (hin : i ≤ n) (hN : n ≤ N) (x : E) :
+    let L : E →L[ℝ] ℝ := (2 * b) • innerSL ℝ y
+    let RN : ℝ → ℝ := fun u ↦ Real.exp u - ∑ m ∈ Finset.range N, u ^ m / (m.factorial : ℝ)
+    let c : ℝ := b / 4
+    ‖x‖ ^ k * ‖iteratedFDeriv ℝ i (fun z : E ↦ Real.exp (-b * ‖z‖ ^ 2)) x‖ *
+        ‖iteratedFDeriv ℝ (n - i) (RN ∘ L) x‖ ≤
+      (i.factorial * D₀ ^ i * max ‖L‖ 1 ^ (2 * n) * Real.exp (‖L‖ ^ 2 / (8 * c)) * max ‖L‖ 1 *
+        gaussianPolyC c (k + 1 + j * i + n)) *
+      ((max ‖L‖ 1 ^ 2 / c) ^ ((N - n) / 2) / (((N - n) / 2).factorial : ℝ)) := by
+  intro L RN c
+  have hc : 0 < c := by positivity
+  have hns : (fun z : E ↦ ‖z‖ ^ 2).HasTemperateGrowth :=
+    Function.hasTemperateGrowth_norm_sq E
+  have hRN_smooth : ContDiff ℝ (∞) RN :=
+    Real.contDiff_exp.sub (ContDiff.sum fun m _ ↦ (contDiff_id.pow m).div_const _)
+  have hcomp_exp : ‖iteratedFDeriv ℝ i (fun z : E ↦ Real.exp (-b * ‖z‖ ^ 2)) x‖ ≤
+      i.factorial * Real.exp (-b * ‖x‖ ^ 2) * (D₀ * (1 + ‖x‖) ^ j) ^ i := by
+    refine norm_iteratedFDeriv_comp_le (𝕜 := ℝ) (n := i) (N := ∞)
+      Real.contDiff_exp (contDiff_const.mul (hns.1.of_le (by simp))) (by simp) x
+      (C := Real.exp (-b * ‖x‖ ^ 2)) (D := D₀ * (1 + ‖x‖) ^ j)
+      (fun r _ ↦ by
+        rw [norm_iteratedFDeriv_eq_norm_iteratedDeriv, iteratedDeriv_eq_iterate,
+          Real.iter_deriv_exp, Real.norm_of_nonneg (Real.exp_pos _).le])
+      (fun r hr1 hri ↦ ?_)
+    have hsmul : iteratedFDeriv ℝ r (fun z : E ↦ (-b) * ‖z‖ ^ 2) x =
+        (-b) • iteratedFDeriv ℝ r (fun z : E ↦ ‖z‖ ^ 2) x := by
+      change iteratedFDeriv ℝ r ((-b) • fun z : E ↦ ‖z‖ ^ 2) x = _
+      rw [iteratedFDeriv_const_smul_apply (hns.1.of_le (by simp) |>.contDiffAt)]
+    have hnr : ‖iteratedFDeriv ℝ r (fun z : E ↦ (-b) * ‖z‖ ^ 2) x‖ ≤ D₀ * (1 + ‖x‖) ^ j := by
+      rw [hsmul, norm_smul, norm_neg, Real.norm_of_nonneg hb.le]
+      have hc0 := hC₀ r (hri.trans hin) x
+      have h1 : b * ‖iteratedFDeriv ℝ r (fun z : E ↦ ‖z‖ ^ 2) x‖ ≤ b * (C₀ * (1 + ‖x‖) ^ j) :=
+        mul_le_mul_of_nonneg_left hc0 hb.le
+      have h2 : b * (C₀ * (1 + ‖x‖) ^ j) ≤ b * (max C₀ 0 * (1 + ‖x‖) ^ j) := by
+        gcongr; exact le_max_left C₀ 0
+      have h3 : b * (max C₀ 0 * (1 + ‖x‖) ^ j) ≤ (b * max C₀ 0 + 1) * (1 + ‖x‖) ^ j := by
+        have : 0 ≤ (1 + ‖x‖) ^ j := by positivity
+        nlinarith
+      exact h1.trans (h2.trans (h3.trans (mul_le_mul_of_nonneg_right hD_bd (by positivity))))
+    have hd1 : 1 ≤ D₀ * (1 + ‖x‖) ^ j :=
+      one_le_mul_of_one_le_of_one_le hD₀ (one_le_pow₀ (by linarith [norm_nonneg x]))
+    exact hnr.trans (le_self_pow₀ hd1 (by omega))
+  have hcomp_RN : ‖iteratedFDeriv ℝ (n - i) (RN ∘ L) x‖ ≤
+      (|L x| ^ (N - (n - i)) / ((N - (n - i)).factorial : ℝ) * Real.exp |L x|) *
+        ‖L‖ ^ (n - i) := by
+    rw [L.iteratedFDeriv_comp_right hRN_smooth x (by simp)]
+    refine (ContinuousMultilinearMap.norm_compContinuousLinearMap_le _ _).trans ?_
+    simp only [Finset.prod_const, Finset.card_fin]
+    gcongr
+    rw [norm_iteratedFDeriv_eq_norm_iteratedDeriv, exp_tail_deriv N (n - i), Real.norm_eq_abs]
+    exact abs_exp_sub_sum_le (L x) (N - (n - i))
+  have hLx : |L x| ≤ ‖L‖ * ‖x‖ := L.le_opNorm x
+  have hRN_exp : N - (n - i) = (N - n) + i := by omega
+  have hfac_n : ((N - n).factorial : ℝ) ≤ ((N - (n - i)).factorial : ℝ) := by
+    exact_mod_cast Nat.factorial_le (by omega : N - n ≤ N - (n - i))
+  have hL_pow : ‖L‖ ^ i * ‖L‖ ^ (n - i) ≤ max ‖L‖ 1 ^ (2 * n) := by
+    calc
+      ‖L‖ ^ i * ‖L‖ ^ (n - i) = ‖L‖ ^ n := by rw [← pow_add, Nat.add_sub_of_le hin]
+      _ ≤ max ‖L‖ 1 ^ n := pow_le_pow_left₀ (norm_nonneg L) (le_max_left _ _) n
+      _ ≤ max ‖L‖ 1 ^ (2 * n) := pow_le_pow_right₀ (le_max_right _ _) (by omega)
+  have hquad : Real.exp (-b * ‖x‖ ^ 2) * Real.exp |L x| ≤
+      Real.exp (‖L‖ ^ 2 / (8 * c)) * (Real.exp (-c * ‖x‖ ^ 2) * Real.exp (-c * ‖x‖ ^ 2)) := by
+    rw [← Real.exp_add, ← Real.exp_add, ← Real.exp_add, Real.exp_le_exp]
+    have hsq_ge : 0 ≤ 2 * c * (‖x‖ - ‖L‖ / (4 * c)) ^ 2 := by positivity
+    have hlin : ‖L‖ * ‖x‖ - 2 * c * ‖x‖ ^ 2 ≤ ‖L‖ ^ 2 / (8 * c) := by
+      have hident : 2 * c * (‖x‖ - ‖L‖ / (4 * c)) ^ 2 =
+          2 * c * ‖x‖ ^ 2 - ‖L‖ * ‖x‖ + ‖L‖ ^ 2 / (8 * c) := by
+        field_simp [hc.ne']; ring
+      linarith
+    have hb_c : b = 4 * c := by ring
+    rw [hb_c]
+    linarith [hLx, hlin]
+  have hx_i : ‖x‖ ^ i ≤ (1 + ‖x‖) ^ n :=
+    (pow_le_pow_left₀ (norm_nonneg x) (by linarith) i).trans
+      (pow_le_pow_right₀ (by linarith [norm_nonneg x]) hin)
+  have hRN_le2 : ‖iteratedFDeriv ℝ (n - i) (RN ∘ L) x‖ ≤
+      (‖L‖ ^ i * ‖L‖ ^ (n - i)) * (1 + ‖x‖) ^ n * Real.exp |L x| *
+        ((‖L‖ * ‖x‖) ^ (N - n) / ((N - n).factorial : ℝ)) := by
+    have hLpow : |L x| ^ (N - (n - i)) ≤ (‖L‖ * ‖x‖) ^ (N - n) * (‖L‖ ^ i * ‖x‖ ^ i) := by
+      calc
+        |L x| ^ (N - (n - i)) ≤ (‖L‖ * ‖x‖) ^ (N - (n - i)) :=
+          pow_le_pow_left₀ (abs_nonneg _) hLx _
+        _ = (‖L‖ * ‖x‖) ^ (N - n) * (‖L‖ ^ i * ‖x‖ ^ i) := by
+          rw [hRN_exp, pow_add, mul_pow, mul_pow]
+    have hLpow' : |L x| ^ (N - (n - i)) ≤ (‖L‖ * ‖x‖) ^ (N - n) * (‖L‖ ^ i * (1 + ‖x‖) ^ n) :=
+      hLpow.trans (by gcongr)
+    calc
+      ‖iteratedFDeriv ℝ (n - i) (RN ∘ L) x‖
+          ≤ (|L x| ^ (N - (n - i)) / ((N - (n - i)).factorial : ℝ) * Real.exp |L x|) *
+            ‖L‖ ^ (n - i) := hcomp_RN
+      _ ≤ (((‖L‖ * ‖x‖) ^ (N - n) * (‖L‖ ^ i * (1 + ‖x‖) ^ n)) / ((N - n).factorial : ℝ) *
+            Real.exp |L x|) * ‖L‖ ^ (n - i) := by gcongr
+      _ = (‖L‖ ^ i * ‖L‖ ^ (n - i)) * (1 + ‖x‖) ^ n * Real.exp |L x| *
+            ((‖L‖ * ‖x‖) ^ (N - n) / ((N - n).factorial : ℝ)) := by ring
+  have hxk : ‖x‖ ^ k ≤ (1 + ‖x‖) ^ k := pow_le_pow_left₀ (norm_nonneg x) (by linarith) k
+  have htail := pow_div_factorial_mul_exp_neg_sq_le ‖L‖ c (norm_nonneg L) hc (N - n)
+    ‖x‖ (norm_nonneg x)
+  have hpoly := gaussian_poly_bound c hc (k + 1 + j * i + n) ‖x‖ (norm_nonneg x)
+  have hprod1 : ‖x‖ ^ k * ‖iteratedFDeriv ℝ i (fun z : E ↦ Real.exp (-b * ‖z‖ ^ 2)) x‖ *
+      ‖iteratedFDeriv ℝ (n - i) (RN ∘ L) x‖ ≤
+      (1 + ‖x‖) ^ k * (i.factorial * Real.exp (-b * ‖x‖ ^ 2) * (D₀ * (1 + ‖x‖) ^ j) ^ i) *
+        ((‖L‖ ^ i * ‖L‖ ^ (n - i)) * (1 + ‖x‖) ^ n * Real.exp |L x| *
+          ((‖L‖ * ‖x‖) ^ (N - n) / ((N - n).factorial : ℝ))) :=
+    mul_le_mul (mul_le_mul hxk hcomp_exp (norm_nonneg _) (by positivity))
+      hRN_le2 (norm_nonneg _) (by positivity)
+  have hrearr1 : (1 + ‖x‖) ^ k * (i.factorial * Real.exp (-b * ‖x‖ ^ 2) * (D₀ * (1 + ‖x‖) ^ j) ^ i) *
+      ((‖L‖ ^ i * ‖L‖ ^ (n - i)) * (1 + ‖x‖) ^ n * Real.exp |L x| *
+        ((‖L‖ * ‖x‖) ^ (N - n) / ((N - n).factorial : ℝ))) =
+      (i.factorial * D₀ ^ i * (‖L‖ ^ i * ‖L‖ ^ (n - i))) *
+        (1 + ‖x‖) ^ (k + j * i + n) * (Real.exp (-b * ‖x‖ ^ 2) * Real.exp |L x|) *
+        ((‖L‖ * ‖x‖) ^ (N - n) / ((N - n).factorial : ℝ)) := by
+    rw [mul_pow, ← pow_mul, pow_add, pow_add]
+    ring
+  have hquad_mul : (i.factorial * D₀ ^ i * (‖L‖ ^ i * ‖L‖ ^ (n - i))) *
+      (1 + ‖x‖) ^ (k + j * i + n) * (Real.exp (-b * ‖x‖ ^ 2) * Real.exp |L x|) *
+      ((‖L‖ * ‖x‖) ^ (N - n) / ((N - n).factorial : ℝ)) ≤
+      (i.factorial * D₀ ^ i * max ‖L‖ 1 ^ (2 * n) * Real.exp (‖L‖ ^ 2 / (8 * c))) *
+        ((1 + ‖x‖) ^ (k + j * i + n) * Real.exp (-c * ‖x‖ ^ 2)) *
+        ((‖L‖ * ‖x‖) ^ (N - n) / ((N - n).factorial : ℝ) * Real.exp (-c * ‖x‖ ^ 2)) := by
+    calc
+      _ ≤ (i.factorial * D₀ ^ i * max ‖L‖ 1 ^ (2 * n)) *
+            (1 + ‖x‖) ^ (k + j * i + n) *
+            (Real.exp (‖L‖ ^ 2 / (8 * c)) * (Real.exp (-c * ‖x‖ ^ 2) * Real.exp (-c * ‖x‖ ^ 2))) *
+            ((‖L‖ * ‖x‖) ^ (N - n) / ((N - n).factorial : ℝ)) := by gcongr
+      _ = _ := by ring
+  have htail_mul : (i.factorial * D₀ ^ i * max ‖L‖ 1 ^ (2 * n) * Real.exp (‖L‖ ^ 2 / (8 * c))) *
+      ((1 + ‖x‖) ^ (k + j * i + n) * Real.exp (-c * ‖x‖ ^ 2)) *
+      ((‖L‖ * ‖x‖) ^ (N - n) / ((N - n).factorial : ℝ) * Real.exp (-c * ‖x‖ ^ 2)) ≤
+      (i.factorial * D₀ ^ i * max ‖L‖ 1 ^ (2 * n) * Real.exp (‖L‖ ^ 2 / (8 * c)) * max ‖L‖ 1 *
+        gaussianPolyC c (k + 1 + j * i + n)) *
+      ((max ‖L‖ 1 ^ 2 / c) ^ ((N - n) / 2) / (((N - n) / 2).factorial : ℝ)) := by
+    have h2a : (i.factorial * D₀ ^ i * max ‖L‖ 1 ^ (2 * n) * Real.exp (‖L‖ ^ 2 / (8 * c))) *
+        ((1 + ‖x‖) ^ (k + j * i + n) * Real.exp (-c * ‖x‖ ^ 2)) *
+        ((‖L‖ * ‖x‖) ^ (N - n) / ((N - n).factorial : ℝ) * Real.exp (-c * ‖x‖ ^ 2)) ≤
+        (i.factorial * D₀ ^ i * max ‖L‖ 1 ^ (2 * n) * Real.exp (‖L‖ ^ 2 / (8 * c))) *
+        ((1 + ‖x‖) ^ (k + j * i + n) * Real.exp (-c * ‖x‖ ^ 2)) *
+        ((1 + ‖x‖) * max ‖L‖ 1 * ((max ‖L‖ 1 ^ 2 / c) ^ ((N - n) / 2) /
+          (((N - n) / 2).factorial : ℝ))) :=
+      mul_le_mul_of_nonneg_left htail (by positivity)
+    have h2b : (i.factorial * D₀ ^ i * max ‖L‖ 1 ^ (2 * n) * Real.exp (‖L‖ ^ 2 / (8 * c))) *
+        ((1 + ‖x‖) ^ (k + j * i + n) * Real.exp (-c * ‖x‖ ^ 2)) *
+        ((1 + ‖x‖) * max ‖L‖ 1 * ((max ‖L‖ 1 ^ 2 / c) ^ ((N - n) / 2) /
+          (((N - n) / 2).factorial : ℝ))) =
+        (i.factorial * D₀ ^ i * max ‖L‖ 1 ^ (2 * n) * Real.exp (‖L‖ ^ 2 / (8 * c)) * max ‖L‖ 1) *
+          ((1 + ‖x‖) ^ (k + 1 + j * i + n) * Real.exp (-c * ‖x‖ ^ 2)) *
+          ((max ‖L‖ 1 ^ 2 / c) ^ ((N - n) / 2) / (((N - n) / 2).factorial : ℝ)) := by
+      rw [show k + 1 + j * i + n = (k + j * i + n) + 1 by ring, pow_succ]
+      ring
+    calc
+      _ ≤ _ := h2a
+      _ = _ := h2b
+      _ ≤ _ := by gcongr
+  exact hprod1.trans ((hrearr1 ▸ hquad_mul).trans htail_mul)
+
+private theorem gauss_taylor_tendsto {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E]
+    [FiniteDimensional ℝ E] (b : ℝ) (hb : 0 < b) (y : E) :
+    Tendsto (fun N : ℕ ↦ ∑ m ∈ Finset.range N,
+      (((2 * b : ℂ) ^ m / (m.factorial : ℂ)) •
+        SchwartzMap.smulLeftCLM ℂ (fun x : E ↦ ((inner ℝ x y : ℝ) : ℂ) ^ m)
+          ((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM)))
+      atTop
+      (nhds ((Real.exp (b * ‖y‖ ^ 2) : ℂ) •
+        (((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM).compSubConstCLM ℂ y))) := by
+  have hinner_tg : (fun x : E ↦ inner ℝ x y).HasTemperateGrowth := by
+    convert (innerSL ℝ y).hasTemperateGrowth using 1
+    ext x
+    exact real_inner_comm y x
+  let F : ℕ → SchwartzMap E ℝ := fun N ↦
+    Real.exp (b * ‖y‖ ^ 2) • ((SchwartzMap.gaussian b hb).compSubConstCLM ℝ y) -
+      ∑ m ∈ Finset.range N, ((2 * b) ^ m / (m.factorial : ℝ)) •
+        SchwartzMap.smulLeftCLM ℝ (fun x : E ↦ (inner ℝ x y) ^ m) (SchwartzMap.gaussian b hb)
+  have hF : Tendsto F atTop (nhds 0) := by
+    rw [(schwartz_withSeminorms ℝ E ℝ).tendsto_nhds _ 0]
+    intro ⟨k, n⟩ ε hε
+    simp only [sub_zero]
+    have hns : (fun x : E ↦ ‖x‖ ^ 2).HasTemperateGrowth :=
+      Function.hasTemperateGrowth_norm_sq E
+    obtain ⟨j, C₀, hC₀⟩ := hns.norm_iteratedFDeriv_le_uniform n
+    let D₀ : ℝ := b * max C₀ 0 + 1
+    have hD₀ : 1 ≤ D₀ := by simp only [D₀, le_add_iff_nonneg_left]; positivity
+    let L : E →L[ℝ] ℝ := (2 * b) • innerSL ℝ y
+    have hL_apply : ∀ x : E, L x = 2 * b * inner ℝ x y := fun x ↦ by
+      simp [L, real_inner_comm]
+    let c : ℝ := b / 4
+    have hc : 0 < c := by positivity
+    let B : ℝ := ∑ i ∈ Finset.range (n + 1), (n.choose i : ℝ) *
+      (i.factorial * D₀ ^ i * max ‖L‖ 1 ^ (2 * n) *
+        Real.exp (‖L‖ ^ 2 / (8 * c)) * max ‖L‖ 1 *
+        gaussianPolyC c (k + 1 + j * i + n))
+    have hbd : ∀ N : ℕ, n ≤ N → SchwartzMap.seminorm ℝ k n (F N) ≤
+        B * ((max ‖L‖ 1 ^ 2 / c) ^ ((N - n) / 2) / (((N - n) / 2).factorial : ℝ)) := by
+      intro N hN
+      have hB : 0 ≤ B := Finset.sum_nonneg fun i _ ↦ by
+        have := gaussianPolyC_nonneg hc (k + 1 + j * i + n)
+        positivity
+      refine SchwartzMap.seminorm_le_bound ℝ k n (F N) (by positivity) fun x ↦ ?_
+      let RN : ℝ → ℝ := fun u ↦ Real.exp u - ∑ m ∈ Finset.range N, u ^ m / (m.factorial : ℝ)
+      have hRN_smooth : ContDiff ℝ (∞) RN :=
+        Real.contDiff_exp.sub (ContDiff.sum fun m _ ↦ (contDiff_id.pow m).div_const _)
+      have hpowR : ∀ m, (fun z : E ↦ inner ℝ z y ^ m).HasTemperateGrowth :=
+        fun m ↦ hinner_tg.pow m
+      have hFun : ((F N : SchwartzMap E ℝ) : E → ℝ) =
+          fun z ↦ Real.exp (-b * ‖z‖ ^ 2) * RN (L z) := by
+        ext z
+        simp only [F, sub_apply, smul_apply, SchwartzMap.compSubConstCLM_apply,
+          SchwartzMap.gaussian_apply, sum_apply, smul_eq_mul, RN, hL_apply]
+        have hsq : ‖z - y‖ ^ 2 = ‖z‖ ^ 2 - 2 * inner ℝ z y + ‖y‖ ^ 2 := norm_sub_sq_real z y
+        rw [hsq]
+        have hexp : b * ‖y‖ ^ 2 + -b * (‖z‖ ^ 2 - 2 * inner ℝ z y + ‖y‖ ^ 2) =
+            -b * ‖z‖ ^ 2 + 2 * b * inner ℝ z y := by ring
+        rw [← Real.exp_add, hexp, Real.exp_add, mul_sub]
+        congr 1
+        rw [Finset.mul_sum]
+        refine Finset.sum_congr rfl fun m _ ↦ ?_
+        rw [SchwartzMap.smulLeftCLM_apply_apply (hpowR m), SchwartzMap.gaussian_apply,
+          smul_eq_mul, mul_pow]
+        ring
+      rw [hFun]
+      have hgauss_smooth : ContDiff ℝ (∞) (fun z : E ↦ Real.exp (-b * ‖z‖ ^ 2)) :=
+        Real.contDiff_exp.comp (contDiff_const.mul (hns.1.of_le (by simp)))
+      have hleib := norm_iteratedFDeriv_mul_le hgauss_smooth
+        (hRN_smooth.comp L.contDiff) x (n := n) (by simp)
+      have hleib' : ‖x‖ ^ k * ‖iteratedFDeriv ℝ n (fun z ↦ Real.exp (-b * ‖z‖ ^ 2) * RN (L z)) x‖ ≤
+          ‖x‖ ^ k * ∑ i ∈ Finset.range (n + 1), (n.choose i : ℝ) *
+            ‖iteratedFDeriv ℝ i (fun z : E ↦ Real.exp (-b * ‖z‖ ^ 2)) x‖ *
+            ‖iteratedFDeriv ℝ (n - i) (RN ∘ L) x‖ :=
+        mul_le_mul_of_nonneg_left hleib (by positivity)
+      calc
+        ‖x‖ ^ k * ‖iteratedFDeriv ℝ n (fun z ↦ Real.exp (-b * ‖z‖ ^ 2) * RN (L z)) x‖
+            ≤ ‖x‖ ^ k * ∑ i ∈ Finset.range (n + 1), (n.choose i : ℝ) *
+              ‖iteratedFDeriv ℝ i (fun z : E ↦ Real.exp (-b * ‖z‖ ^ 2)) x‖ *
+              ‖iteratedFDeriv ℝ (n - i) (RN ∘ L) x‖ := hleib'
+        _ = ∑ i ∈ Finset.range (n + 1), (n.choose i : ℝ) *
+            (‖x‖ ^ k * ‖iteratedFDeriv ℝ i (fun z : E ↦ Real.exp (-b * ‖z‖ ^ 2)) x‖ *
+              ‖iteratedFDeriv ℝ (n - i) (RN ∘ L) x‖) := by
+          rw [Finset.mul_sum]
+          refine Finset.sum_congr rfl fun i _ ↦ by ring
+        _ ≤ B * ((max ‖L‖ 1 ^ 2 / c) ^ ((N - n) / 2) / (((N - n) / 2).factorial : ℝ)) := by
+          rw [Finset.sum_mul]
+          refine Finset.sum_le_sum fun i hi ↦ ?_
+          have hin : i ≤ n := Nat.lt_succ_iff.mp (Finset.mem_range.mp hi)
+          have hpt := gauss_taylor_pointwise_le b hb y k n N i j C₀ D₀ hD₀ hC₀.2 le_rfl hin hN x
+          calc
+            (n.choose i : ℝ) *
+                (‖x‖ ^ k * ‖iteratedFDeriv ℝ i (fun z : E ↦ Real.exp (-b * ‖z‖ ^ 2)) x‖ *
+                  ‖iteratedFDeriv ℝ (n - i) (RN ∘ L) x‖)
+                ≤ (n.choose i : ℝ) *
+                    ((i.factorial * D₀ ^ i * max ‖L‖ 1 ^ (2 * n) * Real.exp (‖L‖ ^ 2 / (8 * c)) *
+                      max ‖L‖ 1 * gaussianPolyC c (k + 1 + j * i + n)) *
+                    ((max ‖L‖ 1 ^ 2 / c) ^ ((N - n) / 2) / (((N - n) / 2).factorial : ℝ))) :=
+                  mul_le_mul_of_nonneg_left hpt (Nat.cast_nonneg _)
+            _ = _ := by ring
+    have hpow_lim : Tendsto (fun N : ℕ ↦
+        B * ((max ‖L‖ 1 ^ 2 / c) ^ ((N - n) / 2) / (((N - n) / 2).factorial : ℝ)))
+        atTop (nhds 0) := by
+      have hdiv : Tendsto (fun N : ℕ ↦ (N - n) / 2) atTop atTop :=
+        tendsto_atTop_atTop.mpr fun K ↦ ⟨2 * K + n, fun N hN ↦ by omega⟩
+      have hsum_exp := (NormedSpace.expSeries_div_hasSum_exp (𝔸 := ℝ)
+        (max ‖L‖ 1 ^ 2 / c)).summable.tendsto_atTop_zero
+      have hpow0 : Tendsto (fun p : ℕ ↦
+          (max ‖L‖ 1 ^ 2 / c) ^ p / (p.factorial : ℝ)) atTop (nhds 0) := by
+        simpa [div_eq_mul_inv, mul_comm] using hsum_exp
+      simpa using (hpow0.comp hdiv).const_mul B
+    filter_upwards [eventually_atTop.mpr ⟨n, hbd⟩, hpow_lim.eventually (Iio_mem_nhds hε)] with
+      N hN1 hN2
+    exact lt_of_le_of_lt hN1 hN2
+  let P_clm := SchwartzMap.postcompCLM Complex.ofRealCLM (E := E) (𝕜 := ℝ)
+  have hP := P_clm.continuous.tendsto 0 |>.comp hF
+  rw [map_zero] at hP
+  have hsub : Tendsto (fun N : ℕ ↦
+      ((Real.exp (b * ‖y‖ ^ 2) : ℂ) •
+        (((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM).compSubConstCLM ℂ y)) -
+      ∑ m ∈ Finset.range N,
+        (((2 * b : ℂ) ^ m / (m.factorial : ℂ)) •
+          SchwartzMap.smulLeftCLM ℂ (fun x : E ↦ ((inner ℝ x y : ℝ) : ℂ) ^ m)
+            ((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM)))
+      atTop (nhds 0) := by
+    refine hP.congr fun N ↦ ?_
+    ext x
+    have hpowR : ∀ m, (fun z : E ↦ inner ℝ z y ^ m).HasTemperateGrowth := fun m ↦ hinner_tg.pow m
+    have hpowC : ∀ m, (fun z : E ↦ ((inner ℝ z y : ℝ) : ℂ) ^ m).HasTemperateGrowth :=
+      fun m ↦ (Complex.hasTemperateGrowth_ofReal.comp hinner_tg).pow m
+    simp only [Function.comp_apply, P_clm, SchwartzMap.postcompCLM_apply, Complex.ofRealCLM_apply,
+      F, sub_apply, smul_apply, SchwartzMap.compSubConstCLM_apply, SchwartzMap.gaussian_apply,
+      sum_apply, smul_eq_mul, Complex.ofReal_sub, Complex.ofReal_mul, Complex.ofReal_sum,
+      Complex.ofReal_div, Complex.ofReal_pow, Complex.ofReal_natCast, Complex.ofReal_exp]
+    congr 1
+    refine Finset.sum_congr rfl fun m _ ↦ ?_
+    rw [SchwartzMap.smulLeftCLM_apply_apply (hpowR m),
+      SchwartzMap.smulLeftCLM_apply_apply (hpowC m)]
+    simp only [SchwartzMap.postcompCLM_apply, Complex.ofRealCLM_apply, SchwartzMap.gaussian_apply,
+      smul_eq_mul, Complex.ofReal_mul, Complex.ofReal_pow]
+    push_cast
+    rfl
+  have hneg : Tendsto (fun N : ℕ ↦
+      (∑ m ∈ Finset.range N,
+        (((2 * b : ℂ) ^ m / (m.factorial : ℂ)) •
+          SchwartzMap.smulLeftCLM ℂ (fun x : E ↦ ((inner ℝ x y : ℝ) : ℂ) ^ m)
+            ((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM))) -
+      ((Real.exp (b * ‖y‖ ^ 2) : ℂ) •
+        (((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM).compSubConstCLM ℂ y)))
+      atTop (nhds 0) := by
+    simpa [neg_sub] using hsub.neg
+  exact tendsto_sub_nhds_zero_iff.mp hneg
+
+private theorem schwartzDual_translate_gauss_eq_zero {E : Type*} [NormedAddCommGroup E]
+    [InnerProductSpace ℝ E] [FiniteDimensional ℝ E] (T : StrongDual ℂ (SchwartzMap E ℂ))
+    (b : ℝ) (hb : 0 < b) (y : E)
+    (hm : ∀ m : ℕ, T (SchwartzMap.smulLeftCLM ℂ (fun x : E ↦ ((inner ℝ x y : ℝ) : ℂ) ^ m)
+      ((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM)) = 0) :
+    T (((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM).compSubConstCLM ℂ y) = 0 := by
+  have hlim := (T.continuous.tendsto _).comp (gauss_taylor_tendsto b hb y)
+  have hzero : Tendsto (fun _ : ℕ ↦ (0 : ℂ)) atTop
+      (nhds (T ((Real.exp (b * ‖y‖ ^ 2) : ℂ) •
+        (((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM).compSubConstCLM ℂ y)))) := by
+    refine hlim.congr fun N ↦ ?_
+    simp only [Function.comp_apply, map_sum, map_smul, hm, smul_zero, Finset.sum_const_zero]
+  have hmul : (Real.exp (b * ‖y‖ ^ 2) : ℂ) *
+      T (((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM).compSubConstCLM ℂ y) = 0 := by
+    simpa [map_smul, smul_eq_mul] using (tendsto_nhds_unique tendsto_const_nhds hzero).symm
+  have hexp_ne : (Real.exp (b * ‖y‖ ^ 2) : ℂ) ≠ 0 :=
+    Complex.ofReal_ne_zero.mpr (Real.exp_ne_zero _)
+  exact (mul_eq_zero.mp hmul).resolve_left hexp_ne
+
+end Step3a
+
+section Step3b
+
+private lemma schwartzMap_one_add_norm_pow_mul_integrable {E : Type*} [NormedAddCommGroup E]
+    [InnerProductSpace ℝ E] [FiniteDimensional ℝ E] [MeasureSpace E] [BorelSpace E]
+    [(volume : Measure E).IsAddHaarMeasure]
+    (f : SchwartzMap E ℂ) (k : ℕ) :
+    Integrable (fun y : E ↦ (1 + ‖y‖) ^ k * ‖f y‖) volume := by
+  have h1 : Integrable (fun y : E ↦ 2 ^ k * (‖y‖ ^ 0 * ‖f y‖ + ‖y‖ ^ k * ‖f y‖)) volume :=
+    ((f.integrable_pow_mul volume 0).add (f.integrable_pow_mul volume k)).const_mul (2 ^ k)
+  refine h1.mono ?_ (Eventually.of_forall fun y ↦ ?_)
+  · exact ((continuous_const.add continuous_norm).pow k |>.mul f.continuous.norm).aestronglyMeasurable
+  · rw [Real.norm_of_nonneg (by positivity), Real.norm_of_nonneg (by positivity)]
+    calc
+      (1 + ‖y‖) ^ k * ‖f y‖ ≤ 2 ^ k * (1 + ‖y‖ ^ k) * ‖f y‖ := by
+        gcongr; exact one_add_pow_le (norm_nonneg y) k
+      _ = 2 ^ k * (‖y‖ ^ 0 * ‖f y‖ + ‖y‖ ^ k * ‖f y‖) := by ring
+
+private lemma schwartzConvSet_integrable {E : Type*} [NormedAddCommGroup E]
+    [NormedSpace ℝ E] [FiniteDimensional ℝ E] [MeasureSpace E] [BorelSpace E]
+    [(volume : Measure E).IsAddHaarMeasure]
+    (S : Set E) (f g : SchwartzMap E ℂ) (n : ℕ) (x : E) :
+    Integrable (fun y : E ↦ f y • iteratedFDeriv ℝ n g (x - y)) (volume.restrict S) := by
+  have hcont : Continuous (fun y : E ↦ f y • iteratedFDeriv ℝ n g (x - y)) :=
+    f.continuous.smul (((g.smooth ⊤).continuous_iteratedFDeriv (mod_cast le_top)).comp
+      (continuous_const.sub continuous_id))
+  refine Integrable.mono (f.integrable.norm.mul_const (SchwartzMap.seminorm ℂ 0 n g)).integrableOn
+    hcont.aestronglyMeasurable (Eventually.of_forall fun y ↦ ?_)
+  rw [norm_smul, Real.norm_of_nonneg (mul_nonneg (norm_nonneg _) (apply_nonneg _ _))]
+  gcongr
+  simpa using SchwartzMap.le_seminorm ℂ 0 n g (x - y)
+
+private lemma schwartzConvSet_hasFDerivAt {E : Type*} [NormedAddCommGroup E]
+    [NormedSpace ℝ E] [FiniteDimensional ℝ E] [MeasureSpace E] [BorelSpace E]
+    [(volume : Measure E).IsAddHaarMeasure]
+    (S : Set E) (f g : SchwartzMap E ℂ) (n : ℕ) (x : E) :
+    let CL := continuousMultilinearCurryLeftEquiv ℝ (fun _ : Fin (n + 1) ↦ E) ℂ
+    HasFDerivAt (fun z : E ↦ ∫ y in S, f y • iteratedFDeriv ℝ n g (z - y))
+      (CL.toContinuousLinearEquiv.toContinuousLinearMap
+        (∫ y in S, f y • iteratedFDeriv ℝ (n + 1) g (x - y))) x := by
+  intro CL
+  let F : E → E → ContinuousMultilinearMap ℝ (fun _ : Fin n ↦ E) ℂ :=
+    fun z y ↦ f y • iteratedFDeriv ℝ n g (z - y)
+  let F' : E → E → E →L[ℝ] ContinuousMultilinearMap ℝ (fun _ : Fin n ↦ E) ℂ :=
+    fun z y ↦ f y • CL (iteratedFDeriv ℝ (n + 1) g (z - y))
+  have hdiff := hasFDerivAt_integral_of_dominated_of_fderiv_le (F := F) (F' := F') univ_mem
+    (Eventually.of_forall fun z ↦ (f.continuous.smul (((g.smooth ⊤).continuous_iteratedFDeriv
+      (mod_cast le_top)).comp (continuous_const.sub continuous_id))).aestronglyMeasurable)
+    (schwartzConvSet_integrable S f g n x)
+    ((f.continuous.smul (CL.continuous.comp (((g.smooth ⊤).continuous_iteratedFDeriv
+      (mod_cast le_top)).comp (continuous_const.sub continuous_id)))).aestronglyMeasurable)
+    (Eventually.of_forall fun y z _ ↦ by
+      simp only [F', norm_smul, LinearIsometryEquiv.norm_map]
+      refine mul_le_mul_of_nonneg_left ?_ (norm_nonneg _)
+      simpa using SchwartzMap.le_seminorm ℂ 0 (n + 1) g (z - y))
+    ((f.integrable.norm.mul_const (SchwartzMap.seminorm ℂ 0 (n + 1) g)).integrableOn)
+    (Eventually.of_forall fun y z _ ↦ by
+      have hg1 : HasFDerivAt (fun w : E ↦ iteratedFDeriv ℝ n g (w - y))
+          (CL (iteratedFDeriv ℝ (n + 1) g (z - y))) z := by
+        have hd := ((g.smooth (n + 1 : ℕ)).differentiable_iteratedFDeriv (m := n)
+          (by norm_cast; omega) (z - y)).hasFDerivAt
+        have hsub : HasFDerivAt (fun w : E ↦ w - y) (ContinuousLinearMap.id ℝ E) z :=
+          (hasFDerivAt_id z).sub_const y
+        have hcomp := hd.comp z hsub
+        rw [ContinuousLinearMap.comp_id] at hcomp
+        refine hcomp.congr_fderiv ?_
+        ext u v
+        simp [CL, iteratedFDeriv_succ_apply_left]
+      exact hg1.const_smul (f y))
+  have hint' : Integrable (fun y : E ↦ f y • iteratedFDeriv ℝ (n + 1) g (x - y))
+      (volume.restrict S) := schwartzConvSet_integrable S f g (n + 1) x
+  have heq : (∫ y in S, F' x y) =
+      CL.toContinuousLinearEquiv.toContinuousLinearMap
+        (∫ y in S, f y • iteratedFDeriv ℝ (n + 1) g (x - y)) := by
+    rw [← CL.toContinuousLinearEquiv.toContinuousLinearMap.integral_comp_comm hint']
+    refine integral_congr_ae (Eventually.of_forall fun y ↦ ?_)
+    ext u v
+    simp [F', CL]
+  rwa [← heq]
+
+private lemma schwartzConvSet_iteratedFDeriv {E : Type*} [NormedAddCommGroup E]
+    [NormedSpace ℝ E] [FiniteDimensional ℝ E] [MeasureSpace E] [BorelSpace E]
+    [(volume : Measure E).IsAddHaarMeasure]
+    (S : Set E) (f g : SchwartzMap E ℂ) (n : ℕ) :
+    ∀ x : E, iteratedFDeriv ℝ n (fun z : E ↦ ∫ y in S, f y * g (z - y)) x =
+      ∫ y in S, f y • iteratedFDeriv ℝ n g (x - y) := by
+  induction n with
+  | zero =>
+    intro x
+    let C0 := (continuousMultilinearCurryFin0 ℝ E ℂ).symm.toContinuousLinearEquiv.toContinuousLinearMap
+    have hint : Integrable (fun y : E ↦ f y * g (x - y)) (volume.restrict S) := by
+      refine Integrable.mono (f.integrable.norm.mul_const (SchwartzMap.seminorm ℂ 0 0 g)).integrableOn
+        (f.continuous.mul (g.continuous.comp (continuous_const.sub continuous_id))).aestronglyMeasurable
+        (Eventually.of_forall fun y ↦ ?_)
+      simp only [norm_mul, Real.norm_of_nonneg (norm_nonneg _),
+        Real.norm_of_nonneg (apply_nonneg _ _)]
+      refine mul_le_mul_of_nonneg_left ?_ (norm_nonneg _)
+      simpa using SchwartzMap.le_seminorm ℂ 0 0 g (x - y)
+    change C0 (∫ y in S, f y * g (x - y)) = ∫ y in S, f y • C0 (g (x - y))
+    rw [← C0.integral_comp_comm hint]
+    refine integral_congr_ae (Eventually.of_forall fun y ↦ ?_)
+    ext v
+    simp [C0, smul_eq_mul]
+  | succ n ih =>
+    intro x
+    let CL := continuousMultilinearCurryLeftEquiv ℝ (fun _ : Fin (n + 1) ↦ E) ℂ
+    have hEq : iteratedFDeriv ℝ n (fun z : E ↦ ∫ y in S, f y * g (z - y)) =
+        fun z : E ↦ ∫ y in S, f y • iteratedFDeriv ℝ n g (z - y) := funext ih
+    have hdiff := schwartzConvSet_hasFDerivAt S f g n x
+    rw [iteratedFDeriv_succ_eq_comp_left, Function.comp_apply, hEq, hdiff.fderiv]
+    exact CL.symm_apply_apply _
+
+private noncomputable def schwartzConvSet {E : Type*} [NormedAddCommGroup E]
+    [InnerProductSpace ℝ E] [FiniteDimensional ℝ E] [MeasureSpace E] [BorelSpace E]
+    [(volume : Measure E).IsAddHaarMeasure]
+    (S : Set E) (f g : SchwartzMap E ℂ) : SchwartzMap E ℂ where
+  toFun := fun x ↦ ∫ y in S, f y * g (x - y)
+  smooth' := by
+    refine contDiff_of_differentiable_iteratedFDeriv fun m _ ↦ fun x ↦ ?_
+    have hEq : iteratedFDeriv ℝ m (fun z : E ↦ ∫ y in S, f y * g (z - y)) =
+        fun z : E ↦ ∫ y in S, f y • iteratedFDeriv ℝ m g (z - y) :=
+      funext (schwartzConvSet_iteratedFDeriv S f g m)
+    rw [hEq]
+    exact (schwartzConvSet_hasFDerivAt S f g m x).differentiableAt
+  decay' k n := by
+    let Cg := 2 ^ k * (SchwartzMap.seminorm ℂ 0 n g + SchwartzMap.seminorm ℂ k n g)
+    let C := Cg * ∫ y in S, (1 + ‖y‖) ^ k * ‖f y‖
+    refine ⟨C, fun x ↦ ?_⟩
+    rw [schwartzConvSet_iteratedFDeriv S f g n x]
+    have hbd1 : ‖∫ y in S, f y • iteratedFDeriv ℝ n g (x - y)‖ ≤
+        ∫ y in S, ‖f y‖ * ‖iteratedFDeriv ℝ n g (x - y)‖ := by
+      refine (norm_integral_le_integral_norm _).trans_eq ?_
+      simp [norm_smul]
+    have hint : Integrable (fun y : E ↦ Cg * ((1 + ‖y‖) ^ k * ‖f y‖)) (volume.restrict S) :=
+      ((schwartzMap_one_add_norm_pow_mul_integrable f k).const_mul Cg).integrableOn
+    have hint_lhs : Integrable (fun y : E ↦ ‖x‖ ^ k * (‖f y‖ * ‖iteratedFDeriv ℝ n g (x - y)‖))
+        (volume.restrict S) := by
+      refine ((schwartzConvSet_integrable S f g n x).norm.const_mul (‖x‖ ^ k)).congr
+        (Eventually.of_forall fun y ↦ ?_)
+      simp [norm_smul]
+    have hpt : ∀ y : E, ‖x‖ ^ k * (‖f y‖ * ‖iteratedFDeriv ℝ n g (x - y)‖) ≤
+        Cg * ((1 + ‖y‖) ^ k * ‖f y‖) := fun y ↦ by
+      have hx1 : 1 + ‖x‖ ≤ (1 + ‖x - y‖) * (1 + ‖y‖) := by
+        have htri : ‖x‖ ≤ ‖x - y‖ + ‖y‖ := norm_le_norm_sub_add x y
+        nlinarith [norm_nonneg (x - y), norm_nonneg y]
+      have hxk : ‖x‖ ^ k ≤ (1 + ‖x - y‖) ^ k * (1 + ‖y‖) ^ k :=
+        (pow_le_pow_left₀ (norm_nonneg x) (by linarith) k).trans
+          ((pow_le_pow_left₀ (by positivity) hx1 k).trans_eq (mul_pow _ _ _))
+      have hg_bd : (1 + ‖x - y‖) ^ k * ‖iteratedFDeriv ℝ n g (x - y)‖ ≤ Cg := by
+        calc
+          (1 + ‖x - y‖) ^ k * ‖iteratedFDeriv ℝ n g (x - y)‖
+              ≤ 2 ^ k * (1 + ‖x - y‖ ^ k) * ‖iteratedFDeriv ℝ n g (x - y)‖ := by
+            gcongr; exact one_add_pow_le (norm_nonneg (x - y)) k
+          _ = 2 ^ k * (‖x - y‖ ^ 0 * ‖iteratedFDeriv ℝ n g (x - y)‖ +
+              ‖x - y‖ ^ k * ‖iteratedFDeriv ℝ n g (x - y)‖) := by ring
+          _ ≤ Cg := by
+            dsimp only [Cg]
+            gcongr
+            · simpa using SchwartzMap.le_seminorm ℂ 0 n g (x - y)
+            · exact SchwartzMap.le_seminorm ℂ k n g (x - y)
+      calc
+        ‖x‖ ^ k * (‖f y‖ * ‖iteratedFDeriv ℝ n g (x - y)‖)
+            ≤ (1 + ‖x - y‖) ^ k * (1 + ‖y‖) ^ k * (‖f y‖ * ‖iteratedFDeriv ℝ n g (x - y)‖) := by
+          gcongr
+        _ = ((1 + ‖x - y‖) ^ k * ‖iteratedFDeriv ℝ n g (x - y)‖) * ((1 + ‖y‖) ^ k * ‖f y‖) := by
+          ring
+        _ ≤ Cg * ((1 + ‖y‖) ^ k * ‖f y‖) := by gcongr
+    calc
+      ‖x‖ ^ k * ‖∫ y in S, f y • iteratedFDeriv ℝ n g (x - y)‖
+          ≤ ‖x‖ ^ k * ∫ y in S, ‖f y‖ * ‖iteratedFDeriv ℝ n g (x - y)‖ := by gcongr
+      _ = ∫ y in S, ‖x‖ ^ k * (‖f y‖ * ‖iteratedFDeriv ℝ n g (x - y)‖) := by
+        rw [← integral_const_mul]
+      _ ≤ ∫ y in S, Cg * ((1 + ‖y‖) ^ k * ‖f y‖) := integral_mono hint_lhs hint hpt
+      _ = C := integral_const_mul Cg _
+
+private lemma schwartzConvSet_apply {E : Type*} [NormedAddCommGroup E]
+    [InnerProductSpace ℝ E] [FiniteDimensional ℝ E] [MeasureSpace E] [BorelSpace E]
+    [(volume : Measure E).IsAddHaarMeasure]
+    (S : Set E) (f g : SchwartzMap E ℂ) (x : E) :
+    schwartzConvSet S f g x = ∫ y in S, f y * g (x - y) := rfl
+
+private lemma schwartzConvSet_seminorm_le {E : Type*} [NormedAddCommGroup E]
+    [InnerProductSpace ℝ E] [FiniteDimensional ℝ E] [MeasureSpace E] [BorelSpace E]
+    [(volume : Measure E).IsAddHaarMeasure]
+    (S : Set E) (f g : SchwartzMap E ℂ) (k n : ℕ) :
+    SchwartzMap.seminorm ℂ k n (schwartzConvSet S f g) ≤
+      2 ^ k * (SchwartzMap.seminorm ℂ 0 n g + SchwartzMap.seminorm ℂ k n g) *
+        ∫ y in S, (1 + ‖y‖) ^ k * ‖f y‖ := by
+  let Cg := 2 ^ k * (SchwartzMap.seminorm ℂ 0 n g + SchwartzMap.seminorm ℂ k n g)
+  let C := Cg * ∫ y in S, (1 + ‖y‖) ^ k * ‖f y‖
+  have hC : 0 ≤ C := mul_nonneg (by positivity) (integral_nonneg fun _ ↦ by positivity)
+  refine SchwartzMap.seminorm_le_bound ℂ k n (schwartzConvSet S f g) hC fun x ↦ ?_
+  change ‖x‖ ^ k * ‖iteratedFDeriv ℝ n (fun z : E ↦ ∫ y in S, f y * g (z - y)) x‖ ≤ C
+  rw [schwartzConvSet_iteratedFDeriv S f g n x]
+  have hbd1 : ‖∫ y in S, f y • iteratedFDeriv ℝ n g (x - y)‖ ≤
+      ∫ y in S, ‖f y‖ * ‖iteratedFDeriv ℝ n g (x - y)‖ := by
+    refine (norm_integral_le_integral_norm _).trans_eq ?_
+    simp [norm_smul]
+  have hint : Integrable (fun y : E ↦ Cg * ((1 + ‖y‖) ^ k * ‖f y‖)) (volume.restrict S) :=
+    ((schwartzMap_one_add_norm_pow_mul_integrable f k).const_mul Cg).integrableOn
+  have hint_lhs : Integrable (fun y : E ↦ ‖x‖ ^ k * (‖f y‖ * ‖iteratedFDeriv ℝ n g (x - y)‖))
+      (volume.restrict S) := by
+    refine ((schwartzConvSet_integrable S f g n x).norm.const_mul (‖x‖ ^ k)).congr
+      (Eventually.of_forall fun y ↦ ?_)
+    simp [norm_smul]
+  have hpt : ∀ y : E, ‖x‖ ^ k * (‖f y‖ * ‖iteratedFDeriv ℝ n g (x - y)‖) ≤
+      Cg * ((1 + ‖y‖) ^ k * ‖f y‖) := fun y ↦ by
+    have hx1 : 1 + ‖x‖ ≤ (1 + ‖x - y‖) * (1 + ‖y‖) := by
+      have htri : ‖x‖ ≤ ‖x - y‖ + ‖y‖ := norm_le_norm_sub_add x y
+      nlinarith [norm_nonneg (x - y), norm_nonneg y]
+    have hxk : ‖x‖ ^ k ≤ (1 + ‖x - y‖) ^ k * (1 + ‖y‖) ^ k :=
+      (pow_le_pow_left₀ (norm_nonneg x) (by linarith) k).trans
+        ((pow_le_pow_left₀ (by positivity) hx1 k).trans_eq (mul_pow _ _ _))
+    have hg_bd : (1 + ‖x - y‖) ^ k * ‖iteratedFDeriv ℝ n g (x - y)‖ ≤ Cg := by
+      calc
+        (1 + ‖x - y‖) ^ k * ‖iteratedFDeriv ℝ n g (x - y)‖
+            ≤ 2 ^ k * (1 + ‖x - y‖ ^ k) * ‖iteratedFDeriv ℝ n g (x - y)‖ := by
+          gcongr; exact one_add_pow_le (norm_nonneg (x - y)) k
+        _ = 2 ^ k * (‖x - y‖ ^ 0 * ‖iteratedFDeriv ℝ n g (x - y)‖ +
+            ‖x - y‖ ^ k * ‖iteratedFDeriv ℝ n g (x - y)‖) := by ring
+        _ ≤ Cg := by
+          dsimp only [Cg]
+          gcongr
+          · simpa using SchwartzMap.le_seminorm ℂ 0 n g (x - y)
+          · exact SchwartzMap.le_seminorm ℂ k n g (x - y)
+    calc
+      ‖x‖ ^ k * (‖f y‖ * ‖iteratedFDeriv ℝ n g (x - y)‖)
+          ≤ (1 + ‖x - y‖) ^ k * (1 + ‖y‖) ^ k * (‖f y‖ * ‖iteratedFDeriv ℝ n g (x - y)‖) := by
+        gcongr
+      _ = ((1 + ‖x - y‖) ^ k * ‖iteratedFDeriv ℝ n g (x - y)‖) * ((1 + ‖y‖) ^ k * ‖f y‖) := by
+        ring
+      _ ≤ Cg * ((1 + ‖y‖) ^ k * ‖f y‖) := by gcongr
+  calc
+    ‖x‖ ^ k * ‖∫ y in S, f y • iteratedFDeriv ℝ n g (x - y)‖
+        ≤ ‖x‖ ^ k * ∫ y in S, ‖f y‖ * ‖iteratedFDeriv ℝ n g (x - y)‖ := by gcongr
+    _ = ∫ y in S, ‖x‖ ^ k * (‖f y‖ * ‖iteratedFDeriv ℝ n g (x - y)‖) := by
+      rw [← integral_const_mul]
+    _ ≤ ∫ y in S, Cg * ((1 + ‖y‖) ^ k * ‖f y‖) := integral_mono hint_lhs hint hpt
+    _ = C := integral_const_mul Cg _
+
+private lemma schwartzConvSet_univ_comm {E : Type*} [NormedAddCommGroup E]
+    [InnerProductSpace ℝ E] [FiniteDimensional ℝ E] [MeasureSpace E] [BorelSpace E]
+    [(volume : Measure E).IsAddHaarMeasure]
+    (f g : SchwartzMap E ℂ) :
+    schwartzConvSet Set.univ f g = schwartzConvSet Set.univ g f := by
+  ext x
+  simp only [schwartzConvSet_apply, Measure.restrict_univ]
+  have hsub := integral_sub_left_eq_self (fun y : E ↦ f y * g (x - y)) volume x
+  rw [← hsub]
+  refine integral_congr_ae (Eventually.of_forall fun u ↦ ?_)
+  simp [sub_sub_cancel, mul_comm]
+
+private lemma schwartzConvSet_compl_eq_sub {E : Type*} [NormedAddCommGroup E]
+    [InnerProductSpace ℝ E] [FiniteDimensional ℝ E] [MeasureSpace E] [BorelSpace E]
+    [(volume : Measure E).IsAddHaarMeasure]
+    {S : Set E} (hS : MeasurableSet S) (f g : SchwartzMap E ℂ) :
+    schwartzConvSet Set.univ f g - schwartzConvSet S f g = schwartzConvSet Sᶜ f g := by
+  ext x
+  simp only [sub_apply, schwartzConvSet_apply, Measure.restrict_univ]
+  have hint : Integrable (fun y : E ↦ f y * g (x - y)) volume := by
+    refine Integrable.mono (f.integrable.norm.mul_const (SchwartzMap.seminorm ℂ 0 0 g))
+      (f.continuous.mul (g.continuous.comp (continuous_const.sub continuous_id))).aestronglyMeasurable
+      (Eventually.of_forall fun y ↦ ?_)
+    simp only [norm_mul, Real.norm_of_nonneg (norm_nonneg _),
+      Real.norm_of_nonneg (apply_nonneg _ _)]
+    refine mul_le_mul_of_nonneg_left ?_ (norm_nonneg _)
+    simpa using SchwartzMap.le_seminorm ℂ 0 0 g (x - y)
+  rw [← integral_add_compl hS hint]
+  ring
+
+private theorem schwartzDual_eq_zero_of_ball_approx {E : Type*} [NormedAddCommGroup E]
+    [InnerProductSpace ℝ E] [FiniteDimensional ℝ E] [MeasureSpace E] [BorelSpace E]
+    [(volume : Measure E).IsAddHaarMeasure]
+    (T : StrongDual ℂ (SchwartzMap E ℂ))
+    (hvan : ∀ (b : ℝ) (hb : 0 < b) (y : E),
+      T (((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM).compSubConstCLM ℂ y) = 0)
+    (f : SchwartzMap E ℂ) (b : ℝ) (hb : 0 < b) (R : ℝ) (hR : 0 ≤ R)
+    (s : Finset (ℕ × ℕ)) (ε : ℝ) (hε : 0 < ε) :
+    ∃ h : SchwartzMap E ℂ, T h = 0 ∧
+      ∀ p ∈ s, SchwartzMap.seminorm ℂ p.1 p.2
+        (schwartzConvSet (Metric.closedBall 0 R) f ((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM) - h) < ε := by
+  let g : SchwartzMap E ℂ := (SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM
+  have hf1 : 0 ≤ ∫ y in Metric.closedBall (0 : E) R, ‖f y‖ :=
+    integral_nonneg fun _ ↦ norm_nonneg _
+  let M : ℝ := (∑ p ∈ s,
+    2 ^ p.1 * (1 + R + 1) ^ p.1 * (SchwartzMap.seminorm ℂ 0 (p.2 + 1) g + SchwartzMap.seminorm ℂ p.1 (p.2 + 1) g)) + 1
+  have hM : 0 < M := by positivity
+  let I₀ : ℝ := (∫ y in Metric.closedBall (0 : E) R, ‖f y‖) + 1
+  have hI₀ : 0 < I₀ := lt_of_lt_of_le zero_lt_one (le_add_of_nonneg_left hf1)
+  let δ : ℝ := min 1 (ε / (2 * M * I₀))
+  have hδ : 0 < δ := lt_min one_pos (by positivity)
+  have hcov : Metric.closedBall (0 : E) R ⊆ ⋃ y ∈ Metric.closedBall (0 : E) R, Metric.ball y δ :=
+    fun y hy ↦ Set.mem_biUnion hy (Metric.mem_ball_self hδ)
+  obtain ⟨t, ht⟩ := (isCompact_closedBall (0 : E) R).elim_finite_subcover_image
+    (fun y _ ↦ Metric.isOpen_ball) hcov
+  let t₀ : Finset E := ht.2.1.toFinset
+  let N : ℕ := t₀.card
+  let l : Fin N → E := fun j ↦ (t₀.equivFin.symm j).1
+  let B : ℕ → Set E := fun j ↦
+    if hj : j < N then Metric.closedBall (0 : E) R ∩ Metric.ball (l ⟨j, hj⟩) δ else ∅
+  have hB_meas : ∀ j : ℕ, MeasurableSet (B j) := fun j ↦ by
+    by_cases hj : j < N
+    · simp only [B, dite_eq_left hj]
+      exact measurableSet_closedBall.inter measurableSet_ball
+    · simp [B, hj]
+  let A : ℕ → Set E := disjointed B
+  let A_fin : Fin N → Set E := fun j ↦ A j.1
+  have hA_meas : ∀ j : Fin N, MeasurableSet (A_fin j) := fun j ↦
+    MeasurableSet.disjointed hB_meas j.1
+  have hA_disj : Pairwise (Disjoint on A_fin) := fun i j hij ↦
+    disjoint_disjointed B (Fin.val_ne_of_ne hij)
+  have hA_union : (⋃ j : Fin N, A_fin j) = Metric.closedBall (0 : E) R := by
+    have hsub_empty : ∀ m : ℕ, ¬ m < N → A m = ∅ := fun m hm ↦ by
+      rw [← Set.subset_empty_iff]
+      refine (disjointed_subset B m).trans ?_
+      simp [B, hm]
+    have hU : (⋃ j : Fin N, A_fin j) = ⋃ m : ℕ, A m := by
+      refine Set.Subset.antisymm (Set.iUnion_subset fun j ↦ Set.subset_iUnion A j.1)
+        (Set.iUnion_subset fun m ↦ ?_)
+      by_cases hm : m < N
+      · exact Set.subset_iUnion A_fin ⟨m, hm⟩
+      · simp [hsub_empty m hm]
+    rw [hU, iUnion_disjointed]
+    refine Set.Subset.antisymm (Set.iUnion_subset fun m ↦ by
+      by_cases hm : m < N
+      · simp only [B, dite_eq_left hm]; exact Set.inter_subset_left
+      · simp [B, hm]) fun y hy ↦ ?_
+    have hy' := ht.2.2 hy
+    simp only [Set.mem_iUnion, exists_prop] at hy'
+    obtain ⟨y₀, hy₀, hyb⟩ := hy'
+    let j := t₀.equivFin ⟨y₀, ht.2.1.mem_toFinset.mpr hy₀⟩
+    refine Set.mem_iUnion.mpr ⟨j.1, ?_⟩
+    dsimp only [B]
+    rw [dite_eq_left j.isLt]
+    refine ⟨hy, ?_⟩
+    simpa [l, j] using hyb
+  let c : Fin N → ℂ := fun j ↦ ∫ y in A_fin j, f y
+  let h : SchwartzMap E ℂ := ∑ j : Fin N, c j • g.compSubConstCLM ℂ (l j)
+  refine ⟨h, ?_, fun p hp ↦ ?_⟩
+  · simp only [h, map_sum, map_smul]
+    refine Finset.sum_eq_zero fun j _ ↦ ?_
+    rw [hvan b hb (l j), smul_zero]
+  · have hk_le : 2 ^ p.1 * (1 + R + 1) ^ p.1 *
+        (SchwartzMap.seminorm ℂ 0 (p.2 + 1) g + SchwartzMap.seminorm ℂ p.1 (p.2 + 1) g) ≤ M :=
+      (Finset.single_le_sum (f := fun q : ℕ × ℕ ↦ 2 ^ q.1 * (1 + R + 1) ^ q.1 *
+        (SchwartzMap.seminorm ℂ 0 (q.2 + 1) g + SchwartzMap.seminorm ℂ q.1 (q.2 + 1) g))
+        (fun _ _ ↦ by positivity) hp).trans (by linarith)
+    refine (SchwartzMap.seminorm_le_bound ℂ p.1 p.2 _
+      (M := (∫ y in Metric.closedBall (0 : E) R, ‖f y‖) * (M * δ))
+      (mul_nonneg hf1 (by positivity)) fun x ↦ ?_).trans_lt ?_
+    · have hdiff_deriv : iteratedFDeriv ℝ p.2 (⇑(schwartzConvSet (Metric.closedBall 0 R) f g - h)) x =
+          ∑ j : Fin N, ∫ y in A_fin j, f y • (iteratedFDeriv ℝ p.2 g (x - y) - iteratedFDeriv ℝ p.2 g (x - l j)) := by
+        have hsub : iteratedFDeriv ℝ p.2 (⇑(schwartzConvSet (Metric.closedBall 0 R) f g - h)) x =
+            iteratedFDeriv ℝ p.2 (⇑(schwartzConvSet (Metric.closedBall 0 R) f g)) x -
+              iteratedFDeriv ℝ p.2 (⇑h) x :=
+          iteratedFDeriv_sub_apply ((schwartzConvSet _ _ _).smooth p.2 |>.contDiffAt)
+            (h.smooth p.2 |>.contDiffAt)
+        rw [hsub]
+        rw [show (⇑(schwartzConvSet (Metric.closedBall 0 R) f g)) =
+            fun z ↦ ∫ y in Metric.closedBall 0 R, f y * g (z - y) from rfl]
+        rw [schwartzConvSet_iteratedFDeriv (Metric.closedBall 0 R) f g p.2 x]
+        have hh_deriv : iteratedFDeriv ℝ p.2 (⇑h) x =
+            ∑ j : Fin N, c j • iteratedFDeriv ℝ p.2 g (x - l j) := by
+          have hsum_d : iteratedFDeriv ℝ p.2 (fun z : E ↦ ∑ j : Fin N, c j • g.compSubConstCLM ℂ (l j) z) x =
+              ∑ j : Fin N, iteratedFDeriv ℝ p.2 (fun z : E ↦ c j • g (z - l j)) x := by
+            rw [iteratedFDeriv_sum (fun j _ ↦ ((g.compSubConstCLM ℂ (l j)).smooth p.2).const_smul (c j))]
+            rw [Finset.sum_apply]
+            rfl
+          have hpt_d : ∀ j : Fin N, iteratedFDeriv ℝ p.2 (fun z : E ↦ c j • g (z - l j)) x =
+              c j • iteratedFDeriv ℝ p.2 g (x - l j) := fun j ↦ by
+            have hg_sub : ContDiff ℝ p.2 (fun z : E ↦ g (z - l j)) :=
+              (g.smooth p.2).comp (contDiff_id.sub contDiff_const)
+            rw [show (fun z : E ↦ c j • g (z - l j)) = (c j • fun z : E ↦ g (z - l j)) from rfl,
+              iteratedFDeriv_const_smul_apply (hg_sub.contDiffAt (x := x))]
+            congr 1
+            simpa [sub_eq_add_neg] using iteratedFDeriv_comp_add_right (f := ⇑g) p.2 (-l j) x
+          calc
+            iteratedFDeriv ℝ p.2 (⇑h) x = iteratedFDeriv ℝ p.2 (fun z : E ↦ ∑ j : Fin N, c j • g.compSubConstCLM ℂ (l j) z) x := by
+              congr 1; ext z; simp [h]
+            _ = ∑ j : Fin N, iteratedFDeriv ℝ p.2 (fun z : E ↦ c j • g (z - l j)) x := hsum_d
+            _ = ∑ j : Fin N, c j • iteratedFDeriv ℝ p.2 g (x - l j) := Finset.sum_congr rfl fun j _ ↦ hpt_d j
+        rw [hh_deriv, ← hA_union]
+        have hint_A : Integrable (fun y : E ↦ f y • iteratedFDeriv ℝ p.2 g (x - y))
+            (volume.restrict (⋃ j : Fin N, A_fin j)) := by
+          rw [hA_union]; exact schwartzConvSet_integrable _ f g p.2 x
+        rw [integral_iUnion hA_meas hA_disj hint_A, tsum_fintype, ← Finset.sum_sub_distrib]
+        refine Finset.sum_congr rfl fun j _ ↦ ?_
+        have hint1 : Integrable (fun y : E ↦ f y • iteratedFDeriv ℝ p.2 g (x - y)) (volume.restrict (A_fin j)) :=
+          schwartzConvSet_integrable (A_fin j) f g p.2 x
+        have hint2 : Integrable (fun y : E ↦ f y • iteratedFDeriv ℝ p.2 g (x - l j)) (volume.restrict (A_fin j)) :=
+          f.integrable.integrableOn.smul_const _
+        rw [← integral_smul_const (iteratedFDeriv ℝ p.2 g (x - l j)) (f := fun y ↦ f y) (μ := volume.restrict (A_fin j))]
+        rw [← integral_sub hint1 hint2]
+        refine integral_congr_ae (Eventually.of_forall fun y ↦ ?_)
+        exact (smul_sub _ _ _).symm
+      rw [hdiff_deriv]
+      have hterm : ∀ j : Fin N, ∀ y ∈ A_fin j,
+          ‖x‖ ^ p.1 * ‖f y • (iteratedFDeriv ℝ p.2 g (x - y) - iteratedFDeriv ℝ p.2 g (x - l j))‖ ≤
+            ‖f y‖ * (M * δ) := fun j y hy ↦ by
+        have hyB : y ∈ B j.1 := disjointed_subset B j.1 hy
+        simp only [B, dite_eq_left j.isLt] at hyB
+        have hy_R : ‖y‖ ≤ R := by simpa [dist_eq_norm] using hyB.1
+        have hy_δ : ‖y - l j‖ < δ := by simpa [dist_eq_norm] using hyB.2
+        have hδ1 : δ ≤ 1 := min_le_left _ _
+        let Cg := 2 ^ p.1 * (1 + R + 1) ^ p.1 *
+          (SchwartzMap.seminorm ℂ 0 (p.2 + 1) g + SchwartzMap.seminorm ℂ p.1 (p.2 + 1) g)
+        have hmvt : ‖iteratedFDeriv ℝ p.2 g (x - y) - iteratedFDeriv ℝ p.2 g (x - l j)‖ ≤
+            Cg / (1 + ‖x‖) ^ p.1 * ‖(x - y) - (x - l j)‖ := by
+          have hy_in : x - y ∈ Metric.ball (x - y) 1 := Metric.mem_ball_self one_pos
+          have hly_in : x - l j ∈ Metric.ball (x - y) 1 := by
+            rw [Metric.mem_ball, dist_eq_norm]
+            have heq : (x - l j) - (x - y) = y - l j := by abel
+            rw [heq]
+            exact hy_δ.trans_le hδ1
+          refine (convex_ball (x - y) 1).norm_image_sub_le_of_norm_fderivWithin_le
+            (fun z _ ↦ ((g.smooth (p.2 + 1 : ℕ)).differentiable_iteratedFDeriv (m := p.2)
+              (by exact_mod_cast Nat.lt_succ_self p.2) z).differentiableWithinAt)
+            (fun z hz ↦ ?_) hly_in hy_in
+          rw [((g.smooth (p.2 + 1 : ℕ)).differentiable_iteratedFDeriv (m := p.2)
+            (by exact_mod_cast Nat.lt_succ_self p.2) z).fderivWithin
+            (Metric.isOpen_ball.uniqueDiffWithinAt hz)]
+          rw [Metric.mem_ball, dist_eq_norm] at hz
+          have hx_z : 1 + ‖x‖ ≤ (1 + R + 1) * (1 + ‖z‖) := by
+            have h1 : ‖x‖ ≤ ‖z‖ + ‖y‖ + ‖z - (x - y)‖ := by
+              calc
+                ‖x‖ = ‖z - (z - (x - y)) + y‖ := by congr 1; abel
+                _ ≤ ‖z - (z - (x - y))‖ + ‖y‖ := norm_add_le _ _
+                _ ≤ (‖z‖ + ‖z - (x - y)‖) + ‖y‖ := by gcongr; exact norm_sub_le _ _
+                _ = ‖z‖ + ‖y‖ + ‖z - (x - y)‖ := by ring
+            have h2 : 1 + ‖x‖ ≤ 1 + ‖z‖ + R + 1 := by linarith
+            nlinarith [norm_nonneg z]
+          have hpow_xz : (1 + ‖x‖) ^ p.1 ≤ (1 + R + 1) ^ p.1 * (1 + ‖z‖) ^ p.1 :=
+            (pow_le_pow_left₀ (by positivity) hx_z p.1).trans_eq (mul_pow _ _ _)
+          have hfderiv_eq : ‖fderiv ℝ (iteratedFDeriv ℝ p.2 g) z‖ =
+              ‖iteratedFDeriv ℝ (p.2 + 1) g z‖ := by
+            let CL := continuousMultilinearCurryLeftEquiv ℝ (fun _ : Fin (p.2 + 1) ↦ E) ℂ
+            have hcl : CL.symm (fderiv ℝ (iteratedFDeriv ℝ p.2 g) z) = iteratedFDeriv ℝ (p.2 + 1) g z := by
+              ext v; simp [CL, iteratedFDeriv_succ_apply_left]
+            rw [← hcl, LinearIsometryEquiv.norm_map]
+          rw [hfderiv_eq, le_div_iff₀ (by positivity)]
+          calc
+            ‖iteratedFDeriv ℝ (p.2 + 1) g z‖ * (1 + ‖x‖) ^ p.1
+                ≤ ‖iteratedFDeriv ℝ (p.2 + 1) g z‖ * ((1 + R + 1) ^ p.1 * (1 + ‖z‖) ^ p.1) := by
+              gcongr
+            _ ≤ ‖iteratedFDeriv ℝ (p.2 + 1) g z‖ * ((1 + R + 1) ^ p.1 * (2 ^ p.1 * (1 + ‖z‖ ^ p.1))) := by
+              gcongr; exact one_add_pow_le (norm_nonneg z) p.1
+            _ = 2 ^ p.1 * (1 + R + 1) ^ p.1 *
+                (‖z‖ ^ 0 * ‖iteratedFDeriv ℝ (p.2 + 1) g z‖ + ‖z‖ ^ p.1 * ‖iteratedFDeriv ℝ (p.2 + 1) g z‖) := by
+              ring
+            _ ≤ Cg := by
+              dsimp only [Cg]
+              gcongr
+              · simpa using SchwartzMap.le_seminorm ℂ 0 (p.2 + 1) g z
+              · exact SchwartzMap.le_seminorm ℂ p.1 (p.2 + 1) g z
+        have heq_diff : ‖(x - y) - (x - l j)‖ = ‖y - l j‖ := by
+          rw [show (x - y) - (x - l j) = -(y - l j) by abel, norm_neg]
+        have hxk_le : ‖x‖ ^ p.1 ≤ (1 + ‖x‖) ^ p.1 := pow_le_pow_left₀ (norm_nonneg x) (by linarith) p.1
+        rw [norm_smul]
+        calc
+          ‖x‖ ^ p.1 * (‖f y‖ * ‖iteratedFDeriv ℝ p.2 g (x - y) - iteratedFDeriv ℝ p.2 g (x - l j)‖)
+              = ‖f y‖ * (‖x‖ ^ p.1 * ‖iteratedFDeriv ℝ p.2 g (x - y) - iteratedFDeriv ℝ p.2 g (x - l j)‖) := by
+            ring
+          _ ≤ ‖f y‖ * ((1 + ‖x‖) ^ p.1 * (Cg / (1 + ‖x‖) ^ p.1 * ‖(x - y) - (x - l j)‖)) := by
+            gcongr
+          _ = ‖f y‖ * (Cg * ‖y - l j‖) := by
+            rw [heq_diff]; field_simp [(by positivity : (1 + ‖x‖) ^ p.1 ≠ 0)]
+          _ ≤ ‖f y‖ * (M * δ) :=
+            mul_le_mul_of_nonneg_left
+              (mul_le_mul hk_le hy_δ.le (norm_nonneg _) (by positivity)) (norm_nonneg _)
+      calc
+        ‖x‖ ^ p.1 * ‖∑ j : Fin N, ∫ y in A_fin j, f y • (iteratedFDeriv ℝ p.2 g (x - y) - iteratedFDeriv ℝ p.2 g (x - l j))‖
+            ≤ ‖x‖ ^ p.1 * ∑ j : Fin N, ‖∫ y in A_fin j, f y • (iteratedFDeriv ℝ p.2 g (x - y) - iteratedFDeriv ℝ p.2 g (x - l j))‖ := by
+          gcongr; exact norm_sum_le _ _
+        _ ≤ ∑ j : Fin N, ‖x‖ ^ p.1 * ∫ y in A_fin j, ‖f y • (iteratedFDeriv ℝ p.2 g (x - y) - iteratedFDeriv ℝ p.2 g (x - l j))‖ := by
+          rw [Finset.mul_sum]
+          gcongr with j
+          exact norm_integral_le_integral_norm _
+        _ = ∑ j : Fin N, ∫ y in A_fin j, ‖x‖ ^ p.1 * ‖f y • (iteratedFDeriv ℝ p.2 g (x - y) - iteratedFDeriv ℝ p.2 g (x - l j))‖ := by
+          refine Finset.sum_congr rfl fun j _ ↦ (integral_const_mul _ _).symm
+        _ ≤ ∑ j : Fin N, ∫ y in A_fin j, ‖f y‖ * (M * δ) := by
+          refine Finset.sum_le_sum fun j _ ↦ integral_mono_ae ?_ (f.integrable.norm.mul_const _ |>.integrableOn) ?_
+          · have hint1 : Integrable (fun y : E ↦ f y • iteratedFDeriv ℝ p.2 g (x - y)) (volume.restrict (A_fin j)) :=
+              schwartzConvSet_integrable (A_fin j) f g p.2 x
+            have hint2 : Integrable (fun y : E ↦ f y • iteratedFDeriv ℝ p.2 g (x - l j)) (volume.restrict (A_fin j)) :=
+              f.integrable.integrableOn.smul_const _
+            refine ((hint1.sub hint2).norm.const_mul (‖x‖ ^ p.1)).congr (Eventually.of_forall fun y ↦ ?_)
+            simp [smul_sub]
+          · exact (ae_restrict_iff' (hA_meas j)).mpr (Eventually.of_forall fun y hy ↦ hterm j y hy)
+        _ = (∫ y in Metric.closedBall (0 : E) R, ‖f y‖ * (M * δ)) := by
+          have hint_U : Integrable (fun y : E ↦ ‖f y‖ * (M * δ)) (volume.restrict (⋃ j : Fin N, A_fin j)) := by
+            rw [hA_union]; exact f.integrable.norm.mul_const _ |>.integrableOn
+          have hUnion := integral_iUnion hA_meas hA_disj hint_U
+          rw [hA_union] at hUnion
+          rw [hUnion, tsum_fintype]
+        _ = (∫ y in Metric.closedBall (0 : E) R, ‖f y‖) * (M * δ) := integral_mul_const _ _
+    · calc
+        (∫ y in Metric.closedBall (0 : E) R, ‖f y‖) * (M * δ)
+            ≤ I₀ * (M * (ε / (2 * M * I₀))) := by
+          gcongr
+          · linarith [hf1]
+          · exact min_le_right _ _
+        _ = ε / 2 := by
+          field_simp [hM.ne', hI₀.ne']
+        _ < ε := half_lt_self hε
+
+private lemma schwartzConvSet_tail_tendsto {E : Type*} [NormedAddCommGroup E]
+    [InnerProductSpace ℝ E] [FiniteDimensional ℝ E] [MeasureSpace E] [BorelSpace E]
+    [(volume : Measure E).IsAddHaarMeasure]
+    (f g : SchwartzMap E ℂ) (k n : ℕ) :
+    Tendsto (fun R : ℝ ↦ SchwartzMap.seminorm ℂ k n
+      (schwartzConvSet (Metric.closedBall 0 R)ᶜ f g)) atTop (nhds 0) := by
+  let Cg := 2 ^ k * (SchwartzMap.seminorm ℂ 0 n g + SchwartzMap.seminorm ℂ k n g)
+  let h : E → ℝ := fun y ↦ (1 + ‖y‖) ^ k * ‖f y‖
+  have hh_int : Integrable h volume := schwartzMap_one_add_norm_pow_mul_integrable f k
+  have hlim_int : Tendsto (fun R : ℝ ↦ ∫ y : E, (Metric.closedBall (0 : E) R)ᶜ.indicator h y)
+      atTop (nhds 0) := by
+    have hzero : ∫ y : E, (0 : ℝ) = 0 := integral_zero _ _
+    rw [← hzero]
+    refine tendsto_integral_filter_of_dominated_convergence (bound := h) ?_ ?_ hh_int ?_
+    · refine Eventually.of_forall fun R ↦ ?_
+      exact hh_int.aestronglyMeasurable.indicator measurableSet_closedBall.compl
+    · refine Eventually.of_forall fun R ↦ Eventually.of_forall fun y ↦ ?_
+      rw [Real.norm_of_nonneg (Set.indicator_nonneg (fun _ _ ↦ by positivity) _)]
+      by_cases hy : y ∈ (Metric.closedBall (0 : E) R)ᶜ <;> simp [hy]; positivity
+    · refine Eventually.of_forall fun y ↦ ?_
+      refine tendsto_const_nhds.congr' ?_
+      filter_upwards [Ioi_mem_atTop ‖y‖] with R hR
+      have hy : y ∈ Metric.closedBall (0 : E) R := by simpa [dist_eq_norm] using hR.le
+      simp [hy]
+  have hlim_mul : Tendsto (fun R : ℝ ↦ Cg * ∫ y : E, (Metric.closedBall (0 : E) R)ᶜ.indicator h y)
+      atTop (nhds 0) := by
+    simpa using hlim_int.const_mul Cg
+  refine tendsto_of_tendsto_of_tendsto_of_le_of_le' tendsto_const_nhds hlim_mul
+    (Eventually.of_forall fun _ ↦ apply_nonneg _ _) (Eventually.of_forall fun R ↦ ?_)
+  refine (schwartzConvSet_seminorm_le (Metric.closedBall 0 R)ᶜ f g k n).trans_eq ?_
+  congr 1
+  exact (integral_indicator measurableSet_closedBall.compl).symm
+
+private lemma schwartzConv_gauss_tendsto {E : Type*} [NormedAddCommGroup E]
+    [InnerProductSpace ℝ E] [FiniteDimensional ℝ E] [MeasureSpace E] [BorelSpace E]
+    [(volume : Measure E).IsAddHaarMeasure] (f : SchwartzMap E ℂ) :
+    let I₁ : ℝ := ∫ u : E, Real.exp (-‖u‖ ^ 2)
+    ∀ (k n : ℕ) (ε : ℝ), 0 < ε → ∃ B : ℝ, 1 ≤ B ∧
+      ∀ (b : ℝ) (hb : 0 < b), B ≤ b →
+        let Ib : ℝ := (Real.sqrt b ^ Module.finrank ℝ E)⁻¹ * I₁
+        SchwartzMap.seminorm ℂ k n
+          ((Ib⁻¹ : ℂ) • schwartzConvSet Set.univ f ((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM) - f) < ε := by
+  intro I₁ k n ε hε
+  have hI₁_int : Integrable (fun u : E ↦ Real.exp (-‖u‖ ^ 2)) volume :=
+    ((SchwartzMap.gaussian (E := E) 1 one_pos).integrable (μ := volume)).congr
+      (Eventually.of_forall fun u ↦ by simp [SchwartzMap.gaussian_apply])
+  have hI₁_pos : 0 < I₁ := by
+    refine integral_pos_of_integrable_nonneg_ne_zero
+      (Real.continuous_exp.comp (continuous_neg.comp (continuous_norm.pow 2)))
+      hI₁_int (fun u ↦ (Real.exp_pos _).le) (x := (0 : E)) (by simp)
+  let Cf1 : ℝ := 4 ^ k * (SchwartzMap.seminorm ℂ 0 (n + 1) f + SchwartzMap.seminorm ℂ k (n + 1) f)
+  let Cf0 : ℝ := 2 ^ k * (SchwartzMap.seminorm ℂ 0 n f + SchwartzMap.seminorm ℂ k n f)
+  let r : ℝ := min (1 / 2) (ε / (4 * (Cf1 + 1)))
+  have hr_pos : 0 < r := lt_min (by norm_num) (div_pos hε (by positivity))
+  have hr_half : r ≤ 1 / 2 := min_le_left _ _
+  have hIpoly_int : Integrable (fun u : E ↦ (1 + ‖u‖) ^ k * Real.exp (-(1 / 2 : ℝ) * ‖u‖ ^ 2)) volume := by
+    have hpoly : Integrable (fun u : E ↦ 2 ^ k * ((‖u‖ ^ 0 + ‖u‖ ^ k) * Real.exp (-(1 / 2 : ℝ) * ‖u‖ ^ 2))) volume := by
+      have hg0 : Integrable (fun u : E ↦ ‖u‖ ^ 0 * Real.exp (-(1 / 2 : ℝ) * ‖u‖ ^ 2)) volume := by
+        simpa [SchwartzMap.gaussian_apply] using
+          ((SchwartzMap.gaussian (E := E) (1 / 2) (by norm_num)).integrable_pow_mul volume 0)
+      have hgk : Integrable (fun u : E ↦ ‖u‖ ^ k * Real.exp (-(1 / 2 : ℝ) * ‖u‖ ^ 2)) volume := by
+        simpa [SchwartzMap.gaussian_apply] using
+          ((SchwartzMap.gaussian (E := E) (1 / 2) (by norm_num)).integrable_pow_mul volume k)
+      simpa [add_mul] using (hg0.add hgk).const_mul (2 ^ k)
+    refine hpoly.mono ?_ (Eventually.of_forall fun u ↦ ?_)
+    · exact ((continuous_const.add continuous_norm).pow k |>.mul
+        (Real.continuous_exp.comp (continuous_const.mul (continuous_norm.pow 2)))).aestronglyMeasurable
+    · rw [Real.norm_of_nonneg (by positivity), Real.norm_of_nonneg (by positivity)]
+      calc
+        (1 + ‖u‖) ^ k * Real.exp (-(1 / 2 : ℝ) * ‖u‖ ^ 2)
+            ≤ (2 ^ k * (1 + ‖u‖ ^ k)) * Real.exp (-(1 / 2 : ℝ) * ‖u‖ ^ 2) := by
+          gcongr; exact one_add_pow_le (norm_nonneg u) k
+        _ = 2 ^ k * ((‖u‖ ^ 0 + ‖u‖ ^ k) * Real.exp (-(1 / 2 : ℝ) * ‖u‖ ^ 2)) := by
+          simp only [pow_zero]; ring
+  let Ipoly : ℝ := ∫ u : E, (1 + ‖u‖) ^ k * Real.exp (-(1 / 2 : ℝ) * ‖u‖ ^ 2)
+  have hIpoly_nn : 0 ≤ Ipoly := integral_nonneg fun _ ↦ by positivity
+  let d := Module.finrank ℝ E
+  let A_const : ℝ := I₁⁻¹ * (2 * (Cf0 + 1) * (Ipoly + 1))
+  have hA_nn : 0 ≤ A_const := by positivity
+  let c₀ : ℝ := r ^ 2 / 2
+  have hc₀ : 0 < c₀ := by positivity
+  have hlim_b : Tendsto (fun b : ℝ ↦ A_const * (b + 1) ^ d * Real.exp (-c₀ * b)) atTop (nhds 0) := by
+    have hbd_b : ∀ b : ℝ, 1 ≤ b → A_const * (b + 1) ^ d * Real.exp (-c₀ * b) ≤
+        A_const * 2 ^ d * (((d + 1).factorial : ℝ) / c₀ ^ (d + 1)) / b := fun b hb1 ↦ by
+      have hp := Real.pow_div_factorial_le_exp (c₀ * b) (by positivity) (d + 1)
+      have hexp_inv : Real.exp (-c₀ * b) ≤ ((d + 1).factorial : ℝ) / (c₀ ^ (d + 1) * b ^ (d + 1)) := by
+        rw [le_div_iff₀ (by positivity)]
+        calc
+          Real.exp (-c₀ * b) * (c₀ ^ (d + 1) * b ^ (d + 1))
+              ≤ Real.exp (-c₀ * b) * (Real.exp (c₀ * b) * ((d + 1).factorial : ℝ)) := by
+            rw [div_le_iff₀ (by positivity), mul_pow] at hp
+            exact mul_le_mul_of_nonneg_left hp (Real.exp_pos _).le
+          _ = ((d + 1).factorial : ℝ) := by
+            rw [← mul_assoc, ← Real.exp_add]
+            simp
+      have hb_add : (b + 1) ^ d ≤ 2 ^ d * b ^ d := by
+        calc
+          (b + 1) ^ d ≤ (2 * b) ^ d := pow_le_pow_left₀ (by positivity) (by linarith) d
+          _ = 2 ^ d * b ^ d := mul_pow 2 b d
+      have hb_ne : b ≠ 0 := by linarith
+      calc
+        A_const * (b + 1) ^ d * Real.exp (-c₀ * b)
+            ≤ A_const * (2 ^ d * b ^ d) * (((d + 1).factorial : ℝ) / (c₀ ^ (d + 1) * b ^ (d + 1))) := by
+          gcongr
+        _ = A_const * 2 ^ d * (((d + 1).factorial : ℝ) / c₀ ^ (d + 1)) / b := by
+          rw [pow_succ b d]
+          field_simp [hb_ne]
+    have hb_inv : Tendsto (fun b : ℝ ↦ A_const * 2 ^ d * (((d + 1).factorial : ℝ) / c₀ ^ (d + 1)) / b)
+        atTop (nhds 0) :=
+      tendsto_const_nhds.div_atTop tendsto_id
+    refine tendsto_of_tendsto_of_tendsto_of_le_of_le' tendsto_const_nhds hb_inv
+      ((eventually_ge_atTop (1 : ℝ)).mono fun b _ ↦ by positivity)
+      ((eventually_ge_atTop (1 : ℝ)).mono fun b hb1 ↦ hbd_b b hb1)
+  obtain ⟨B₀, hB₀⟩ := eventually_atTop.mp (hlim_b.eventually (Iio_mem_nhds (by positivity : (0 : ℝ) < ε / 2)))
+  refine ⟨max 1 B₀, le_max_left _ _, fun b hb hbB ↦ ?_⟩
+  have hb1 : 1 ≤ b := (le_max_left 1 B₀).trans hbB
+  have hbB₀ : B₀ ≤ b := (le_max_right 1 B₀).trans hbB
+  let Ib : ℝ := (Real.sqrt b ^ d)⁻¹ * I₁
+  have hIb_eq : ∫ u : E, Real.exp (-b * ‖u‖ ^ 2) = Ib := by
+    have hsc := Measure.integral_comp_smul_of_nonneg (μ := volume)
+      (fun u : E ↦ Real.exp (-‖u‖ ^ 2)) (Real.sqrt b) (hR := Real.sqrt_nonneg b)
+    have hfun : (fun u : E ↦ Real.exp (-‖Real.sqrt b • u‖ ^ 2)) =
+        fun u : E ↦ Real.exp (-b * ‖u‖ ^ 2) := by
+      ext u
+      rw [norm_smul, Real.norm_of_nonneg (Real.sqrt_nonneg b), mul_pow, Real.sq_sqrt hb.le]
+      ring_nf
+    rw [← hfun]
+    simpa [Ib, d, smul_eq_mul] using hsc
+  have hIb_pos : 0 < Ib := mul_pos (inv_pos.mpr (pow_pos (Real.sqrt_pos.mpr hb) d)) hI₁_pos
+  let g : SchwartzMap E ℂ := (SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM
+  have hg_intR : Integrable (fun u : E ↦ Real.exp (-b * ‖u‖ ^ 2)) volume :=
+    ((SchwartzMap.gaussian (E := E) b hb).integrable (μ := volume)).congr
+      (Eventually.of_forall fun u ↦ by simp [SchwartzMap.gaussian_apply])
+  have hbound_eps : Cf1 * r + A_const * (b + 1) ^ d * Real.exp (-c₀ * b) < ε := by
+    have h1 : Cf1 * r ≤ ε / 4 := by
+      calc
+        Cf1 * r ≤ (Cf1 + 1) * (ε / (4 * (Cf1 + 1))) := by
+          gcongr
+          · linarith
+          · exact min_le_right _ _
+        _ = ε / 4 := by field_simp [(by positivity : Cf1 + 1 ≠ 0)]
+    have h2 : A_const * (b + 1) ^ d * Real.exp (-c₀ * b) < ε / 2 := hB₀ b hbB₀
+    linarith
+  refine (SchwartzMap.seminorm_le_bound ℂ k n _
+    (M := Cf1 * r + A_const * (b + 1) ^ d * Real.exp (-c₀ * b))
+    (by positivity) fun x ↦ ?_).trans_lt hbound_eps
+  have hcomm : schwartzConvSet Set.univ f g = schwartzConvSet Set.univ g f :=
+    schwartzConvSet_univ_comm f g
+  have hdiff_deriv : iteratedFDeriv ℝ n (⇑((Ib⁻¹ : ℂ) • schwartzConvSet Set.univ f g - f)) x =
+      (Ib⁻¹ : ℂ) • ∫ u : E, g u • (iteratedFDeriv ℝ n f (x - u) - iteratedFDeriv ℝ n f x) := by
+    have hsub : iteratedFDeriv ℝ n (⇑((Ib⁻¹ : ℂ) • schwartzConvSet Set.univ f g - f)) x =
+        (Ib⁻¹ : ℂ) • iteratedFDeriv ℝ n (⇑(schwartzConvSet Set.univ g f)) x -
+          iteratedFDeriv ℝ n (⇑f) x := by
+      rw [hcomm]
+      have h1 := iteratedFDeriv_sub_apply
+        (((Ib⁻¹ : ℂ) • schwartzConvSet Set.univ g f).smooth n |>.contDiffAt (x := x))
+        (f.smooth n |>.contDiffAt (x := x))
+      have h2 : iteratedFDeriv ℝ n (⇑((Ib⁻¹ : ℂ) • schwartzConvSet Set.univ g f)) x =
+          (Ib⁻¹ : ℂ) • iteratedFDeriv ℝ n (⇑(schwartzConvSet Set.univ g f)) x :=
+        iteratedFDeriv_const_smul_apply ((schwartzConvSet Set.univ g f).smooth n |>.contDiffAt)
+      exact h1.trans (by rw [h2])
+    rw [hsub, show (⇑(schwartzConvSet Set.univ g f)) = fun z ↦ ∫ u in Set.univ, g u * f (z - u) from rfl,
+      schwartzConvSet_iteratedFDeriv Set.univ g f n x, Measure.restrict_univ]
+    have hconst_int : ∫ u : E, g u • iteratedFDeriv ℝ n f x = (Ib : ℂ) • iteratedFDeriv ℝ n f x := by
+      rw [integral_smul_const]
+      congr 1
+      have hcoe : (fun u : E ↦ g u) = fun u : E ↦ Complex.ofRealCLM (Real.exp (-b * ‖u‖ ^ 2)) := by
+        ext u; simp [g, SchwartzMap.gaussian_apply]
+      rw [hcoe, Complex.ofRealCLM.integral_comp_comm hg_intR, Complex.ofRealCLM_apply, hIb_eq]
+    have hsm1 : Integrable (fun u : E ↦ g u • iteratedFDeriv ℝ n f (x - u)) volume := by
+      simpa only [Measure.restrict_univ] using schwartzConvSet_integrable Set.univ g f n x
+    have hsm2 : Integrable (fun u : E ↦ g u • iteratedFDeriv ℝ n f x) volume :=
+      g.integrable.smul_const _
+    calc
+      ((Ib⁻¹ : ℂ) • ∫ y : E, g y • iteratedFDeriv ℝ n f (x - y)) - iteratedFDeriv ℝ n f x
+          = ((Ib⁻¹ : ℂ) • ∫ y : E, g y • iteratedFDeriv ℝ n f (x - y)) -
+              ((Ib⁻¹ : ℂ) • ∫ y : E, g y • iteratedFDeriv ℝ n f x) := by
+            rw [hconst_int, smul_smul, inv_mul_cancel₀ (Complex.ofReal_ne_zero.mpr hIb_pos.ne'),
+              one_smul]
+      _ = (Ib⁻¹ : ℂ) • ∫ u : E, g u • (iteratedFDeriv ℝ n f (x - u) - iteratedFDeriv ℝ n f x) := by
+            rw [← smul_sub, ← integral_sub hsm1 hsm2]
+            refine congrArg ((Ib⁻¹ : ℂ) • ·) (integral_congr_ae (Eventually.of_forall fun u ↦ ?_))
+            exact (smul_sub _ _ _).symm
+  rw [hdiff_deriv, norm_smul, norm_inv, Complex.norm_real, Real.norm_of_nonneg hIb_pos.le]
+  have hpt : ∀ u : E, ‖x‖ ^ k * (Real.exp (-b * ‖u‖ ^ 2) *
+      ‖iteratedFDeriv ℝ n f (x - u) - iteratedFDeriv ℝ n f x‖) ≤
+      (Cf1 * r) * Real.exp (-b * ‖u‖ ^ 2) +
+        (2 * (Cf0 + 1) * Real.exp (-c₀ * b)) * ((1 + ‖u‖) ^ k * Real.exp (-(1 / 2 : ℝ) * ‖u‖ ^ 2)) := by
+    intro u
+    by_cases hu : ‖u‖ ≤ r
+    · have hu_lt : ‖u‖ < 1 := hu.trans_lt (hr_half.trans_lt (by norm_num))
+      have hmvt : ‖iteratedFDeriv ℝ n f (x - u) - iteratedFDeriv ℝ n f x‖ ≤
+          Cf1 / (1 + ‖x‖) ^ k * ‖(x - u) - x‖ := by
+        have hx_in : x ∈ Metric.ball x 1 := Metric.mem_ball_self one_pos
+        have hxu_in : x - u ∈ Metric.ball x 1 := by
+          rw [Metric.mem_ball, dist_eq_norm]
+          simpa using hu_lt
+        refine (convex_ball x 1).norm_image_sub_le_of_norm_fderivWithin_le
+          (fun z _ ↦ ((f.smooth (n + 1 : ℕ)).differentiable_iteratedFDeriv (m := n)
+            (by exact_mod_cast Nat.lt_succ_self n) z).differentiableWithinAt)
+          (fun z hz ↦ ?_) hx_in hxu_in
+        rw [((f.smooth (n + 1 : ℕ)).differentiable_iteratedFDeriv (m := n)
+          (by exact_mod_cast Nat.lt_succ_self n) z).fderivWithin
+          (Metric.isOpen_ball.uniqueDiffWithinAt hz)]
+        rw [Metric.mem_ball, dist_eq_norm] at hz
+        have hxz : 1 + ‖x‖ ≤ 2 * (1 + ‖z‖) := by
+          have : ‖x‖ ≤ ‖z‖ + ‖z - x‖ := by
+            calc
+              ‖x‖ = ‖z - (z - x)‖ := by rw [sub_sub_cancel]
+              _ ≤ ‖z‖ + ‖z - x‖ := norm_sub_le z (z - x)
+          have h1 : ‖z - x‖ < 1 := hz
+          linarith [norm_nonneg z]
+        have hfderiv_eq : ‖fderiv ℝ (iteratedFDeriv ℝ n f) z‖ = ‖iteratedFDeriv ℝ (n + 1) f z‖ := by
+          let CL := continuousMultilinearCurryLeftEquiv ℝ (fun _ : Fin (n + 1) ↦ E) ℂ
+          have hcl : CL.symm (fderiv ℝ (iteratedFDeriv ℝ n f) z) = iteratedFDeriv ℝ (n + 1) f z := by
+            ext v; simp [CL, iteratedFDeriv_succ_apply_left]
+          rw [← hcl, LinearIsometryEquiv.norm_map]
+        rw [hfderiv_eq, le_div_iff₀ (by positivity)]
+        calc
+          ‖iteratedFDeriv ℝ (n + 1) f z‖ * (1 + ‖x‖) ^ k
+              ≤ ‖iteratedFDeriv ℝ (n + 1) f z‖ * (2 ^ k * (1 + ‖z‖) ^ k) := by
+            gcongr; exact (pow_le_pow_left₀ (by positivity) hxz k).trans_eq (mul_pow _ _ _)
+          _ ≤ ‖iteratedFDeriv ℝ (n + 1) f z‖ * (2 ^ k * (2 ^ k * (1 + ‖z‖ ^ k))) := by
+            gcongr; exact one_add_pow_le (norm_nonneg z) k
+          _ = 4 ^ k * (‖z‖ ^ 0 * ‖iteratedFDeriv ℝ (n + 1) f z‖ + ‖z‖ ^ k * ‖iteratedFDeriv ℝ (n + 1) f z‖) := by
+            rw [show (4 : ℝ) = 2 * 2 by norm_num, mul_pow]
+            ring
+          _ ≤ Cf1 := by
+            dsimp only [Cf1]
+            gcongr
+            · simpa using SchwartzMap.le_seminorm ℂ 0 (n + 1) f z
+            · exact SchwartzMap.le_seminorm ℂ k (n + 1) f z
+      have hdiff_xu : ‖(x - u) - x‖ = ‖u‖ := by simp
+      have hxk : ‖x‖ ^ k ≤ (1 + ‖x‖) ^ k := pow_le_pow_left₀ (norm_nonneg x) (by linarith) k
+      have hfirst : ‖x‖ ^ k * (Real.exp (-b * ‖u‖ ^ 2) * ‖iteratedFDeriv ℝ n f (x - u) - iteratedFDeriv ℝ n f x‖) ≤
+          (Cf1 * r) * Real.exp (-b * ‖u‖ ^ 2) := by
+        calc
+          ‖x‖ ^ k * (Real.exp (-b * ‖u‖ ^ 2) * ‖iteratedFDeriv ℝ n f (x - u) - iteratedFDeriv ℝ n f x‖)
+              = Real.exp (-b * ‖u‖ ^ 2) * (‖x‖ ^ k * ‖iteratedFDeriv ℝ n f (x - u) - iteratedFDeriv ℝ n f x‖) := by
+            ring
+          _ ≤ Real.exp (-b * ‖u‖ ^ 2) * ((1 + ‖x‖) ^ k * (Cf1 / (1 + ‖x‖) ^ k * ‖(x - u) - x‖)) := by
+            gcongr
+          _ = Real.exp (-b * ‖u‖ ^ 2) * (Cf1 * ‖u‖) := by
+            rw [hdiff_xu]; field_simp [(by positivity : (1 + ‖x‖) ^ k ≠ 0)]
+          _ ≤ (Cf1 * r) * Real.exp (-b * ‖u‖ ^ 2) := by
+            rw [mul_comm (Real.exp _)]
+            gcongr
+      exact hfirst.trans (le_add_of_nonneg_right (by positivity))
+    · have hu_gt : r < ‖u‖ := lt_of_not_ge hu
+      have hx_u : 1 + ‖x‖ ≤ (1 + ‖x - u‖) * (1 + ‖u‖) := by
+        have htri : ‖x‖ ≤ ‖x - u‖ + ‖u‖ := norm_le_norm_sub_add x u
+        nlinarith [norm_nonneg (x - u), norm_nonneg u]
+      have hxk_u : ‖x‖ ^ k ≤ (1 + ‖x - u‖) ^ k * (1 + ‖u‖) ^ k :=
+        (pow_le_pow_left₀ (norm_nonneg x) (by linarith) k).trans
+          ((pow_le_pow_left₀ (by positivity) hx_u k).trans_eq (mul_pow _ _ _))
+      have hfxu : (1 + ‖x - u‖) ^ k * ‖iteratedFDeriv ℝ n f (x - u)‖ ≤ Cf0 := by
+        calc
+          (1 + ‖x - u‖) ^ k * ‖iteratedFDeriv ℝ n f (x - u)‖
+              ≤ 2 ^ k * (1 + ‖x - u‖ ^ k) * ‖iteratedFDeriv ℝ n f (x - u)‖ := by
+            gcongr; exact one_add_pow_le (norm_nonneg (x - u)) k
+          _ = 2 ^ k * (‖x - u‖ ^ 0 * ‖iteratedFDeriv ℝ n f (x - u)‖ +
+              ‖x - u‖ ^ k * ‖iteratedFDeriv ℝ n f (x - u)‖) := by ring
+          _ ≤ Cf0 := by
+            dsimp only [Cf0]
+            gcongr
+            · simpa using SchwartzMap.le_seminorm ℂ 0 n f (x - u)
+            · exact SchwartzMap.le_seminorm ℂ k n f (x - u)
+      have hfx : ‖x‖ ^ k * ‖iteratedFDeriv ℝ n f x‖ ≤ Cf0 := by
+        calc
+          ‖x‖ ^ k * ‖iteratedFDeriv ℝ n f x‖ ≤ Cf0 / 2 ^ k := by
+            have h1 := SchwartzMap.le_seminorm ℂ k n f x
+            calc
+              ‖x‖ ^ k * ‖iteratedFDeriv ℝ n f x‖ ≤ SchwartzMap.seminorm ℂ k n f := h1
+              _ ≤ SchwartzMap.seminorm ℂ 0 n f + SchwartzMap.seminorm ℂ k n f :=
+                le_add_of_nonneg_left (apply_nonneg _ _)
+              _ = Cf0 / 2 ^ k := by
+                dsimp only [Cf0]
+                have h2ne : (2 : ℝ) ^ k ≠ 0 := by positivity
+                field_simp [h2ne]
+          _ ≤ Cf0 := by
+            dsimp only [Cf0]
+            have hpow : (1 : ℝ) ≤ 2 ^ k := one_le_pow₀ (by norm_num)
+            have hnon : 0 ≤ SchwartzMap.seminorm ℂ 0 n f + SchwartzMap.seminorm ℂ k n f := by
+              have := apply_nonneg (SchwartzMap.seminorm ℂ 0 n) f
+              have := apply_nonneg (SchwartzMap.seminorm ℂ k n) f
+              linarith
+            calc
+              2 ^ k * (SchwartzMap.seminorm ℂ 0 n f + SchwartzMap.seminorm ℂ k n f) / 2 ^ k
+                  = SchwartzMap.seminorm ℂ 0 n f + SchwartzMap.seminorm ℂ k n f := by
+                field_simp [(by positivity : (2 : ℝ) ^ k ≠ 0)]
+              _ ≤ 2 ^ k * (SchwartzMap.seminorm ℂ 0 n f + SchwartzMap.seminorm ℂ k n f) :=
+                le_mul_of_one_le_left hnon hpow
+      have hsub_bd : ‖x‖ ^ k * ‖iteratedFDeriv ℝ n f (x - u) - iteratedFDeriv ℝ n f x‖ ≤
+          2 * Cf0 * (1 + ‖u‖) ^ k := by
+        have htri : ‖iteratedFDeriv ℝ n f (x - u) - iteratedFDeriv ℝ n f x‖ ≤
+            ‖iteratedFDeriv ℝ n f (x - u)‖ + ‖iteratedFDeriv ℝ n f x‖ := norm_sub_le _ _
+        have h1 : ‖x‖ ^ k * ‖iteratedFDeriv ℝ n f (x - u)‖ ≤ Cf0 * (1 + ‖u‖) ^ k := by
+          calc
+            ‖x‖ ^ k * ‖iteratedFDeriv ℝ n f (x - u)‖
+                ≤ (1 + ‖x - u‖) ^ k * (1 + ‖u‖) ^ k * ‖iteratedFDeriv ℝ n f (x - u)‖ := by gcongr
+            _ = ((1 + ‖x - u‖) ^ k * ‖iteratedFDeriv ℝ n f (x - u)‖) * (1 + ‖u‖) ^ k := by ring
+            _ ≤ Cf0 * (1 + ‖u‖) ^ k := by gcongr
+        have h2 : ‖x‖ ^ k * ‖iteratedFDeriv ℝ n f x‖ ≤ Cf0 * (1 + ‖u‖) ^ k :=
+          hfx.trans (le_mul_of_one_le_right (by positivity) (one_le_pow₀ (by linarith [norm_nonneg u])))
+        calc
+          ‖x‖ ^ k * ‖iteratedFDeriv ℝ n f (x - u) - iteratedFDeriv ℝ n f x‖
+              ≤ ‖x‖ ^ k * (‖iteratedFDeriv ℝ n f (x - u)‖ + ‖iteratedFDeriv ℝ n f x‖) := by gcongr
+          _ = ‖x‖ ^ k * ‖iteratedFDeriv ℝ n f (x - u)‖ + ‖x‖ ^ k * ‖iteratedFDeriv ℝ n f x‖ := by ring
+          _ ≤ Cf0 * (1 + ‖u‖) ^ k + Cf0 * (1 + ‖u‖) ^ k := add_le_add h1 h2
+          _ = 2 * Cf0 * (1 + ‖u‖) ^ k := by ring
+      have hexp_split : Real.exp (-b * ‖u‖ ^ 2) ≤
+          Real.exp (-c₀ * b) * Real.exp (-(1 / 2 : ℝ) * ‖u‖ ^ 2) := by
+        rw [← Real.exp_add, Real.exp_le_exp]
+        have hr2 : r ^ 2 ≤ ‖u‖ ^ 2 := pow_le_pow_left₀ hr_pos.le hu_gt.le 2
+        have hbu : -(b / 2) * ‖u‖ ^ 2 ≤ -(1 / 2 : ℝ) * ‖u‖ ^ 2 := by
+          have hb2 : (1 / 2 : ℝ) ≤ b / 2 := by linarith
+          calc
+            -(b / 2) * ‖u‖ ^ 2 = -((b / 2) * ‖u‖ ^ 2) := by ring
+            _ ≤ -((1 / 2 : ℝ) * ‖u‖ ^ 2) := neg_le_neg (mul_le_mul_of_nonneg_right hb2 (sq_nonneg _))
+            _ = -(1 / 2 : ℝ) * ‖u‖ ^ 2 := by ring
+        have hbr : -(b / 2) * ‖u‖ ^ 2 ≤ -c₀ * b := by
+          calc
+            -(b / 2) * ‖u‖ ^ 2 = -((b / 2) * ‖u‖ ^ 2) := by ring
+            _ ≤ -((b / 2) * r ^ 2) := neg_le_neg (mul_le_mul_of_nonneg_left hr2 (by positivity))
+            _ = -c₀ * b := by dsimp only [c₀]; ring
+        calc
+          -b * ‖u‖ ^ 2 = -(b / 2) * ‖u‖ ^ 2 + -(b / 2) * ‖u‖ ^ 2 := by ring
+          _ ≤ -c₀ * b + -(1 / 2 : ℝ) * ‖u‖ ^ 2 := add_le_add hbr hbu
+      have hsecond : ‖x‖ ^ k * (Real.exp (-b * ‖u‖ ^ 2) * ‖iteratedFDeriv ℝ n f (x - u) - iteratedFDeriv ℝ n f x‖) ≤
+          (2 * (Cf0 + 1) * Real.exp (-c₀ * b)) * ((1 + ‖u‖) ^ k * Real.exp (-(1 / 2 : ℝ) * ‖u‖ ^ 2)) := by
+        calc
+          ‖x‖ ^ k * (Real.exp (-b * ‖u‖ ^ 2) * ‖iteratedFDeriv ℝ n f (x - u) - iteratedFDeriv ℝ n f x‖)
+              = Real.exp (-b * ‖u‖ ^ 2) * (‖x‖ ^ k * ‖iteratedFDeriv ℝ n f (x - u) - iteratedFDeriv ℝ n f x‖) := by
+            ring
+          _ ≤ (Real.exp (-c₀ * b) * Real.exp (-(1 / 2 : ℝ) * ‖u‖ ^ 2)) * (2 * Cf0 * (1 + ‖u‖) ^ k) := by
+            gcongr
+          _ ≤ (2 * (Cf0 + 1) * Real.exp (-c₀ * b)) * ((1 + ‖u‖) ^ k * Real.exp (-(1 / 2 : ℝ) * ‖u‖ ^ 2)) := by
+            have : (Cf0 : ℝ) ≤ Cf0 + 1 := le_add_of_nonneg_right zero_le_one
+            calc
+              Real.exp (-c₀ * b) * Real.exp (-(1 / 2 : ℝ) * ‖u‖ ^ 2) * (2 * Cf0 * (1 + ‖u‖) ^ k)
+                  ≤ Real.exp (-c₀ * b) * Real.exp (-(1 / 2 : ℝ) * ‖u‖ ^ 2) * (2 * (Cf0 + 1) * (1 + ‖u‖) ^ k) := by
+                gcongr
+              _ = _ := by ring
+      exact hsecond.trans (le_add_of_nonneg_left (by positivity))
+  have hint_lhs : Integrable (fun u : E ↦ ‖x‖ ^ k * (Real.exp (-b * ‖u‖ ^ 2) *
+      ‖iteratedFDeriv ℝ n f (x - u) - iteratedFDeriv ℝ n f x‖)) volume := by
+    have hsub_int : Integrable (fun u : E ↦ g u • (iteratedFDeriv ℝ n f (x - u) - iteratedFDeriv ℝ n f x)) volume := by
+      have h1 : Integrable (fun u : E ↦ g u • iteratedFDeriv ℝ n f (x - u)) volume := by
+        simpa only [Measure.restrict_univ] using schwartzConvSet_integrable Set.univ g f n x
+      have h2 : Integrable (fun u : E ↦ g u • iteratedFDeriv ℝ n f x) volume :=
+        g.integrable.smul_const _
+      refine (h1.sub h2).congr (Eventually.of_forall fun u ↦ ?_)
+      simp [smul_sub]
+    refine (hsub_int.norm.const_mul (‖x‖ ^ k)).congr (Eventually.of_forall fun u ↦ ?_)
+    simp only [g, SchwartzMap.postcompCLM_apply, Complex.ofRealCLM_apply, SchwartzMap.gaussian_apply,
+      norm_smul, Complex.norm_real, Real.norm_of_nonneg (Real.exp_pos _).le]
+  have hint_rhs : Integrable (fun u : E ↦ (Cf1 * r) * Real.exp (-b * ‖u‖ ^ 2) +
+      (2 * (Cf0 + 1) * Real.exp (-c₀ * b)) * ((1 + ‖u‖) ^ k * Real.exp (-(1 / 2 : ℝ) * ‖u‖ ^ 2))) volume :=
+    (hg_intR.const_mul _).add (hIpoly_int.const_mul _)
+  have hsqrt_le : Real.sqrt b ^ d ≤ (b + 1) ^ d := by
+    refine pow_le_pow_left₀ (Real.sqrt_nonneg b) ?_ d
+    nlinarith [Real.sqrt_nonneg b, Real.sq_sqrt hb.le]
+  calc
+    ‖x‖ ^ k * (Ib⁻¹ * ‖∫ u : E, g u • (iteratedFDeriv ℝ n f (x - u) - iteratedFDeriv ℝ n f x)‖)
+        ≤ Ib⁻¹ * (‖x‖ ^ k * ∫ u : E, ‖g u • (iteratedFDeriv ℝ n f (x - u) - iteratedFDeriv ℝ n f x)‖) := by
+      rw [mul_left_comm]
+      gcongr
+      exact norm_integral_le_integral_norm _
+    _ = Ib⁻¹ * ∫ u : E, ‖x‖ ^ k * (Real.exp (-b * ‖u‖ ^ 2) *
+          ‖iteratedFDeriv ℝ n f (x - u) - iteratedFDeriv ℝ n f x‖) := by
+      congr 1
+      rw [← integral_const_mul]
+      refine integral_congr_ae (Eventually.of_forall fun u ↦ ?_)
+      simp only [g, SchwartzMap.postcompCLM_apply, Complex.ofRealCLM_apply, SchwartzMap.gaussian_apply,
+        norm_smul, Complex.norm_real, Real.norm_of_nonneg (Real.exp_pos _).le]
+    _ ≤ Ib⁻¹ * ∫ u : E, ((Cf1 * r) * Real.exp (-b * ‖u‖ ^ 2) +
+          (2 * (Cf0 + 1) * Real.exp (-c₀ * b)) * ((1 + ‖u‖) ^ k * Real.exp (-(1 / 2 : ℝ) * ‖u‖ ^ 2))) :=
+      mul_le_mul_of_nonneg_left (integral_mono hint_lhs hint_rhs hpt) (inv_nonneg.mpr hIb_pos.le)
+    _ = Ib⁻¹ * ((Cf1 * r) * Ib + (2 * (Cf0 + 1) * Real.exp (-c₀ * b)) * Ipoly) := by
+      rw [integral_add (hg_intR.const_mul _) (hIpoly_int.const_mul _),
+        integral_const_mul, integral_const_mul, hIb_eq]
+    _ = Cf1 * r + (Real.sqrt b ^ d * I₁⁻¹) * (2 * (Cf0 + 1) * Real.exp (-c₀ * b) * Ipoly) := by
+      have hIb_inv : Ib⁻¹ = Real.sqrt b ^ d * I₁⁻¹ := by
+        dsimp only [Ib]
+        rw [mul_inv, inv_inv]
+      calc
+        Ib⁻¹ * ((Cf1 * r) * Ib + (2 * (Cf0 + 1) * Real.exp (-c₀ * b)) * Ipoly)
+            = (Ib⁻¹ * Ib) * (Cf1 * r) + Ib⁻¹ * (2 * (Cf0 + 1) * Real.exp (-c₀ * b) * Ipoly) := by
+          ring
+        _ = Cf1 * r + (Real.sqrt b ^ d * I₁⁻¹) * (2 * (Cf0 + 1) * Real.exp (-c₀ * b) * Ipoly) := by
+          rw [inv_mul_cancel₀ hIb_pos.ne', one_mul, hIb_inv]
+    _ ≤ Cf1 * r + A_const * (b + 1) ^ d * Real.exp (-c₀ * b) := by
+      refine add_le_add le_rfl ?_
+      calc
+        Real.sqrt b ^ d * I₁⁻¹ * (2 * (Cf0 + 1) * Real.exp (-c₀ * b) * Ipoly)
+            ≤ (b + 1) ^ d * I₁⁻¹ * (2 * (Cf0 + 1) * Real.exp (-c₀ * b) * (Ipoly + 1)) := by
+          gcongr
+          linarith
+        _ = A_const * (b + 1) ^ d * Real.exp (-c₀ * b) := by
+          dsimp only [A_const]; ring
+
+private theorem schwartzDual_eq_zero_of_translate_gauss {E : Type*} [NormedAddCommGroup E]
+    [InnerProductSpace ℝ E] [FiniteDimensional ℝ E] [MeasureSpace E] [BorelSpace E]
+    [(volume : Measure E).IsAddHaarMeasure]
+    (T : StrongDual ℂ (SchwartzMap E ℂ))
+    (hvan : ∀ (b : ℝ) (hb : 0 < b) (y : E),
+      T (((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM).compSubConstCLM ℂ y) = 0) :
+    T = 0 := by
+  ext f
+  rw [zero_apply]
+  obtain ⟨s, C, -, hC⟩ := Seminorm.bound_of_continuous (schwartz_withSeminorms ℂ E ℂ)
+    ((normSeminorm ℂ ℂ).comp T.toLinearMap) T.continuous.norm
+  rw [← norm_eq_zero]
+  refine le_antisymm ?_ (norm_nonneg _)
+  refine le_of_forall_pos_le_add fun ε hε ↦ ?_
+  rw [zero_add]
+  let δ' : ℝ := ε / ((C : ℝ) + 1)
+  have hδ' : 0 < δ' := by positivity
+  let I₁ : ℝ := ∫ u : E, Real.exp (-‖u‖ ^ 2)
+  have hB_each : ∀ p ∈ s, ∃ B : ℝ, 1 ≤ B ∧
+      ∀ (b : ℝ) (hb : 0 < b), B ≤ b →
+        let Ib : ℝ := (Real.sqrt b ^ Module.finrank ℝ E)⁻¹ * I₁
+        SchwartzMap.seminorm ℂ p.1 p.2
+          ((Ib⁻¹ : ℂ) • schwartzConvSet Set.univ f ((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM) - f) <
+            δ' / 3 :=
+    fun p _ ↦ schwartzConv_gauss_tendsto f p.1 p.2 (δ' / 3) (by positivity)
+  choose B_fn hB1 hB_bd using fun p : s ↦ hB_each p.1 p.2
+  let b : ℝ := 1 + ∑ p : s, B_fn p
+  have hb1 : 1 ≤ b := by
+    have hnn : 0 ≤ ∑ p : s, B_fn p := Finset.sum_nonneg fun p _ ↦ le_trans zero_le_one (hB1 p)
+    linarith
+  have hb : 0 < b := lt_of_lt_of_le zero_lt_one hb1
+  have hb_ge : ∀ p : s, B_fn p ≤ b := fun p ↦ by
+    have hnn : 0 ≤ ∑ q : s, B_fn q := Finset.sum_nonneg fun q _ ↦ le_trans zero_le_one (hB1 q)
+    have hle : B_fn p ≤ ∑ q : s, B_fn q :=
+      Finset.single_le_sum (fun q _ ↦ le_trans zero_le_one (hB1 q)) (Finset.mem_univ p)
+    linarith
+  let Ib : ℝ := (Real.sqrt b ^ Module.finrank ℝ E)⁻¹ * I₁
+  have hI₁_int : Integrable (fun u : E ↦ Real.exp (-‖u‖ ^ 2)) volume :=
+    ((SchwartzMap.gaussian (E := E) 1 one_pos).integrable (μ := volume)).congr
+      (Eventually.of_forall fun u ↦ by simp [SchwartzMap.gaussian_apply])
+  have hI₁_pos : 0 < I₁ := by
+    refine integral_pos_of_integrable_nonneg_ne_zero
+      (Real.continuous_exp.comp (continuous_neg.comp (continuous_norm.pow 2)))
+      hI₁_int (fun u ↦ (Real.exp_pos _).le) (x := (0 : E)) (by simp)
+  have hIb_pos : 0 < Ib := mul_pos (inv_pos.mpr (pow_pos (Real.sqrt_pos.mpr hb) _)) hI₁_pos
+  let g : SchwartzMap E ℂ := (SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM
+  let η : ℝ := δ' / (3 * (Ib⁻¹ + 1))
+  have hη : 0 < η := by positivity
+  have hR_each : ∀ p : s, ∃ R₀ : ℝ, 0 ≤ R₀ ∧ ∀ R : ℝ, R₀ ≤ R →
+      SchwartzMap.seminorm ℂ p.1.1 p.1.2 (schwartzConvSet (Metric.closedBall 0 R)ᶜ f g) < η :=
+    fun p ↦ by
+      obtain ⟨R₀, hR₀⟩ := eventually_atTop.mp
+        ((schwartzConvSet_tail_tendsto f g p.1.1 p.1.2).eventually (Iio_mem_nhds hη))
+      exact ⟨max R₀ 0, le_max_right _ _, fun R hR ↦ hR₀ R ((le_max_left R₀ 0).trans hR)⟩
+  choose R_fn hR0 hR_bd using hR_each
+  let R : ℝ := ∑ p : s, R_fn p
+  have hR : 0 ≤ R := Finset.sum_nonneg fun p _ ↦ hR0 p
+  have hR_ge : ∀ p : s, R_fn p ≤ R := fun p ↦
+    Finset.single_le_sum (fun q _ ↦ hR0 q) (Finset.mem_univ p)
+  obtain ⟨h₀, hh₀_van, hh₀_bd⟩ := schwartzDual_eq_zero_of_ball_approx T hvan f b hb R hR s η hη
+  let h : SchwartzMap E ℂ := (Ib⁻¹ : ℂ) • h₀
+  have hT_h : T h = 0 := by simp [h, map_smul, hh₀_van]
+  have h_sup : (s.sup (schwartzSeminormFamily ℂ E ℂ)) (f - h) ≤ δ' := by
+    rw [Seminorm.finset_sup_apply, ← Real.coe_toNNReal δ' hδ'.le, NNReal.coe_le_coe]
+    refine Finset.sup_le fun p hp ↦ ?_
+    rw [← NNReal.coe_le_coe, Real.coe_toNNReal δ' hδ'.le]
+    let conv : SchwartzMap E ℂ := (Ib⁻¹ : ℂ) • schwartzConvSet Set.univ f g
+    let trunc : SchwartzMap E ℂ := (Ib⁻¹ : ℂ) • schwartzConvSet (Metric.closedBall 0 R) f g
+    have hsplit : f - h = (f - conv) + (conv - trunc) + (trunc - h) := by abel
+    have h1 : SchwartzMap.seminorm ℂ p.1 p.2 (f - conv) < δ' / 3 := by
+      rw [← map_neg_eq_map (SchwartzMap.seminorm ℂ p.1 p.2) (f - conv), neg_sub]
+      exact hB_bd ⟨p, hp⟩ b hb (hb_ge ⟨p, hp⟩)
+    have h2 : SchwartzMap.seminorm ℂ p.1 p.2 (conv - trunc) ≤ δ' / 3 := by
+      have heq : conv - trunc = (Ib⁻¹ : ℂ) • schwartzConvSet (Metric.closedBall 0 R)ᶜ f g := by
+        rw [← smul_sub, schwartzConvSet_compl_eq_sub measurableSet_closedBall]
+      rw [heq, map_smul_eq_mul, norm_inv, Complex.norm_real, Real.norm_of_nonneg hIb_pos.le]
+      have hbd := (hR_bd ⟨p, hp⟩ R (hR_ge ⟨p, hp⟩)).le
+      calc
+        Ib⁻¹ * SchwartzMap.seminorm ℂ p.1 p.2 (schwartzConvSet (Metric.closedBall 0 R)ᶜ f g)
+            ≤ (Ib⁻¹ + 1) * (δ' / (3 * (Ib⁻¹ + 1))) := by gcongr; linarith
+        _ = δ' / 3 := by field_simp [(by positivity : Ib⁻¹ + 1 ≠ 0)]
+    have h3 : SchwartzMap.seminorm ℂ p.1 p.2 (trunc - h) ≤ δ' / 3 := by
+      have heq : trunc - h =
+          (Ib⁻¹ : ℂ) • (schwartzConvSet (Metric.closedBall 0 R) f g - h₀) := by
+        simp [trunc, h, smul_sub]
+      rw [heq, map_smul_eq_mul, norm_inv, Complex.norm_real, Real.norm_of_nonneg hIb_pos.le]
+      have hbd := (hh₀_bd p hp).le
+      calc
+        Ib⁻¹ * SchwartzMap.seminorm ℂ p.1 p.2 (schwartzConvSet (Metric.closedBall 0 R) f g - h₀)
+            ≤ (Ib⁻¹ + 1) * (δ' / (3 * (Ib⁻¹ + 1))) := by gcongr; linarith
+        _ = δ' / 3 := by field_simp [(by positivity : Ib⁻¹ + 1 ≠ 0)]
+    change SchwartzMap.seminorm ℂ p.1 p.2 (f - h) ≤ δ'
+    calc
+      SchwartzMap.seminorm ℂ p.1 p.2 (f - h)
+          ≤ SchwartzMap.seminorm ℂ p.1 p.2 (f - conv) +
+              SchwartzMap.seminorm ℂ p.1 p.2 (conv - trunc) +
+              SchwartzMap.seminorm ℂ p.1 p.2 (trunc - h) := by
+        rw [hsplit]
+        refine (map_add_le_add _ _ _).trans ?_
+        gcongr
+        exact map_add_le_add _ _ _
+      _ ≤ δ' / 3 + δ' / 3 + δ' / 3 := by linarith
+      _ = δ' := by ring
+  calc
+    ‖T f‖ = ‖T (f - h)‖ := by rw [map_sub, hT_h, sub_zero]
+    _ ≤ (C : ℝ) * (s.sup (schwartzSeminormFamily ℂ E ℂ)) (f - h) := hC (f - h)
+    _ ≤ (C : ℝ) * δ' := mul_le_mul_of_nonneg_left h_sup C.coe_nonneg
+    _ ≤ ε := by
+      dsimp only [δ']
+      calc
+        (C : ℝ) * (ε / ((C : ℝ) + 1)) ≤ ((C : ℝ) + 1) * (ε / ((C : ℝ) + 1)) := by
+          gcongr; linarith
+        _ = ε := by field_simp [(by positivity : (C : ℝ) + 1 ≠ 0)]
+
+end Step3b
+
+section Step3c
+
+private def unitScaleInvCLE {K : Type*} [NormedField K] [NormedAlgebra ℝ K] (g : Kˣ) : K ≃L[ℝ] K :=
+  { toFun := fun x ↦ (g⁻¹ : K) * x
+    map_add' := fun x y ↦ mul_add _ x y
+    map_smul' := fun r x ↦ by
+      simp only [RingHom.id_apply, Algebra.smul_def]
+      ring
+    invFun := fun x ↦ (g : K) * x
+    left_inv := fun x ↦ by simp
+    right_inv := fun x ↦ by simp
+    continuous_toFun := continuous_const.mul continuous_id
+    continuous_invFun := continuous_const.mul continuous_id }
+
+@[simp]
+private lemma unitScaleInvCLE_apply {K : Type*} [NormedField K] [NormedAlgebra ℝ K]
+    (g : Kˣ) (x : K) : unitScaleInvCLE g x = (g⁻¹ : K) * x := rfl
+
+private lemma infiniteNorm_ofReal_unit (w : InfinitePlace F) (hw : w.IsReal) (g : ℝˣ) :
+    (((Units.map nnNormHom.toMonoidHom ^ InfinitePlace.mult w : w.Completionˣ →* ℝ≥0ˣ)
+      (Units.map (InfinitePlace.Completion.ringEquivRealOfIsReal hw).symm.toMonoidHom g) : ℝ≥0) : ℝ) =
+      ‖(g : ℝ)‖ := by
+  let e := InfinitePlace.Completion.ringEquivRealOfIsReal hw
+  have hn : ‖e.symm (g : ℝ)‖ = ‖(g : ℝ)‖ :=
+    (InfinitePlace.Completion.isometryEquivRealOfIsReal hw).symm.isometry.norm_map_of_map_zero
+      (map_zero e.symm) (g : ℝ)
+  simp [InfinitePlace.mult, hw, hn, e]
+
+private lemma infiniteNorm_ofComplex_unit (w : InfinitePlace F) (hc : w.IsComplex) (g : ℂˣ) :
+    (((Units.map nnNormHom.toMonoidHom ^ InfinitePlace.mult w : w.Completionˣ →* ℝ≥0ˣ)
+      (Units.map (InfinitePlace.Completion.ringEquivComplexOfIsComplex hc).symm.toMonoidHom g) : ℝ≥0) : ℝ) =
+      ‖(g : ℂ)‖ ^ 2 := by
+  let e := InfinitePlace.Completion.ringEquivComplexOfIsComplex hc
+  have hn : ‖e.symm (g : ℂ)‖ = ‖(g : ℂ)‖ :=
+    (InfinitePlace.Completion.isometryEquivComplexOfIsComplex hc).symm.isometry.norm_map_of_map_zero
+      (map_zero e.symm) (g : ℂ)
+  simp [InfinitePlace.mult, InfinitePlace.not_isReal_iff_isComplex.mpr hc, hn, e]
+
+private lemma real_inner_mul_left_eq (x y : ℝ) : (inner ℝ x y : ℂ) = (y : ℂ) * (x : ℂ) := by
+  rw [RCLike.inner_apply]
+  simp [mul_comm]
+
+private lemma complex_inner_eq_add_conj (z y : ℂ) :
+    (inner ℝ z y : ℂ) = (z * starRingEnd ℂ y + starRingEnd ℂ z * y) / 2 := by
+  apply Complex.ext <;> simp [Complex.inner, Complex.mul_re, Complex.mul_im] <;> ring
+
+private theorem infiniteEigendistribution_eq_zero_of_gaussian_proof (w : InfinitePlace F)
+    (χ : PontryaginDual w.Completionˣ) (s : ℂ)
+    (T : StrongDual ℂ (SchwartzBruhat (Multiplicative w.Completion)))
+    (hT : T ∈ schwartzBruhatEigendistributions
+      (quasiCharacterNormTwist (Units.map nnNormHom.toMonoidHom ^ InfinitePlace.mult w)
+        (continuous_infiniteLocalModule w)
+        ((⟨Circle.coeHom, continuous_subtype_val⟩ : Circle →ₜ* ℂ).comp χ) s))
+    (hG : T (infiniteStandardGaussian w χ) = 0) : T = 0 := by
+  classical
+  let mInf : w.Completionˣ →* ℝ≥0ˣ := Units.map nnNormHom.toMonoidHom ^ InfinitePlace.mult w
+  let cToC : Circle →ₜ* ℂ := ⟨Circle.coeHom, continuous_subtype_val⟩
+  let c : QuasiCharacter w.Completionˣ :=
+    quasiCharacterNormTwist mInf (continuous_infiniteLocalModule w) (cToC.comp χ) s
+  have hT_eig : ∀ (u : w.Completionˣ) (f : SchwartzBruhat (Multiplicative w.Completion)),
+      T (schwartzBruhatUnitTranslate u f) = c u * T f := hT
+  by_cases hw : w.IsReal
+  · obtain ⟨Φ, hΦ_surj, hΦ_apply⟩ := realSchwartzBruhat_surjective w hw
+    let e := InfinitePlace.Completion.ringEquivRealOfIsReal hw
+    let T' : StrongDual ℂ (SchwartzMap ℝ ℂ) := T.comp Φ
+    have hΦ_trans : ∀ (g : ℝˣ) (f : SchwartzMap ℝ ℂ),
+        Φ (SchwartzMap.compCLMOfContinuousLinearEquiv ℂ (unitScaleInvCLE g) f) =
+          schwartzBruhatUnitTranslate (Units.map e.symm.toMonoidHom g) (Φ f) := by
+      intro g f
+      refine Subtype.ext (funext fun y ↦ ?_)
+      obtain ⟨x, rfl⟩ : ∃ x : w.Completion, Multiplicative.ofAdd x = y := ⟨y.toAdd, rfl⟩
+      rw [hΦ_apply, schwartzBruhatUnitTranslate_apply, hΦ_apply]
+      have harg : e ((↑(Units.map e.symm.toMonoidHom g)⁻¹ : w.Completion) * x) = (g⁻¹ : ℝ) * e x := by
+        calc
+          e ((↑(Units.map e.symm.toMonoidHom g)⁻¹ : w.Completion) * x)
+              = e (e.symm (g⁻¹ : ℝ) * x) := by simp [e]
+          _ = (g⁻¹ : ℝ) * e x := by rw [map_mul, e.apply_symm_apply]
+      rw [harg]
+      rfl
+    have hT'_eig : ∀ (g : ℝˣ) (f : SchwartzMap ℝ ℂ),
+        T' (SchwartzMap.compCLMOfContinuousLinearEquiv ℂ (unitScaleInvCLE g) f) =
+          c (Units.map e.symm.toMonoidHom g) * T' f := by
+      intro g f
+      simp only [T', ContinuousLinearMap.comp_apply, hΦ_trans]
+      exact hT_eig _ _
+    have hpoly_temp : ∀ m : ℕ, (fun x : ℝ ↦ (x : ℂ) ^ m).HasTemperateGrowth := fun m ↦ by
+      have h1 : (fun x : ℝ ↦ (x : ℂ)).HasTemperateGrowth := Complex.hasTemperateGrowth_ofReal
+      exact h1.pow m
+    let p₀ : ℕ := if χ (-1) = 1 then 0 else 1
+    have hp₀_van : T' (SchwartzMap.smulLeftCLM ℂ (fun x : ℝ ↦ (x : ℂ) ^ p₀)
+        ((SchwartzMap.gaussian Real.pi Real.pi_pos).postcompCLM Complex.ofRealCLM)) = 0 := by
+      have hgauss_eq : infiniteStandardGaussian w χ =
+          Φ (SchwartzMap.smulLeftCLM ℂ (fun x : ℝ ↦ (x : ℂ) ^ p₀)
+            ((SchwartzMap.gaussian Real.pi Real.pi_pos).postcompCLM Complex.ofRealCLM)) := by
+        refine Subtype.ext (funext fun y ↦ ?_)
+        obtain ⟨x, rfl⟩ : ∃ x : w.Completion, Multiplicative.ofAdd x = y := ⟨y.toAdd, rfl⟩
+        rw [hΦ_apply, SchwartzMap.smulLeftCLM_apply_apply (hpoly_temp p₀)]
+        change infiniteStandardGaussianValue w χ x = _
+        simp only [infiniteStandardGaussianValue, hw, ↓reduceDIte, SchwartzMap.postcompCLM_apply,
+          Complex.ofRealCLM_apply, SchwartzMap.gaussian_apply, smul_eq_mul, Real.norm_eq_abs, sq_abs]
+        by_cases h1 : χ (-1) = 1
+        · simp [p₀, h1]
+        · simp [p₀, h1]
+      have hG' : T' (SchwartzMap.smulLeftCLM ℂ (fun x : ℝ ↦ (x : ℂ) ^ p₀)
+            ((SchwartzMap.gaussian Real.pi Real.pi_pos).postcompCLM Complex.ofRealCLM)) =
+          T (infiniteStandardGaussian w χ) := by
+        simp only [T', ContinuousLinearMap.comp_apply, ← hgauss_eq]
+      rw [hG', hG]
+    have hneg_c : c (Units.map e.symm.toMonoidHom (-1 : ℝˣ)) = (cToC (χ (-1)) : ℂ) := by
+      have hmap : Units.map e.symm.toMonoidHom (-1 : ℝˣ) = (-1 : w.Completionˣ) := by
+        ext; simp
+      have hnorm1 : ((mInf (-1 : w.Completionˣ) : ℝ≥0) : ℝ) = 1 := by
+        rw [← hmap, infiniteNorm_ofReal_unit w hw (-1)]
+        simp
+      change ((cToC (χ (Units.map e.symm.toMonoidHom (-1 : ℝˣ))) : ℂ)) *
+        (((mInf (Units.map e.symm.toMonoidHom (-1 : ℝˣ)) : ℝ≥0) : ℝ) : ℂ) ^ s = _
+      rw [hmap, hnorm1]
+      simp
+    have hparity_both : ∀ q : Fin 2,
+        T' (SchwartzMap.smulLeftCLM ℂ (fun x : ℝ ↦ (x : ℂ) ^ (q : ℕ))
+          ((SchwartzMap.gaussian Real.pi Real.pi_pos).postcompCLM Complex.ofRealCLM)) = 0 := by
+      intro q
+      let gq := SchwartzMap.smulLeftCLM ℂ (fun x : ℝ ↦ (x : ℂ) ^ (q : ℕ))
+        ((SchwartzMap.gaussian Real.pi Real.pi_pos).postcompCLM Complex.ofRealCLM)
+      have hneg_gq : SchwartzMap.compCLMOfContinuousLinearEquiv ℂ (unitScaleInvCLE (-1 : ℝˣ)) gq =
+          ((-1 : ℂ) ^ (q : ℕ)) • gq := by
+        ext x
+        simp [gq, SchwartzMap.smulLeftCLM_apply_apply (hpoly_temp (q : ℕ)),
+          SchwartzMap.gaussian_apply, neg_mul, Real.norm_eq_abs, sq_abs]
+        ring
+      have heq_eig : ((-1 : ℂ) ^ (q : ℕ)) * T' gq = (cToC (χ (-1)) : ℂ) * T' gq := by
+        calc
+          ((-1 : ℂ) ^ (q : ℕ)) * T' gq = T' (((-1 : ℂ) ^ (q : ℕ)) • gq) := by rw [map_smul, smul_eq_mul]
+          _ = T' (SchwartzMap.compCLMOfContinuousLinearEquiv ℂ (unitScaleInvCLE (-1 : ℝˣ)) gq) := by
+            rw [hneg_gq]
+          _ = c (Units.map e.symm.toMonoidHom (-1 : ℝˣ)) * T' gq := hT'_eig (-1) gq
+          _ = (cToC (χ (-1)) : ℂ) * T' gq := by rw [hneg_c]
+      by_cases h1 : χ (-1) = 1
+      · fin_cases q
+        · simpa [p₀, h1] using hp₀_van
+        · have hsub : (-1 : ℂ) * T' gq = 1 * T' gq := by simpa [h1] using heq_eig
+          have htwo : (2 : ℂ) * T' gq = 0 := by linear_combination -hsub
+          exact (mul_eq_zero.mp htwo).resolve_left (by norm_num)
+      · fin_cases q
+        · have hχ_sq : (cToC (χ (-1)) : ℂ) ^ 2 = 1 := by
+            calc
+              (cToC (χ (-1)) : ℂ) ^ 2 = (cToC (χ ((-1 : w.Completionˣ) ^ 2)) : ℂ) := by
+                rw [← map_pow, ← map_pow]
+              _ = 1 := by simp
+          have hχ_ne : (cToC (χ (-1)) : ℂ) ≠ 1 := by
+            intro h
+            exact h1 (Circle.coe_injective h)
+          have hχ_neg1 : (cToC (χ (-1)) : ℂ) = -1 :=
+            (sq_eq_one_iff.mp hχ_sq).resolve_left hχ_ne
+          have hsub : (1 : ℂ) * T' gq = (-1 : ℂ) * T' gq := by simpa [hχ_neg1] using heq_eig
+          have htwo : (2 : ℂ) * T' gq = 0 := by linear_combination hsub
+          exact (mul_eq_zero.mp htwo).resolve_left (by norm_num)
+        · simpa [p₀, h1] using hp₀_van
+    have hparity_all_b : ∀ (q : Fin 2) (b : ℝ) (hb : 0 < b),
+        T' (SchwartzMap.smulLeftCLM ℂ (fun x : ℝ ↦ (x : ℂ) ^ (q : ℕ))
+          ((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM)) = 0 := by
+      intro q b hb
+      let r : ℝ := Real.sqrt (Real.pi / b)
+      have hr : 0 < r := Real.sqrt_pos.mpr (div_pos Real.pi_pos hb)
+      let g : ℝˣ := Units.mk0 r hr.ne'
+      have hscale : SchwartzMap.compCLMOfContinuousLinearEquiv ℂ (unitScaleInvCLE g)
+            (SchwartzMap.smulLeftCLM ℂ (fun x : ℝ ↦ (x : ℂ) ^ (q : ℕ))
+              ((SchwartzMap.gaussian Real.pi Real.pi_pos).postcompCLM Complex.ofRealCLM)) =
+          ((r⁻¹ : ℂ) ^ (q : ℕ)) • SchwartzMap.smulLeftCLM ℂ (fun x : ℝ ↦ (x : ℂ) ^ (q : ℕ))
+            ((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM) := by
+        ext x
+        simp only [SchwartzMap.compCLMOfContinuousLinearEquiv_apply, Function.comp_apply,
+          unitScaleInvCLE_apply, smul_apply, SchwartzMap.smulLeftCLM_apply_apply (hpoly_temp (q : ℕ)),
+          SchwartzMap.postcompCLM_apply, Complex.ofRealCLM_apply, SchwartzMap.gaussian_apply,
+          smul_eq_mul]
+        have hr_sq : -Real.pi * (r⁻¹ * x) ^ 2 = -b * x ^ 2 := by
+          have hr2 : r ^ 2 = Real.pi / b := Real.sq_sqrt (div_pos Real.pi_pos hb).le
+          calc
+            -Real.pi * (r⁻¹ * x) ^ 2 = -Real.pi * (r ^ 2)⁻¹ * x ^ 2 := by ring
+            _ = -Real.pi * (Real.pi / b)⁻¹ * x ^ 2 := by rw [hr2]
+            _ = -b * x ^ 2 := by field_simp [Real.pi_ne_zero, hb.ne']
+        have hnorm_sq : ‖(g⁻¹ : ℝ) * x‖ ^ 2 = (r⁻¹ * x) ^ 2 := by
+          rw [Real.norm_eq_abs, sq_abs]
+          rfl
+        have hnorm_x : -b * ‖x‖ ^ 2 = -b * x ^ 2 := by rw [Real.norm_eq_abs, sq_abs]
+        rw [hnorm_sq, hr_sq, ← hnorm_x, show ((g⁻¹ : ℝ) : ℝ) = r⁻¹ from rfl, Complex.ofReal_mul, mul_pow,
+          Complex.ofReal_inv]
+        ring
+      have hvan_scaled : ((r⁻¹ : ℂ) ^ (q : ℕ)) *
+          T' (SchwartzMap.smulLeftCLM ℂ (fun x : ℝ ↦ (x : ℂ) ^ (q : ℕ))
+            ((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM)) = 0 := by
+        calc
+          ((r⁻¹ : ℂ) ^ (q : ℕ)) *
+              T' (SchwartzMap.smulLeftCLM ℂ (fun x : ℝ ↦ (x : ℂ) ^ (q : ℕ))
+                ((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM))
+              = T' (((r⁻¹ : ℂ) ^ (q : ℕ)) • SchwartzMap.smulLeftCLM ℂ (fun x : ℝ ↦ (x : ℂ) ^ (q : ℕ))
+                  ((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM)) := by
+                rw [map_smul, smul_eq_mul]
+          _ = T' (SchwartzMap.compCLMOfContinuousLinearEquiv ℂ (unitScaleInvCLE g)
+                  (SchwartzMap.smulLeftCLM ℂ (fun x : ℝ ↦ (x : ℂ) ^ (q : ℕ))
+                    ((SchwartzMap.gaussian Real.pi Real.pi_pos).postcompCLM Complex.ofRealCLM))) := by
+                rw [hscale]
+          _ = c (Units.map e.symm.toMonoidHom g) *
+                T' (SchwartzMap.smulLeftCLM ℂ (fun x : ℝ ↦ (x : ℂ) ^ (q : ℕ))
+                  ((SchwartzMap.gaussian Real.pi Real.pi_pos).postcompCLM Complex.ofRealCLM)) :=
+                hT'_eig g _
+          _ = 0 := by rw [hparity_both q, mul_zero]
+      exact (mul_eq_zero.mp hvan_scaled).resolve_left (pow_ne_zero _ (inv_ne_zero (Complex.ofReal_ne_zero.mpr hr.ne')))
+    have hmono_all : ∀ (m : ℕ) (b : ℝ) (hb : 0 < b),
+        T' (SchwartzMap.smulLeftCLM ℂ (fun x : ℝ ↦ (x : ℂ) ^ m)
+          ((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM)) = 0 := by
+      intro m b hb
+      let j := m / 2
+      let q : Fin 2 := ⟨m % 2, Nat.mod_lt m (by norm_num)⟩
+      have hdecomp : (fun x : ℝ ↦ (x : ℂ) ^ m) =
+          fun x : ℝ ↦ (‖x‖ ^ 2 : ℂ) ^ j * (x : ℂ) ^ (q : ℕ) := by
+        ext x
+        have hm_eq : m = 2 * j + (q : ℕ) := (Nat.div_add_mod m 2).symm
+        calc
+          (x : ℂ) ^ m = (x : ℂ) ^ (2 * j + (q : ℕ)) := by rw [hm_eq]
+          _ = ((x : ℂ) ^ 2) ^ j * (x : ℂ) ^ (q : ℕ) := by rw [pow_add, pow_mul]
+          _ = (‖x‖ ^ 2 : ℂ) ^ j * (x : ℂ) ^ (q : ℕ) := by
+            conv_rhs => rw [Real.norm_eq_abs, ← Complex.ofReal_pow, sq_abs, Complex.ofReal_pow]
+      rw [hdecomp]
+      exact schwartzDual_normSq_pow_mul_gauss_eq_zero T' (hpoly_temp (q : ℕ))
+        (hparity_all_b q) j b hb
+    have htrans_van : ∀ (b : ℝ) (hb : 0 < b) (y : ℝ),
+        T' (((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM).compSubConstCLM ℂ y) = 0 := by
+      intro b hb y
+      refine schwartzDual_translate_gauss_eq_zero T' b hb y fun m ↦ ?_
+      have hfun : (fun x : ℝ ↦ ((inner ℝ x y : ℝ) : ℂ) ^ m) = fun x : ℝ ↦ (y : ℂ) ^ m * (x : ℂ) ^ m := by
+        ext x; rw [real_inner_mul_left_eq, mul_pow]
+      have hinner : SchwartzMap.smulLeftCLM ℂ (fun x : ℝ ↦ ((inner ℝ x y : ℝ) : ℂ) ^ m)
+            ((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM) =
+          ((y : ℂ) ^ m) • SchwartzMap.smulLeftCLM ℂ (fun x : ℝ ↦ (x : ℂ) ^ m)
+            ((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM) := by
+        ext x
+        have htemp : (fun x : ℝ ↦ ((inner ℝ x y : ℝ) : ℂ) ^ m).HasTemperateGrowth := by
+          rw [hfun]; exact (Function.HasTemperateGrowth.const _).mul (hpoly_temp m)
+        rw [smul_apply, SchwartzMap.smulLeftCLM_apply_apply htemp,
+          SchwartzMap.smulLeftCLM_apply_apply (hpoly_temp m), congrFun hfun x]
+        simp [smul_eq_mul, mul_assoc]
+      rw [hinner, map_smul, hmono_all m b hb, smul_zero]
+    have hT'_zero : T' = 0 := schwartzDual_eq_zero_of_translate_gauss T' htrans_van
+    ext f
+    obtain ⟨g, rfl⟩ := hΦ_surj f
+    exact congrArg (fun S : StrongDual ℂ (SchwartzMap ℝ ℂ) ↦ S g) hT'_zero
+  · have hc : w.IsComplex := InfinitePlace.not_isReal_iff_isComplex.mp hw
+    obtain ⟨Φ, hΦ_surj, hΦ_apply⟩ := complexSchwartzBruhat_surjective w hc
+    let e := InfinitePlace.Completion.ringEquivComplexOfIsComplex hc
+    let T' : StrongDual ℂ (SchwartzMap ℂ ℂ) := T.comp Φ
+    have hΦ_trans : ∀ (g : ℂˣ) (f : SchwartzMap ℂ ℂ),
+        Φ (SchwartzMap.compCLMOfContinuousLinearEquiv ℂ (unitScaleInvCLE g) f) =
+          schwartzBruhatUnitTranslate (Units.map e.symm.toMonoidHom g) (Φ f) := by
+      intro g f
+      refine Subtype.ext (funext fun y ↦ ?_)
+      obtain ⟨x, rfl⟩ : ∃ x : w.Completion, Multiplicative.ofAdd x = y := ⟨y.toAdd, rfl⟩
+      rw [hΦ_apply, schwartzBruhatUnitTranslate_apply, hΦ_apply]
+      have harg : e ((↑(Units.map e.symm.toMonoidHom g)⁻¹ : w.Completion) * x) = (g⁻¹ : ℂ) * e x := by
+        calc
+          e ((↑(Units.map e.symm.toMonoidHom g)⁻¹ : w.Completion) * x)
+              = e (e.symm (g⁻¹ : ℂ) * x) := by simp [e]
+          _ = (g⁻¹ : ℂ) * e x := by rw [map_mul, e.apply_symm_apply]
+      rw [harg]
+      rfl
+    have hT'_eig : ∀ (g : ℂˣ) (f : SchwartzMap ℂ ℂ),
+        T' (SchwartzMap.compCLMOfContinuousLinearEquiv ℂ (unitScaleInvCLE g) f) =
+          c (Units.map e.symm.toMonoidHom g) * T' f := by
+      intro g f
+      simp only [T', ContinuousLinearMap.comp_apply, hΦ_trans]
+      exact hT_eig _ _
+    let monom : ℕ → ℕ → ℂ → ℂ := fun p q z ↦ z ^ p * (starRingEnd ℂ z) ^ q
+    have hmonom_temp : ∀ p q : ℕ, (monom p q).HasTemperateGrowth := fun p q ↦ by
+      have hid : (fun z : ℂ ↦ z).HasTemperateGrowth := (ContinuousLinearMap.id ℝ ℂ).hasTemperateGrowth
+      have hconj : (fun z : ℂ ↦ starRingEnd ℂ z).HasTemperateGrowth :=
+        (Complex.conjCLE : ℂ ≃L[ℝ] ℂ).toContinuousLinearMap.hasTemperateGrowth
+      exact (hid.pow p).mul (hconj.pow q)
+    let jIso := InfinitePlace.Completion.isometryEquivComplexOfIsComplex hc
+    let i_unit : ℂˣ →ₜ* w.Completionˣ :=
+      ⟨Units.map e.symm.toMonoidHom, jIso.symm.continuous.units_map _⟩
+    let c₀ : ℂˣ →ₜ* ℂ := cToC.comp (χ.comp i_unit)
+    have hc₀_norm : ∀ x : ℂˣ, ‖c₀ x‖ = 1 := fun x ↦ Circle.norm_coe _
+    have hpair := existsUnique_complexUnits_character_parameters c₀ hc₀_norm
+    let t : ℂ := hpair.exists.choose.1
+    let m : ℤ := hpair.exists.choose.2
+    have hbase : ∀ x : ℂˣ, c₀ x = ((‖(x : ℂ)‖ ^ 2 : ℝ) : ℂ) ^ t * ((x : ℂ) / (‖(x : ℂ)‖ : ℂ)) ^ m :=
+      hpair.exists.choose_spec.2
+    let p₀ : ℕ := if 0 ≤ m then 0 else m.natAbs
+    let q₀ : ℕ := if 0 ≤ m then m.natAbs else 0
+    have hp₀q₀_van : T' (SchwartzMap.smulLeftCLM ℂ (monom p₀ q₀)
+        ((SchwartzMap.gaussian (2 * Real.pi) (by positivity)).postcompCLM Complex.ofRealCLM)) = 0 := by
+      have hgauss_eq : infiniteStandardGaussian w χ =
+          ((2 * (Real.pi : ℂ))⁻¹) • Φ (SchwartzMap.smulLeftCLM ℂ (monom p₀ q₀)
+            ((SchwartzMap.gaussian (2 * Real.pi) (by positivity)).postcompCLM Complex.ofRealCLM)) := by
+        refine Subtype.ext (funext fun y ↦ ?_)
+        obtain ⟨x, rfl⟩ : ∃ x : w.Completion, Multiplicative.ofAdd x = y := ⟨y.toAdd, rfl⟩
+        change infiniteStandardGaussianValue w χ x =
+          ((2 * (Real.pi : ℂ))⁻¹) * Φ (SchwartzMap.smulLeftCLM ℂ (monom p₀ q₀)
+            ((SchwartzMap.gaussian (2 * Real.pi) (by positivity)).postcompCLM Complex.ofRealCLM))
+            (Multiplicative.ofAdd x)
+        rw [hΦ_apply, SchwartzMap.smulLeftCLM_apply_apply (hmonom_temp p₀ q₀)]
+        simp only [infiniteStandardGaussianValue, hw, ↓reduceDIte, SchwartzMap.postcompCLM_apply,
+          Complex.ofRealCLM_apply, SchwartzMap.gaussian_apply, smul_eq_mul]
+        have hexp_eq : Complex.exp (-2 * ↑Real.pi * e x * star (e x)) =
+            (Real.exp (-(2 * Real.pi) * ‖e x‖ ^ 2) : ℂ) := by
+          rw [Complex.ofReal_exp]
+          congr 1
+          have hmul_conj : e x * star (e x) = ((‖e x‖ : ℝ) : ℂ) ^ 2 := Complex.mul_conj' (e x)
+          calc
+            -2 * (Real.pi : ℂ) * e x * star (e x)
+                = -(2 * (Real.pi : ℂ)) * (e x * star (e x)) := by ring
+            _ = -(2 * (Real.pi : ℂ)) * ((‖e x‖ : ℝ) : ℂ) ^ 2 := by rw [hmul_conj]
+            _ = ((-(2 * Real.pi) * ‖e x‖ ^ 2 : ℝ) : ℂ) := by push_cast; ring
+        have hmon_eq : (if 0 ≤ m then star (e x) ^ m.natAbs else e x ^ m.natAbs) = monom p₀ q₀ (e x) := by
+          by_cases hm0 : 0 ≤ m
+          · simp [monom, p₀, q₀, hm0]
+          · simp [monom, p₀, q₀, hm0]
+        change (if 0 ≤ m then star (e x) ^ m.natAbs else e x ^ m.natAbs) *
+            Complex.exp (-2 * ↑Real.pi * e x * star (e x)) / (2 * ↑Real.pi) = _
+        rw [hmon_eq, hexp_eq]
+        ring
+      have hG' : ((2 * (Real.pi : ℂ))⁻¹) *
+          T' (SchwartzMap.smulLeftCLM ℂ (monom p₀ q₀)
+            ((SchwartzMap.gaussian (2 * Real.pi) (by positivity)).postcompCLM Complex.ofRealCLM)) = 0 := by
+        simpa [T', hgauss_eq, map_smul, smul_eq_mul] using hG
+      exact (mul_eq_zero.mp hG').resolve_left (inv_ne_zero (mul_ne_zero two_ne_zero (Complex.ofReal_ne_zero.mpr Real.pi_ne_zero)))
+    have hp₀q₀_all_b : ∀ (b : ℝ) (hb : 0 < b),
+        T' (SchwartzMap.smulLeftCLM ℂ (monom p₀ q₀)
+          ((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM)) = 0 := by
+      intro b hb
+      let ρ : ℝ := Real.sqrt (2 * Real.pi / b)
+      have hρ : 0 < ρ := Real.sqrt_pos.mpr (div_pos (by positivity) hb)
+      let g : ℂˣ := Units.mk0 (ρ : ℂ) (Complex.ofReal_ne_zero.mpr hρ.ne')
+      have hscale : SchwartzMap.compCLMOfContinuousLinearEquiv ℂ (unitScaleInvCLE g)
+            (SchwartzMap.smulLeftCLM ℂ (monom p₀ q₀)
+              ((SchwartzMap.gaussian (2 * Real.pi) (by positivity)).postcompCLM Complex.ofRealCLM)) =
+          ((ρ⁻¹ : ℂ) ^ (p₀ + q₀)) • SchwartzMap.smulLeftCLM ℂ (monom p₀ q₀)
+            ((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM) := by
+        ext z
+        simp only [SchwartzMap.compCLMOfContinuousLinearEquiv_apply, Function.comp_apply,
+          unitScaleInvCLE_apply, smul_apply, SchwartzMap.smulLeftCLM_apply_apply (hmonom_temp p₀ q₀),
+          SchwartzMap.postcompCLM_apply, Complex.ofRealCLM_apply, SchwartzMap.gaussian_apply,
+          smul_eq_mul]
+        have hg_inv : (g⁻¹ : ℂ) = (ρ⁻¹ : ℂ) := by simp [g]
+        have hnorm_sc : ‖(g⁻¹ : ℂ) * z‖ ^ 2 = ρ⁻¹ ^ 2 * ‖z‖ ^ 2 := by
+          rw [hg_inv, norm_mul, norm_inv, Complex.norm_real,
+            Real.norm_of_nonneg hρ.le, mul_pow]
+        have hexp_sc : -(2 * Real.pi) * ‖(g⁻¹ : ℂ) * z‖ ^ 2 = -b * ‖z‖ ^ 2 := by
+          have hρ2 : ρ ^ 2 = 2 * Real.pi / b := Real.sq_sqrt (div_pos (by positivity) hb).le
+          rw [hnorm_sc]
+          calc
+            -(2 * Real.pi) * (ρ⁻¹ ^ 2 * ‖z‖ ^ 2) = -(2 * Real.pi) * (ρ ^ 2)⁻¹ * ‖z‖ ^ 2 := by ring
+            _ = -(2 * Real.pi) * (2 * Real.pi / b)⁻¹ * ‖z‖ ^ 2 := by rw [hρ2]
+            _ = -b * ‖z‖ ^ 2 := by field_simp [Real.pi_ne_zero, hb.ne']
+        have hmon_sc : monom p₀ q₀ ((g⁻¹ : ℂ) * z) = (ρ⁻¹ : ℂ) ^ (p₀ + q₀) * monom p₀ q₀ z := by
+          rw [hg_inv]
+          simp only [monom, map_mul, map_inv₀, Complex.conj_ofReal, mul_pow, pow_add]
+          ring
+        rw [hexp_sc, hmon_sc]
+        ring
+      have hmul : ((ρ⁻¹ : ℂ) ^ (p₀ + q₀)) *
+          T' (SchwartzMap.smulLeftCLM ℂ (monom p₀ q₀)
+            ((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM)) = 0 := by
+        calc
+          ((ρ⁻¹ : ℂ) ^ (p₀ + q₀)) *
+              T' (SchwartzMap.smulLeftCLM ℂ (monom p₀ q₀)
+                ((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM))
+              = T' (((ρ⁻¹ : ℂ) ^ (p₀ + q₀)) • SchwartzMap.smulLeftCLM ℂ (monom p₀ q₀)
+                  ((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM)) := by
+                rw [map_smul, smul_eq_mul]
+          _ = T' (SchwartzMap.compCLMOfContinuousLinearEquiv ℂ (unitScaleInvCLE g)
+                  (SchwartzMap.smulLeftCLM ℂ (monom p₀ q₀)
+                    ((SchwartzMap.gaussian (2 * Real.pi) (by positivity)).postcompCLM Complex.ofRealCLM))) := by
+                rw [hscale]
+          _ = c (Units.map e.symm.toMonoidHom g) *
+                T' (SchwartzMap.smulLeftCLM ℂ (monom p₀ q₀)
+                  ((SchwartzMap.gaussian (2 * Real.pi) (by positivity)).postcompCLM Complex.ofRealCLM)) :=
+                hT'_eig g _
+          _ = 0 := by rw [hp₀q₀_van, mul_zero]
+      exact (mul_eq_zero.mp hmul).resolve_left (pow_ne_zero _ (inv_ne_zero (Complex.ofReal_ne_zero.mpr hρ.ne')))
+    have hdiag_van : ∀ (j : ℕ) (b : ℝ) (hb : 0 < b),
+        T' (SchwartzMap.smulLeftCLM ℂ (monom (p₀ + j) (q₀ + j))
+          ((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM)) = 0 := by
+      intro j b hb
+      have hdecomp : monom (p₀ + j) (q₀ + j) = fun z : ℂ ↦ (‖z‖ ^ 2 : ℂ) ^ j * monom p₀ q₀ z := by
+        ext z
+        have hmconj : (‖z‖ ^ 2 : ℂ) = z * starRingEnd ℂ z := (Complex.mul_conj' z).symm
+        simp only [monom, hmconj, mul_pow, pow_add]
+        ring
+      rw [hdecomp]
+      exact schwartzDual_normSq_pow_mul_gauss_eq_zero T' (hmonom_temp p₀ q₀) hp₀q₀_all_b j b hb
+    have hmonom_all : ∀ (p q : ℕ) (b : ℝ) (hb : 0 < b),
+        T' (SchwartzMap.smulLeftCLM ℂ (monom p q)
+          ((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM)) = 0 := by
+      intro p q b hb
+      by_cases hdiff : (q : ℤ) - p = m
+      · by_cases hm0 : 0 ≤ m
+        · have hp0 : p₀ = 0 := by simp [p₀, hm0]
+          have hq0 : q₀ = m.natAbs := by simp [q₀, hm0]
+          rw [show monom p q = monom (p₀ + p) (q₀ + p) by congr 1 <;> omega]
+          exact hdiag_van p b hb
+        · have hp0 : p₀ = m.natAbs := by simp [p₀, hm0]
+          have hq0 : q₀ = 0 := by simp [q₀, hm0]
+          rw [show monom p q = monom (p₀ + q) (q₀ + q) by congr 1 <;> omega]
+          exact hdiag_van q b hb
+      · let d : ℤ := (q : ℤ) - p - m
+        have hd : d ≠ 0 := sub_ne_zero.mpr hdiff
+        let θ : ℝ := Real.pi / ((d.natAbs : ℝ) + 1)
+        have hθ_pos : 0 < θ := div_pos Real.pi_pos (by positivity)
+        let u0 : ℂ := Complex.exp ((θ : ℂ) * Complex.I)
+        have hu0_ne : u0 ≠ 0 := Complex.exp_ne_zero _
+        let u : ℂˣ := Units.mk0 u0 hu0_ne
+        have hu0_norm : ‖u0‖ = 1 := by simp [u0, Complex.norm_exp_ofReal_mul_I]
+        have hu0_conj : starRingEnd ℂ u0 = u0⁻¹ := by
+          have hmul : u0 * starRingEnd ℂ u0 = 1 := by
+            rw [Complex.mul_conj' u0, hu0_norm]
+            norm_num
+          exact (inv_eq_of_mul_eq_one_right hmul).symm
+        have hu0_inv_conj : starRingEnd ℂ (u0⁻¹) = u0 := by
+          rw [map_inv₀, hu0_conj, inv_inv]
+        let Fpq := SchwartzMap.smulLeftCLM ℂ (monom p q)
+          ((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM)
+        have hrot_F : SchwartzMap.compCLMOfContinuousLinearEquiv ℂ (unitScaleInvCLE u) Fpq =
+            (u0 ^ ((q : ℤ) - p)) • Fpq := by
+          ext z
+          simp only [Fpq, SchwartzMap.compCLMOfContinuousLinearEquiv_apply, Function.comp_apply,
+            unitScaleInvCLE_apply, smul_apply, SchwartzMap.smulLeftCLM_apply_apply (hmonom_temp p q),
+            SchwartzMap.postcompCLM_apply, Complex.ofRealCLM_apply, SchwartzMap.gaussian_apply,
+            smul_eq_mul]
+          have hu_val : (u⁻¹ : ℂ) = u0⁻¹ := rfl
+          have hnorm_rot : ‖(u⁻¹ : ℂ) * z‖ = ‖z‖ := by
+            rw [hu_val, norm_mul, norm_inv, hu0_norm, inv_one, one_mul]
+          have hpow_rot : monom p q ((u⁻¹ : ℂ) * z) = u0 ^ ((q : ℤ) - p) * monom p q z := by
+            rw [hu_val]
+            simp only [monom, map_mul, hu0_inv_conj, mul_pow]
+            rw [zpow_sub₀ hu0_ne, zpow_natCast, zpow_natCast, inv_pow]
+            field_simp [hu0_ne]
+          rw [hnorm_rot, hpow_rot]
+          ring
+        have hc_u : c (Units.map e.symm.toMonoidHom u) = u0 ^ m := by
+          change c₀ u * (((mInf (Units.map e.symm.toMonoidHom u) : ℝ≥0) : ℝ) : ℂ) ^ s = _
+          have hnorm_u : ((mInf (Units.map e.symm.toMonoidHom u) : ℝ≥0) : ℝ) = 1 := by
+            rw [infiniteNorm_ofComplex_unit w hc u]
+            simp [u, hu0_norm]
+          rw [hnorm_u, Complex.ofReal_one, Complex.one_cpow, mul_one, hbase u]
+          have hu_n : ‖(u : ℂ)‖ = 1 := hu0_norm
+          rw [hu_n]
+          simp [u]
+        have heq_mul : (u0 ^ ((q : ℤ) - p) - u0 ^ m) * T' Fpq = 0 := by
+          have h1 : u0 ^ ((q : ℤ) - p) * T' Fpq = u0 ^ m * T' Fpq := by
+            calc
+              u0 ^ ((q : ℤ) - p) * T' Fpq = T' ((u0 ^ ((q : ℤ) - p)) • Fpq) := by
+                rw [map_smul, smul_eq_mul]
+              _ = T' (SchwartzMap.compCLMOfContinuousLinearEquiv ℂ (unitScaleInvCLE u) Fpq) := by
+                rw [hrot_F]
+              _ = c (Units.map e.symm.toMonoidHom u) * T' Fpq := hT'_eig u Fpq
+              _ = u0 ^ m * T' Fpq := by rw [hc_u]
+          linear_combination h1
+        have hdiff_ne : u0 ^ ((q : ℤ) - p) - u0 ^ m ≠ 0 := by
+          intro hzero
+          have hdiv1 : u0 ^ d = 1 := by
+            have heq : u0 ^ ((q : ℤ) - p) = u0 ^ m := sub_eq_zero.mp hzero
+            dsimp only [d]
+            rw [zpow_sub₀ hu0_ne, heq, div_self (zpow_ne_zero m hu0_ne)]
+          have hexp_d : Complex.exp (((d : ℝ) * θ : ℝ) * Complex.I) = 1 := by
+            calc
+              Complex.exp (((d : ℝ) * θ : ℝ) * Complex.I)
+                  = Complex.exp ((d : ℂ) * ((θ : ℂ) * Complex.I)) := by push_cast; ring_nf
+              _ = (Complex.exp ((θ : ℂ) * Complex.I)) ^ d := Complex.exp_int_mul _ d
+              _ = u0 ^ d := rfl
+              _ = 1 := hdiv1
+          obtain ⟨k, hk⟩ := Complex.exp_eq_one_iff.mp hexp_d
+          have hk_im : (d : ℝ) * θ = k * (2 * Real.pi) := by
+            have := congrArg Complex.im hk
+            simpa [Complex.mul_im] using this
+          have hk_ne : k ≠ 0 := by
+            rintro rfl
+            simp only [Int.cast_zero, zero_mul, mul_eq_zero] at hk_im
+            rcases hk_im with hd0 | hθ0
+            · exact hd (Int.cast_eq_zero.mp hd0)
+            · exact hθ_pos.ne' hθ0
+          have hk_abs : (1 : ℝ) ≤ |(k : ℝ)| := by exact_mod_cast Int.one_le_abs hk_ne
+          have hbd1 : 2 * Real.pi ≤ |(d : ℝ) * θ| := by
+            rw [hk_im, abs_mul, abs_of_pos (by positivity : (0 : ℝ) < 2 * Real.pi)]
+            nlinarith [Real.pi_pos]
+          have hbd2 : |(d : ℝ) * θ| < Real.pi := by
+            rw [abs_mul, abs_of_pos hθ_pos]
+            have hd_abs : |(d : ℝ)| = (d.natAbs : ℝ) := by
+              rw [← Int.cast_abs, Int.abs_eq_natAbs, Int.cast_natCast]
+            rw [hd_abs]
+            dsimp only [θ]
+            calc
+              (d.natAbs : ℝ) * (Real.pi / ((d.natAbs : ℝ) + 1))
+                  = Real.pi * ((d.natAbs : ℝ) / ((d.natAbs : ℝ) + 1)) := by ring
+              _ < Real.pi * 1 := by
+                gcongr
+                rw [div_lt_one (by positivity)]
+                linarith
+              _ = Real.pi := mul_one _
+          linarith [Real.pi_pos]
+        exact (mul_eq_zero.mp heq_mul).resolve_left hdiff_ne
+    have htrans_van : ∀ (b : ℝ) (hb : 0 < b) (y : ℂ),
+        T' (((SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM).compSubConstCLM ℂ y) = 0 := by
+      intro b hb y
+      refine schwartzDual_translate_gauss_eq_zero T' b hb y fun m ↦ ?_
+      let g : SchwartzMap ℂ ℂ := (SchwartzMap.gaussian b hb).postcompCLM Complex.ofRealCLM
+      have htemp_in : (fun z : ℂ ↦ ((inner ℝ z y : ℝ) : ℂ) ^ m).HasTemperateGrowth := by
+        have hlin : (fun z : ℂ ↦ ((inner ℝ z y : ℝ) : ℂ)) =
+            fun z : ℂ ↦ (starRingEnd ℂ y / 2) * z + (y / 2) * starRingEnd ℂ z := by
+          ext z
+          rw [complex_inner_eq_add_conj]
+          ring
+        have h1 : (fun z : ℂ ↦ (starRingEnd ℂ y / 2) * z + (y / 2) * starRingEnd ℂ z).HasTemperateGrowth := by
+          exact ((Function.HasTemperateGrowth.const _).mul
+              (ContinuousLinearMap.id ℝ ℂ).hasTemperateGrowth).add
+            ((Function.HasTemperateGrowth.const _).mul
+              (Complex.conjCLE : ℂ ≃L[ℝ] ℂ).toContinuousLinearMap.hasTemperateGrowth)
+        rw [show (fun z : ℂ ↦ ((inner ℝ z y : ℝ) : ℂ) ^ m) =
+            (fun z : ℂ ↦ ((starRingEnd ℂ y / 2) * z + (y / 2) * starRingEnd ℂ z) ^ m) from
+            funext fun z ↦ congrArg (· ^ m) (congrFun hlin z)]
+        exact h1.pow m
+      have hsum : SchwartzMap.smulLeftCLM ℂ (fun z : ℂ ↦ ((inner ℝ z y : ℝ) : ℂ) ^ m) g =
+          ∑ i ∈ Finset.range (m + 1),
+            ((m.choose i : ℂ) * (starRingEnd ℂ y / 2) ^ i * (y / 2) ^ (m - i)) •
+              SchwartzMap.smulLeftCLM ℂ (monom i (m - i)) g := by
+        ext z
+        rw [SchwartzMap.smulLeftCLM_apply_apply htemp_in, sum_apply]
+        simp only [smul_apply, SchwartzMap.smulLeftCLM_apply_apply (hmonom_temp _ _),
+          smul_eq_mul]
+        rw [complex_inner_eq_add_conj,
+          show (z * starRingEnd ℂ y + starRingEnd ℂ z * y) / 2 =
+            z * (starRingEnd ℂ y / 2) + starRingEnd ℂ z * (y / 2) by ring,
+          add_pow, Finset.sum_mul]
+        refine Finset.sum_congr rfl fun i _ ↦ ?_
+        simp only [monom, mul_pow]
+        ring
+      rw [hsum, map_sum]
+      refine Finset.sum_eq_zero fun i _ ↦ ?_
+      rw [map_smul, hmonom_all i (m - i) b hb, smul_zero]
+    have hT'_zero : T' = 0 := schwartzDual_eq_zero_of_translate_gauss T' htrans_van
+    ext f
+    obtain ⟨g, rfl⟩ := hΦ_surj f
+    exact congrArg (fun S : StrongDual ℂ (SchwartzMap ℂ ℂ) ↦ S g) hT'_zero
+
+end Step3c
+
+end InfiniteEigendistributionHelpers
+
 /-- Paper: Theorem 3.4.3.3(1), p. 153. At an infinite place, an eigendistribution of
 weight `χ‖·‖^s` (in the norm-twist chart of the unitary character `χ`) that vanishes on the
 standard Gaussian of `χ` is zero. This is the uniqueness half of the one-dimensionality of the
@@ -3213,7 +5844,7 @@ theorem infiniteEigendistribution_eq_zero_of_gaussian (w : InfinitePlace F)
     (hT : T ∈ schwartzBruhatEigendistributions (quasiCharacterNormTwist (infiniteNorm(w))
       (continuous_infiniteLocalModule w) ((circleToComplex).comp χ) s))
     (hG : T (infiniteStandardGaussian w χ) = 0) : T = 0 := by
-  sorry
+  exact infiniteEigendistribution_eq_zero_of_gaussian_proof w χ s T hT hG
 
 /-- Abstract form of the entire family: a meromorphic family of distributions whose scalar
 poles are at most simple and lie in the zero set of an entire function `h` becomes entire after

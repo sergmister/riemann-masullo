@@ -8,6 +8,11 @@ import Mathlib.LinearAlgebra.PiTensorProduct.Generators
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Algebra.Group.Pointwise.Set.Scalar
 import Mathlib.Analysis.InnerProductSpace.l2Space
+import RiemannMasullo.External.GaussianField.HermiteFunctions
+import Mathlib.Analysis.Complex.RealDeriv
+import Mathlib.Data.Nat.Pairing
+import Mathlib.MeasureTheory.Integral.Pi
+import Mathlib.MeasureTheory.Measure.Haar.InnerProductSpace
 import Mathlib.Analysis.PSeries
 import Mathlib.Data.List.FinRange
 import Mathlib.Data.List.OfFn
@@ -419,6 +424,748 @@ private theorem euclideanSchwartz_summable_of_seminorm {m : ℕ}
   rw [dist_eq_norm', ← map_sum, ← map_sum, ← map_sub, hj] at hs'
   simpa only [sub_zero, Function.comp_apply, schwartzSeminormFamily, p] using hs'
 
+section HermiteEstimates
+
+open GaussianField Real SchwartzMap
+open scoped LineDeriv Laplacian
+
+private theorem real_L2_norm_sq {X : Type*} [MeasurableSpace X] {μ : Measure X}
+    {f : X → ℝ} (hf : MemLp f 2 μ) :
+    ‖hf.toLp f‖ ^ 2 = ∫ x, f x ^ 2 ∂μ := by
+  rw [← real_inner_self_eq_norm_sq, L2.inner_def]
+  apply integral_congr_ae
+  filter_upwards [hf.coeFn_toLp] with x hx
+  simp [hx, pow_two]
+
+private theorem real_L2_integral_mul_bound {X : Type*} [MeasurableSpace X] {μ : Measure X}
+    {f g : X → ℝ} (hf : MemLp f 2 μ) (hg : MemLp g 2 μ)
+    (hg₁ : (∫ x, g x ^ 2 ∂μ) = 1) :
+    (∫ x, f x * g x ∂μ) ^ 2 ≤ ∫ x, f x ^ 2 ∂μ := by
+  have hi : inner ℝ (hf.toLp f) (hg.toLp g) = ∫ x, f x * g x ∂μ := by
+    rw [L2.inner_def]
+    apply integral_congr_ae
+    filter_upwards [hf.coeFn_toLp, hg.coeFn_toLp] with x hx hy
+    simp [hx, hy, mul_comm]
+  have h₁ : ‖hg.toLp g‖ = 1 := by
+    have hr := (real_L2_norm_sq hg).trans hg₁
+    nlinarith [norm_nonneg (hg.toLp g)]
+  rw [← hi, ← real_L2_norm_sq hf]
+  have h := abs_real_inner_le_norm (hf.toLp f) (hg.toLp g)
+  rw [h₁, mul_one] at h
+  simpa only [sq_abs] using pow_le_pow_left₀ (abs_nonneg _) h 2
+
+private theorem real_L2_product_complete
+    {X Y I K : Type*} [MeasurableSpace X] [MeasurableSpace Y]
+    {μ : Measure X} {ν : Measure Y} [SigmaFinite μ] [SigmaFinite ν] [Countable K]
+    (v : I → X → ℝ) (w : K → Y → ℝ)
+    (hv : ∀ i, MemLp (v i) 2 μ) (hw : ∀ j, MemLp (w j) 2 ν)
+    (hw₁ : ∀ j, (∫ y, w j y ^ 2 ∂ν) = 1)
+    (hvc : ∀ g : X → ℝ, MemLp g 2 μ → (∀ i, (∫ x, g x * v i x ∂μ) = 0) → g =ᵐ[μ] 0)
+    (hwc : ∀ g : Y → ℝ, MemLp g 2 ν → (∀ j, (∫ y, g y * w j y ∂ν) = 0) → g =ᵐ[ν] 0)
+    (f : X × Y → ℝ) (hfm : Measurable f) (hf : MemLp f 2 (μ.prod ν))
+    (hzero : ∀ i j, (∫ z, f z * (v i z.1 * w j z.2) ∂μ.prod ν) = 0) :
+    f =ᵐ[μ.prod ν] 0 := by
+  have hf₂ := hf.integrable_sq
+  have hfs : ∀ᵐ x ∂μ, MemLp (fun y ↦ f (x, y)) 2 ν := by
+    filter_upwards [hf₂.prod_right_ae, hf.aestronglyMeasurable.prodMk_left] with x h₁ h₂
+    exact (memLp_two_iff_integrable_sq h₂).2 h₁
+  let g (j : K) (x : X) := ∫ y, f (x, y) * w j y ∂ν
+  have hg₀ : ∀ j, g j =ᵐ[μ] 0 := by
+    intro j
+    have hg : AEStronglyMeasurable (g j) μ :=
+      (hf.aestronglyMeasurable.mul ((hw j).aestronglyMeasurable.comp_quasiMeasurePreserving
+        Measure.quasiMeasurePreserving_snd)).integral_prod_right'
+    have hg₂ : MemLp (g j) 2 μ := by
+      apply (memLp_two_iff_integrable_sq hg).2
+      apply hf₂.integral_prod_left.mono' (hg.pow 2)
+      filter_upwards [hfs] with x hx
+      simpa only [Pi.pow_apply, Real.norm_eq_abs, abs_of_nonneg (sq_nonneg (g j x))] using
+        real_L2_integral_mul_bound hx (hw j) (hw₁ j)
+    apply hvc (g j) hg₂
+    intro i
+    have hprod : MemLp (fun z : X × Y ↦ v i z.1 * w j z.2) 2 (μ.prod ν) := by
+      have hmeas : AEStronglyMeasurable (fun z : X × Y ↦ v i z.1 * w j z.2) (μ.prod ν) :=
+        ((hv i).aestronglyMeasurable.comp_quasiMeasurePreserving Measure.quasiMeasurePreserving_fst).mul
+          ((hw j).aestronglyMeasurable.comp_quasiMeasurePreserving Measure.quasiMeasurePreserving_snd)
+      apply (memLp_two_iff_integrable_sq hmeas).2
+      simp_rw [mul_pow]
+      exact ((hv i).integrable_sq).mul_prod ((hw j).integrable_sq)
+    have h := hzero i j
+    have hmul : Integrable (fun z : X × Y ↦ f z * (v i z.1 * w j z.2)) (μ.prod ν) :=
+      hf.integrable_mul hprod
+    rw [integral_prod _ hmul] at h
+    convert h using 1
+    congr 1
+    ext x
+    show g j x * v i x = ∫ y, f (x, y) * (v i x * w j y) ∂ν
+    dsimp only [g]
+    rw [← integral_mul_const]
+    congr 1
+    ext y
+    ring
+  change ∀ᵐ z ∂μ.prod ν, f z = 0
+  refine (Measure.ae_prod_iff_ae_ae (p := fun z ↦ f z = 0)
+    (hfm (measurableSet_singleton 0))).2 ?_
+  filter_upwards [hfs, ae_all_iff.2 hg₀] with x hx h
+  exact hwc _ hx h
+
+private def hermitePi {d : ℕ} (a : Fin d → ℕ) (x : Fin d → ℝ) : ℝ :=
+  ∏ i, hermiteFunction (a i) (x i)
+
+private theorem hermitePi_memLp {d : ℕ} (a : Fin d → ℕ) :
+    MemLp (hermitePi a) 2 volume := by
+  have hm : Measurable (hermitePi a) := by
+    unfold hermitePi
+    exact Finset.measurable_prod _ fun i _ ↦
+      (hermiteFunction_contDiff (a i) 0).continuous.measurable.comp (measurable_pi_apply i)
+  apply (memLp_two_iff_integrable_sq hm.aestronglyMeasurable).2
+  simp_rw [hermitePi, ← Finset.prod_pow]
+  exact Integrable.fintype_prod (μ := fun _ ↦ (volume : Measure ℝ))
+    (f := fun i t ↦ hermiteFunction (a i) t ^ 2)
+    (fun i ↦ (hermiteFunction_memLp (a i)).integrable_sq)
+
+private theorem hermitePi_integral_mul {d : ℕ} (a b : Fin d → ℕ) :
+    (∫ x, hermitePi a x * hermitePi b x) = if a = b then 1 else 0 := by
+  classical
+  simp only [hermitePi, ← Finset.prod_mul_distrib]
+  rw [integral_fintype_prod_volume_eq_prod (fun i t ↦ hermiteFunction (a i) t *
+    hermiteFunction (b i) t)]
+  simp_rw [hermiteFunction_orthonormal]
+  split_ifs with h
+  · subst b; simp
+  · obtain ⟨i, hi⟩ := Function.ne_iff.mp h
+    exact Finset.prod_eq_zero (Finset.mem_univ i) (ite_eq_right hi)
+
+private theorem hermitePi_complete_measurable (d : ℕ) :
+    ∀ f : (Fin d → ℝ) → ℝ, Measurable f → MemLp f 2 volume →
+    (∀ a, (∫ x, f x * hermitePi a x) = 0) → f =ᵐ[volume] 0 := by
+  induction d with
+  | zero =>
+    intro f _ _ hz
+    have h := hz (fun _ ↦ 0)
+    rw [Measure.volume_pi_eq_dirac (0 : Fin 0 → ℝ)] at h
+    have h' : f (0 : Fin 0 → ℝ) = 0 := by simpa [hermitePi] using h
+    exact Filter.Eventually.of_forall fun x ↦ by rw [Subsingleton.elim x 0]; exact h'
+  | succ d ih =>
+    intro f hf hf₂ h
+    let e := MeasurableEquiv.piFinSuccAbove (fun _ : Fin (d + 1) ↦ ℝ) 0
+    have he : MeasurePreserving e volume ((volume : Measure ℝ).prod
+        (volume : Measure (Fin d → ℝ))) :=
+      volume_preserving_piFinSuccAbove _ 0
+    let g := f ∘ e.symm
+    have hcoeff (i : ℕ) (j : Fin d → ℕ) :
+        (∫ z, g z * (hermiteFunction i z.1 * hermitePi j z.2) ∂
+          ((volume : Measure ℝ).prod (volume : Measure (Fin d → ℝ)))) = 0 := by
+      let a : Fin (d + 1) → ℕ := Fin.cons (α := fun _ ↦ ℕ) i j
+      have h' := h a
+      rw [← (he.symm e).integral_comp' (fun x ↦ f x * hermitePi a x)] at h'
+      simpa [g, a, e, hermitePi, Function.comp_def, MeasurableEquiv.piFinSuccAbove_symm_apply,
+        Fin.insertNthEquiv, Fin.prod_univ_succ, Fin.insertNth_zero] using h'
+    have hg := real_L2_product_complete hermiteFunction (@hermitePi d)
+      hermiteFunction_memLp hermitePi_memLp
+      (fun a ↦ by simpa [pow_two] using hermitePi_integral_mul a a)
+      hermiteFunction_complete
+      (fun u hu hzero ↦ by
+        let hm := hu.aestronglyMeasurable
+        let u' := hm.mk u
+        apply hm.ae_eq_mk.trans
+        apply ih u' hm.measurable_mk (hu.ae_eq hm.ae_eq_mk)
+        intro b
+        rw [← hzero b]
+        apply integral_congr_ae
+        filter_upwards [hm.ae_eq_mk] with x hx
+        rw [hx])
+      g (hf.comp e.symm.measurable) (hf₂.comp_measurePreserving (he.symm e)) hcoeff
+    simpa [g, Function.comp_def, Pi.zero_def] using he.quasiMeasurePreserving.ae_eq_comp hg
+
+private theorem hermitePi_complete (d : ℕ)
+    (f : (Fin d → ℝ) → ℝ) (hf : MemLp f 2 volume)
+    (h : ∀ a, (∫ x, f x * hermitePi a x) = 0) : f =ᵐ[volume] 0 := by
+  let hm := hf.aestronglyMeasurable
+  let f' := hm.mk f
+  apply hm.ae_eq_mk.trans
+  apply hermitePi_complete_measurable d f' hm.measurable_mk (hf.ae_eq hm.ae_eq_mk)
+  intro a
+  rw [← h a]
+  apply integral_congr_ae
+  filter_upwards [hm.ae_eq_mk] with x hx
+  rw [hx]
+
+
+private def hermite1 (n : ℕ) : SchwartzMap ℝ ℝ :=
+  Classical.choose (hermiteFunction_schwartz n)
+
+private theorem hermite1_coe (n : ℕ) : ⇑(hermite1 n) = hermiteFunction n :=
+  funext (Classical.choose_spec (hermiteFunction_schwartz n))
+
+private theorem hermite1_weighted_bound (k l : ℕ) : ∃ (C : ℝ) (s : ℕ), 0 ≤ C ∧
+    ∀ (n j : ℕ), j ≤ l → ∀ x : ℝ,
+    max 1 |x| ^ k * ‖iteratedFDeriv ℝ j (hermiteFunction n) x‖ ≤ C * (1 + (n : ℝ)) ^ s := by
+  classical
+  choose C₀ t₀ hC₀ ht₀ h₀ using (fun j ↦ hermiteFunction_seminorm_bound 0 j)
+  choose C₁ t₁ hC₁ ht₁ h₁ using (fun j ↦ hermiteFunction_seminorm_bound k j)
+  let I := Finset.range (l + 1)
+  let C := ∑ j ∈ I, (C₀ j + C₁ j)
+  let s := ∑ j ∈ I, (⌈t₀ j⌉₊ + ⌈t₁ j⌉₊)
+  have hC : 0 ≤ C := Finset.sum_nonneg (fun j _ ↦ add_nonneg (hC₀ j).le (hC₁ j).le)
+  refine ⟨C, s, hC, ?_⟩
+  intro n j hj x
+  have hjI : j ∈ I := Finset.mem_range.mpr (Nat.lt_succ_of_le hj)
+  have hCj : C₀ j + C₁ j ≤ C :=
+    Finset.single_le_sum (fun j _ ↦ add_nonneg (hC₀ j).le (hC₁ j).le) hjI
+  have hsj : ⌈t₀ j⌉₊ + ⌈t₁ j⌉₊ ≤ s :=
+    Finset.single_le_sum (f := fun j ↦ ⌈t₀ j⌉₊ + ⌈t₁ j⌉₊) (fun _ _ ↦ Nat.zero_le _) hjI
+  have hbase : (1 : ℝ) ≤ 1 + (n : ℝ) := le_add_of_nonneg_right (Nat.cast_nonneg _)
+  have hpower (t : ℝ) (ht : ⌈t⌉₊ ≤ s) : (1 + (n : ℝ)) ^ t ≤ (1 + (n : ℝ)) ^ s := by
+    rw [← Real.rpow_natCast]
+    exact Real.rpow_le_rpow_of_exponent_le hbase
+      (Nat.le_ceil t |>.trans (Nat.cast_le.mpr ht))
+  rcases le_total |x| 1 with hx | hx
+  · rw [max_eq_left hx, one_pow, one_mul]
+    have h := SchwartzMap.le_seminorm ℝ 0 j (hermite1 n) x
+    rw [hermite1_coe, pow_zero, one_mul] at h
+    exact h.trans ((h₀ j n).trans <| mul_le_mul
+      (by linarith [hC₁ j]) (hpower _ (by omega)) (by positivity) hC)
+  · rw [max_eq_right hx]
+    have h := SchwartzMap.le_seminorm ℝ k j (hermite1 n) x
+    rw [hermite1_coe, Real.norm_eq_abs] at h
+    exact h.trans ((h₁ j n).trans <| mul_le_mul
+      (by linarith [hC₀ j]) (hpower _ (by omega)) (by positivity) hC)
+
+private theorem hermite_comp_proj_deriv_le {d : ℕ} (n : ℕ) (i : Fin d) (l : ℕ)
+    (x : EuclideanSpace ℝ (Fin d)) :
+    ‖iteratedFDeriv ℝ l (fun y : EuclideanSpace ℝ (Fin d) ↦ hermiteFunction n (y i)) x‖ ≤
+      ‖iteratedFDeriv ℝ l (hermiteFunction n) (x i)‖ := by
+  let L : EuclideanSpace ℝ (Fin d) →L[ℝ] ℝ := EuclideanSpace.proj i
+  have hL : ‖L‖ ≤ 1 :=
+    ContinuousLinearMap.opNorm_le_bound _ zero_le_one (fun y ↦ by
+      change ‖y i‖ ≤ 1 * ‖y‖
+      simpa only [one_mul] using PiLp.norm_apply_le (p := 2) y i)
+  have hs : ContDiff ℝ (∞) (hermiteFunction n) := contDiff_infty.mpr (hermiteFunction_contDiff n)
+  change ‖iteratedFDeriv ℝ l (hermiteFunction n ∘ L) x‖ ≤ _
+  rw [L.iteratedFDeriv_comp_right hs x (i := l) (mod_cast le_top)]
+  apply (ContinuousMultilinearMap.norm_compContinuousLinearMap_le _ _).trans
+  suffices (∏ _ : Fin l, ‖L‖) ≤ 1 by
+    change _ ≤ ‖iteratedFDeriv ℝ l (hermiteFunction n) (L x)‖
+    simpa using mul_le_mul_of_nonneg_left this (norm_nonneg
+      (iteratedFDeriv ℝ l (hermiteFunction n) (L x)))
+  simpa using pow_le_one₀ (norm_nonneg L) hL
+
+private def hermiteEuclidean {d : ℕ} (a : Fin d → ℕ) (x : EuclideanSpace ℝ (Fin d)) : ℝ :=
+  ∏ i, hermiteFunction (a i) (x i)
+
+private theorem hermiteEuclidean_pointwise_bound (d k l : ℕ) :
+    ∃ (C : ℝ) (s : ℕ), 0 ≤ C ∧ ∀ (a : Fin d → ℕ) (x : EuclideanSpace ℝ (Fin d)),
+      ‖x‖ ^ k * ‖iteratedFDeriv ℝ l (hermiteEuclidean a) x‖ ≤
+        C * (1 + ((∑ i, a i : ℕ) : ℝ)) ^ s := by
+  classical
+  obtain ⟨C, s, hC, h⟩ := hermite1_weighted_bound k l
+  let M := (Finset.univ : Finset (Fin d)).sym l
+  let A : Sym (Fin d) l → ℝ := fun p ↦ ((p : Multiset (Fin d)).countPerms : ℝ)
+  refine ⟨(∑ p ∈ M, A p) * (Real.sqrt d) ^ k * C ^ d, s * d, by positivity, ?_⟩
+  intro a x
+  let u (i : Fin d) := max 1 |x i|
+  let W := ∏ i, u i
+  let S := 1 + ((∑ i, a i : ℕ) : ℝ)
+  have hS : 1 ≤ S := le_add_of_nonneg_right (Nat.cast_nonneg _)
+  have hW : 0 ≤ W := Finset.prod_nonneg fun i _ ↦ (zero_le_one.trans (le_max_left _ _))
+  have hX : ‖x‖ ≤ Real.sqrt d * W := by
+    rw [EuclideanSpace.norm_eq, ← Real.sqrt_sq hW, ← Real.sqrt_mul (Nat.cast_nonneg d)]
+    apply Real.sqrt_le_sqrt
+    calc
+      _ ≤ ∑ _i : Fin d, W ^ 2 := by
+        apply Finset.sum_le_sum
+        intro i hi
+        rw [Real.norm_eq_abs]
+        have hi' : u i ≤ W := by
+          have hprod : 1 ≤ ∏ j ∈ Finset.univ.erase i, u j :=
+            Finset.one_le_prod₀ (fun _ _ ↦ le_max_left _ _)
+          dsimp only [W]
+          rw [← Finset.mul_prod_erase _ u hi]
+          exact le_mul_of_one_le_right (zero_le_one.trans (le_max_left _ _)) hprod
+        exact pow_le_pow_left₀ (abs_nonneg _) ((le_max_right 1 |x i|).trans hi') _
+      _ = _ := by simp
+  let f (i : Fin d) (y : EuclideanSpace ℝ (Fin d)) := hermiteFunction (a i) (y i)
+  have hf : ∀ i : Fin d, ContDiff ℝ (∞) (f i) := fun i ↦
+    (contDiff_infty.mpr (hermiteFunction_contDiff (a i))).comp (EuclideanSpace.proj (𝕜 := ℝ) i).contDiff
+  have hleib := norm_iteratedFDeriv_prod_le (N := ∞) (n := l) (x := x)
+    (u := (Finset.univ : Finset (Fin d))) (f := f) (fun i _ ↦ hf i) (mod_cast le_top)
+  have hterm (p : Sym (Fin d) l) :
+      ‖x‖ ^ k * ∏ i, ‖iteratedFDeriv ℝ ((p : Multiset (Fin d)).count i) (f i) x‖
+        ≤ (Real.sqrt d) ^ k * (C * S ^ s) ^ d := by
+    calc
+      _ ≤ (Real.sqrt d * W) ^ k *
+          ∏ i, ‖iteratedFDeriv ℝ ((p : Multiset (Fin d)).count i) (f i) x‖ :=
+        mul_le_mul_of_nonneg_right (pow_le_pow_left₀ (norm_nonneg _) hX k) (by positivity)
+      _ = (Real.sqrt d) ^ k * ∏ i,
+          u i ^ k * ‖iteratedFDeriv ℝ ((p : Multiset (Fin d)).count i) (f i) x‖ := by
+        simp only [mul_pow, W, ← Finset.prod_pow, Finset.prod_mul_distrib, mul_assoc]
+      _ ≤ (Real.sqrt d) ^ k * ∏ _i : Fin d, (C * S ^ s) := by
+        apply mul_le_mul_of_nonneg_left _ (by positivity)
+        apply Finset.prod_le_prod₀ (fun _ _ ↦ by positivity)
+        intro i hi
+        let j := (p : Multiset (Fin d)).count i
+        have hj : j ≤ l := (Multiset.count_le_card i _).trans (le_of_eq p.property)
+        have ha : (1 : ℝ) + a i ≤ S := add_le_add_right (Nat.cast_le.mpr
+          (Finset.single_le_sum (f := a) (fun _ _ ↦ Nat.zero_le _) hi)) _
+        exact (mul_le_mul_of_nonneg_left (hermite_comp_proj_deriv_le (a i) i j x) (by positivity :
+          0 ≤ u i ^ k)).trans ((h (a i) j hj (x i)).trans
+            (mul_le_mul_of_nonneg_left (pow_le_pow_left₀ (by positivity) ha s) hC))
+      _ = _ := by simp
+  calc
+    _ ≤ ‖x‖ ^ k * ∑ p ∈ M, A p *
+        ∏ i, ‖iteratedFDeriv ℝ ((p : Multiset (Fin d)).count i) (f i) x‖ :=
+      mul_le_mul_of_nonneg_left hleib (by positivity)
+    _ = ∑ p ∈ M, A p *
+        (‖x‖ ^ k * ∏ i, ‖iteratedFDeriv ℝ ((p : Multiset (Fin d)).count i) (f i) x‖) := by
+      rw [Finset.mul_sum]
+      exact Finset.sum_congr rfl fun p _ ↦ mul_left_comm _ _ _
+    _ ≤ ∑ p ∈ M, A p * ((Real.sqrt d) ^ k * (C * S ^ s) ^ d) :=
+      Finset.sum_le_sum fun p _ ↦ mul_le_mul_of_nonneg_left (hterm p) (by positivity)
+    _ = _ := by rw [← Finset.sum_mul, mul_pow, ← pow_mul]; ring
+
+private def hermiteEuclideanSchwartz {d : ℕ} (a : Fin d → ℕ) :
+    SchwartzMap (EuclideanSpace ℝ (Fin d)) ℝ where
+  toFun := hermiteEuclidean a
+  smooth' := by
+    apply contDiff_infty.mpr
+    intro l
+    exact contDiff_prod (fun i _ ↦
+      (hermiteFunction_contDiff (a i) l).comp (EuclideanSpace.proj (𝕜 := ℝ) i).contDiff)
+  decay' := fun k l ↦ by
+    obtain ⟨C, s, _, h⟩ := hermiteEuclidean_pointwise_bound d k l
+    exact ⟨C * (1 + ((∑ i, a i : ℕ) : ℝ)) ^ s, h a⟩
+
+
+private def hermiteIndex : (d : ℕ) → (Fin (d + 1) → ℕ) ≃ ℕ
+  | 0 => Equiv.funUnique (Fin 1) ℕ
+  | d + 1 => (Fin.consEquiv (fun _ : Fin (d + 2) ↦ ℕ)).symm.trans
+      ((Equiv.prodCongr (Equiv.refl ℕ) (hermiteIndex d)).trans Nat.pairEquiv)
+
+private theorem hermiteIndex_succ (d : ℕ) (a : Fin (d + 2) → ℕ) :
+    hermiteIndex (d + 1) a = Nat.pair (a 0) (hermiteIndex d (Fin.tail a)) := by
+  simp [hermiteIndex, Fin.consEquiv_symm_apply, Nat.pairEquiv]
+  rfl
+
+private theorem hermiteIndex_sum_le (d : ℕ) (a : Fin (d + 1) → ℕ) :
+    (∑ i, a i) ≤ hermiteIndex d a := by
+  induction d with
+  | zero => simp [hermiteIndex]
+  | succ d ih =>
+    rw [hermiteIndex_succ, Fin.sum_univ_succ]
+    exact (Nat.add_le_add_left (ih (Fin.tail a)) _).trans
+      (by simpa using Nat.unpair_add_le (Nat.pair (a 0) (hermiteIndex d (Fin.tail a))))
+
+private theorem hermiteIndex_le_pow (d : ℕ) (a : Fin (d + 1) → ℕ) :
+    hermiteIndex d a + 1 ≤ ((∑ i, a i) + 1) ^ (2 ^ d) := by
+  induction d with
+  | zero => simp [hermiteIndex]
+  | succ d ih =>
+    rw [hermiteIndex_succ, Fin.sum_univ_succ, pow_succ 2, pow_mul]
+    apply Nat.le_trans (Nat.succ_le_of_lt (Nat.pair_lt_max_add_one_sq _ _))
+    apply Nat.pow_le_pow_left _ 2
+    have hhead : a 0 + 1 ≤ (a 0 + (∑ i : Fin (d + 1), a i.succ) + 1) ^ (2 ^ d) := calc
+      _ ≤ a 0 + (∑ i : Fin (d + 1), a i.succ) + 1 := by omega
+      _ ≤ _ := Nat.le_pow (Nat.pow_pos (by decide))
+    have htail : hermiteIndex d (Fin.tail a) + 1 ≤
+        (a 0 + (∑ i : Fin (d + 1), a i.succ) + 1) ^ (2 ^ d) :=
+      (ih (Fin.tail a)).trans (Nat.pow_le_pow_left (by simp only [Fin.tail]; omega) _)
+    omega
+
+private theorem hermitePi_complex_complete (d : ℕ)
+    (f : (Fin d → ℝ) → ℂ) (hf : MemLp f 2 volume)
+    (h : ∀ a, (∫ x, f x * (hermitePi a x : ℂ)) = 0) : f =ᵐ[volume] 0 := by
+  have hi (a : Fin d → ℕ) : Integrable (fun x ↦ f x * (hermitePi a x : ℂ)) :=
+    hf.integrable_mul (hermitePi_memLp a).ofReal
+  have hre : (fun x ↦ (f x).re) =ᵐ[volume] 0 := by
+    apply hermitePi_complete d _ (Complex.reCLM.comp_memLp' hf)
+    intro a
+    have ht := integral_re (hi a)
+    rw [h a] at ht
+    simpa [Complex.mul_re] using ht
+  have him : (fun x ↦ (f x).im) =ᵐ[volume] 0 := by
+    apply hermitePi_complete d _ (Complex.imCLM.comp_memLp' hf)
+    intro a
+    have ht := integral_im (hi a)
+    rw [h a] at ht
+    simpa [Complex.mul_im] using ht
+  filter_upwards [hre, him] with x hr hi
+  exact Complex.ext hr hi
+
+private def hermiteComplexSchwartz {d : ℕ} (a : Fin d → ℕ) :
+    SchwartzMap (EuclideanSpace ℝ (Fin d)) ℂ :=
+  (hermiteEuclideanSchwartz a).postcompCLM Complex.ofRealCLM
+
+private theorem hermiteComplexSchwartz_apply {d : ℕ} (a : Fin d → ℕ)
+    (x : EuclideanSpace ℝ (Fin d)) :
+    hermiteComplexSchwartz a x = (hermitePi a x.ofLp : ℂ) := rfl
+
+private theorem hermiteComplex_inner {d : ℕ} (a b : Fin d → ℕ) :
+    inner ℂ ((hermiteComplexSchwartz a).toLp 2 volume) ((hermiteComplexSchwartz b).toLp 2 volume)
+      = if a = b then 1 else 0 := by
+  classical
+  rw [SchwartzMap.inner_toL2_toL2_eq (hermiteComplexSchwartz a)
+    (hermiteComplexSchwartz b) (volume : Measure (EuclideanSpace ℝ (Fin d)))]
+  simp only [hermiteComplexSchwartz_apply, RCLike.inner_apply', Complex.conj_ofReal,
+    ← Complex.ofReal_mul, integral_complex_ofReal]
+  have hmp := EuclideanSpace.volume_preserving_symm_measurableEquiv_toLp (Fin d)
+  have hmp' := hmp.symm (MeasurableEquiv.toLp 2 (Fin d → ℝ)).symm
+  rw [← hmp'.integral_comp' (fun x : EuclideanSpace ℝ (Fin d) ↦ hermitePi a x.ofLp *
+    hermitePi b x.ofLp)]
+  simp only [MeasurableEquiv.symm_symm, MeasurableEquiv.coe_toLp, WithLp.ofLp_toLp]
+  rw [hermitePi_integral_mul]
+  split_ifs <;> simp
+
+private theorem hermiteComplex_total {d : ℕ} (F : Lp ℂ 2
+    (volume : Measure (EuclideanSpace ℝ (Fin d))))
+    (h : ∀ a : Fin d → ℕ, inner ℂ ((hermiteComplexSchwartz a).toLp 2 volume) F = 0) :
+    F = 0 := by
+  let e := MeasurableEquiv.toLp 2 (Fin d → ℝ)
+  have hmp := EuclideanSpace.volume_preserving_symm_measurableEquiv_toLp (Fin d)
+  have hmp' := hmp.symm e.symm
+  let f : (Fin d → ℝ) → ℂ := F ∘ e
+  have hf : MemLp f 2 volume := (Lp.memLp F).comp_measurePreserving hmp'
+  have hfzero : f =ᵐ[volume] 0 := by
+    apply hermitePi_complex_complete d f hf
+    intro a
+    have hinner := h a
+    rw [L2.inner_def] at hinner
+    have hcoeff : (∫ x : EuclideanSpace ℝ (Fin d), F x *
+        (hermitePi a x.ofLp : ℂ)) = 0 := by
+      rw [← hinner]
+      apply integral_congr_ae
+      filter_upwards [(hermiteComplexSchwartz a).coeFn_toLp 2 volume] with x hx
+      rw [hx, hermiteComplexSchwartz_apply, RCLike.inner_apply, Complex.conj_ofReal]
+    rw [← hmp'.integral_comp' (fun x : EuclideanSpace ℝ (Fin d) ↦ F x *
+      (hermitePi a x.ofLp : ℂ))] at hcoeff
+    exact hcoeff
+  apply Lp.eq_zero_iff_ae_eq_zero.mpr
+  simpa [f, Function.comp_def, Pi.zero_def, e] using hmp.quasiMeasurePreserving.ae_eq_comp hfzero
+
+private theorem hermiteComplex_seminorm_bound (d k l : ℕ) :
+    ∃ (C : ℝ) (s : ℕ), 0 ≤ C ∧ ∀ a : Fin d → ℕ,
+      SchwartzMap.seminorm ℂ k l (hermiteComplexSchwartz a) ≤
+        C * (1 + ((∑ i, a i : ℕ) : ℝ)) ^ s := by
+  obtain ⟨C, s, hC, h⟩ := hermiteEuclidean_pointwise_bound d k l
+  refine ⟨C, s, hC, ?_⟩
+  intro a
+  apply SchwartzMap.seminorm_le_bound ℂ k l _ (by positivity)
+  intro x
+  let g := hermiteEuclideanSchwartz a
+  change ‖x‖ ^ k * ‖iteratedFDeriv ℝ l (Complex.ofRealCLM ∘ g.toFun) x‖ ≤ _
+  rw [Complex.ofRealCLM.iteratedFDeriv_comp_left g.smooth'.contDiffAt (mod_cast le_top)]
+  have hn := Complex.ofRealCLM.norm_compContinuousMultilinearMap_le (iteratedFDeriv ℝ l g x)
+  have hnorm : ‖Complex.ofRealCLM‖ ≤ 1 :=
+    ContinuousLinearMap.opNorm_le_bound _ zero_le_one (fun y ↦ by simp)
+  have hn' := hn.trans (mul_le_of_le_one_left (norm_nonneg _) hnorm)
+  exact (mul_le_mul_of_nonneg_left hn' (by positivity)).trans (h a x)
+
+private theorem hermiteComplex_enumerated_seminorm_bound (d : ℕ)
+    (q : Seminorm ℂ (SchwartzMap (EuclideanSpace ℝ (Fin (d + 1))) ℂ)) (hq : Continuous q) :
+    ∃ (C : ℝ) (k : ℕ), 0 ≤ C ∧ ∀ n : ℕ,
+      q (hermiteComplexSchwartz ((hermiteIndex d).symm n)) ≤ C * ((n : ℝ) + 1) ^ k := by
+  classical
+  let D := EuclideanSpace ℝ (Fin (d + 1))
+  obtain ⟨s, K, _, hK⟩ := Seminorm.bound_of_continuous (schwartz_withSeminorms ℂ D ℂ) q hq
+  choose C k hC h using fun j : ℕ × ℕ ↦ hermiteComplex_seminorm_bound (d + 1) j.1 j.2
+  let Csum := ∑ j ∈ s, C j
+  let ksum := ∑ j ∈ s, k j
+  have hCsum : 0 ≤ Csum := Finset.sum_nonneg (fun j _ ↦ hC j)
+  refine ⟨(K : ℝ) * Csum, ksum, mul_nonneg K.coe_nonneg hCsum, ?_⟩
+  intro n
+  let a := (hermiteIndex d).symm n
+  have ha : (1 : ℝ) + ↑(∑ i, a i) ≤ (n : ℝ) + 1 := by
+    have hh : (∑ i, a i) ≤ n := by simpa [a] using hermiteIndex_sum_le d a
+    have hr := (Nat.cast_le (α := ℝ)).mpr hh
+    linarith
+  have hn : (1 : ℝ) ≤ (n : ℝ) + 1 := le_add_of_nonneg_left (Nat.cast_nonneg _)
+  have hs : (s.sup (schwartzSeminormFamily ℂ D ℂ)) (hermiteComplexSchwartz a) ≤
+      Csum * ((n : ℝ) + 1) ^ ksum := by
+    apply Seminorm.finset_sup_apply_le (by positivity)
+    intro j hj
+    change SchwartzMap.seminorm ℂ j.1 j.2 (hermiteComplexSchwartz a) ≤ _
+    have hCj : C j ≤ Csum := Finset.single_le_sum (fun i _ ↦ hC i) hj
+    have hkj : k j ≤ ksum := Finset.single_le_sum (f := k) (fun _ _ ↦ Nat.zero_le _) hj
+    exact (h j a).trans <| mul_le_mul hCj
+      ((pow_le_pow_left₀ (by positivity) ha _).trans (pow_le_pow_right₀ hn hkj))
+      (by positivity) hCsum
+  calc
+    q (hermiteComplexSchwartz a)
+        ≤ (K • s.sup (schwartzSeminormFamily ℂ D ℂ)) (hermiteComplexSchwartz a) := hK _
+    _ ≤ (K : ℝ) * (Csum * ((n : ℝ) + 1) ^ ksum) :=
+      mul_le_mul_of_nonneg_left hs K.coe_nonneg
+    _ = _ := (mul_assoc _ _ _).symm
+
+private def hermiteCLp {d : ℕ} (a : Fin d → ℕ) :
+    Lp ℂ 2 (volume : Measure (EuclideanSpace ℝ (Fin d))) :=
+  (hermiteComplexSchwartz a).toLp 2 volume
+
+private theorem hermiteCLp_orthonormal (d : ℕ) :
+    Orthonormal ℂ (fun n ↦ hermiteCLp ((hermiteIndex d).symm n)) := by
+  classical
+  rw [orthonormal_iff_ite]
+  intro n m
+  rw [hermiteCLp, hermiteCLp, hermiteComplex_inner]
+  simp only [Equiv.apply_eq_iff_eq]
+
+private theorem hermiteCLp_complete (d : ℕ) :
+    (Submodule.span ℂ (Set.range (fun n ↦ hermiteCLp ((hermiteIndex d).symm n))))ᗮ = ⊥ := by
+  apply le_antisymm _ bot_le
+  intro F hF
+  rw [Submodule.mem_bot]
+  apply hermiteComplex_total F
+  intro a
+  apply Submodule.inner_right_of_mem_orthogonal _ hF
+  exact Submodule.subset_span ⟨hermiteIndex d a, by simp [hermiteCLp]⟩
+
+private def hermiteComplexHilbertBasis (d : ℕ) :
+    HilbertBasis ℕ ℂ (Lp ℂ 2 (volume : Measure (EuclideanSpace ℝ (Fin (d + 1))))) :=
+  HilbertBasis.mkOfOrthogonalEqBot (hermiteCLp_orthonormal d) (hermiteCLp_complete d)
+
+private theorem hermiteComplexHilbertBasis_apply (d n : ℕ) :
+    hermiteComplexHilbertBasis d n = hermiteCLp ((hermiteIndex d).symm n) := by
+  rw [hermiteComplexHilbertBasis, HilbertBasis.coe_mkOfOrthogonalEqBot]
+
+private theorem hermiteComplex_coefficients_bound (d : ℕ)
+    (A : SchwartzMap (EuclideanSpace ℝ (Fin (d + 1))) ℂ →L[ℂ]
+      SchwartzMap (EuclideanSpace ℝ (Fin (d + 1))) ℂ)
+    (hA : ∀ (a : Fin (d + 1) → ℕ) (f : SchwartzMap (EuclideanSpace ℝ (Fin (d + 1))) ℂ),
+      inner ℂ (hermiteCLp a) ((A f).toLp 2 volume) =
+        ((2 * (∑ i, a i) + (d + 1) : ℕ) : ℂ) *
+          inner ℂ (hermiteCLp a) (f.toLp 2 volume)) (k : ℕ) :
+    ∃ p : Seminorm ℂ (SchwartzMap (EuclideanSpace ℝ (Fin (d + 1))) ℂ), Continuous p ∧
+      ∀ (n : ℕ) (f : SchwartzMap (EuclideanSpace ℝ (Fin (d + 1))) ℂ),
+        ‖(hermiteComplexHilbertBasis d).repr (f.toLp 2 volume) n‖ *
+          ((n : ℝ) + 1) ^ k ≤ p f := by
+  let D := EuclideanSpace ℝ (Fin (d + 1))
+  let E := SchwartzMap D ℂ
+  let J := SchwartzMap.toLpCLM ℂ ℂ 2 (volume : Measure D)
+  let t := 2 ^ d * k
+  let T : E →L[ℂ] _ := J.comp (A ^ t)
+  refine ⟨(normSeminorm ℂ _).comp T.toLinearMap, T.continuous.norm, ?_⟩
+  intro n f
+  let a := (hermiteIndex d).symm n
+  let r : ℕ := 2 * (∑ i, a i) + (d + 1)
+  have hrecur (j : ℕ) (g : E) :
+      inner ℂ (hermiteCLp a) (((A ^ j) g).toLp 2 volume) =
+        (r : ℂ) ^ j * inner ℂ (hermiteCLp a) (g.toLp 2 volume) := by
+    induction j with
+    | zero => simp
+    | succ j ih =>
+      rw [pow_succ', mul_apply_eq_comp, hA a, ih, pow_succ', mul_assoc]
+  have hn : (n : ℝ) + 1 ≤ (r : ℝ) ^ (2 ^ d) := by
+    have hN : n + 1 ≤ r ^ (2 ^ d) := by
+      calc
+        n + 1 ≤ ((∑ i, a i) + 1) ^ (2 ^ d) := by simpa [a] using hermiteIndex_le_pow d a
+        _ ≤ r ^ (2 ^ d) := Nat.pow_le_pow_left (by dsimp only [r]; omega) _
+    exact_mod_cast hN
+  have hpow : ((n : ℝ) + 1) ^ k ≤ (r : ℝ) ^ t := by
+    rw [show t = 2 ^ d * k from rfl, pow_mul]
+    exact pow_le_pow_left₀ (by positivity) hn _
+  rw [HilbertBasis.repr_apply_apply, hermiteComplexHilbertBasis_apply]
+  change ‖inner ℂ (hermiteCLp a) (f.toLp 2 volume)‖ * ((n : ℝ) + 1) ^ k ≤ ‖T f‖
+  have hnorm : ‖hermiteCLp a‖ = 1 :=
+    (hermiteCLp_orthonormal d).1 n
+  calc
+    _ ≤ (r : ℝ) ^ t * ‖inner ℂ (hermiteCLp a) (f.toLp 2 volume)‖ := by
+      exact (mul_le_mul_of_nonneg_left hpow (norm_nonneg (_ : ℂ))).trans_eq (mul_comm _ _)
+    _ = ‖inner ℂ (hermiteCLp a) (T f)‖ := by
+      change _ = ‖inner ℂ (hermiteCLp a) (((A ^ t) f).toLp 2 volume)‖
+      rw [hrecur, norm_mul, norm_pow, Complex.norm_natCast]
+    _ ≤ ‖T f‖ := by
+      simpa only [hnorm, one_mul] using norm_inner_le_norm (𝕜 := ℂ) (hermiteCLp a) (T f)
+
+/- The one-dimensional calculation below is adapted from the GaussianField project by Michael R. Douglas (Apache-2.0),
+   SchwartzNuclear/SchwartzHermiteExpansion.lean, section 3. -/
+private theorem hermiteFunction_differentiable (k : ℕ) : Differentiable ℝ (hermiteFunction k) :=
+  (hermiteFunction_contDiff k 1).differentiable_one
+
+-- Helper: second derivative of hermiteFunction
+private theorem deriv2_hermiteFunction (n : ℕ) (x : ℝ) :
+    deriv (deriv (hermiteFunction n)) x =
+    Real.sqrt ((↑n : ℝ) / 2) * Real.sqrt ((↑(n - 1) : ℝ) / 2) * hermiteFunction (n - 1 - 1) x -
+    Real.sqrt ((↑n : ℝ) / 2) * Real.sqrt ((↑n : ℝ) / 2) * hermiteFunction n x -
+    Real.sqrt ((↑(n + 1) : ℝ) / 2) * Real.sqrt ((↑(n + 1) : ℝ) / 2) * hermiteFunction n x +
+    Real.sqrt ((↑(n + 1) : ℝ) / 2) * Real.sqrt ((↑(n + 2) : ℝ) / 2) * hermiteFunction (n + 2) x := by
+  have hderiv_eq : deriv (hermiteFunction n) =
+      fun y => Real.sqrt ((↑n : ℝ) / 2) * hermiteFunction (n - 1) y -
+               Real.sqrt ((↑(n + 1) : ℝ) / 2) * hermiteFunction (n + 1) y := by
+    ext y; exact deriv_hermiteFunction n y
+  set a := Real.sqrt ((↑n : ℝ) / 2)
+  set b := Real.sqrt ((↑(n + 1) : ℝ) / 2)
+  have hfn_eq : (fun y => a * hermiteFunction (n - 1) y - b * hermiteFunction (n + 1) y) =
+      (fun y => a * hermiteFunction (n - 1) y) - (fun y => b * hermiteFunction (n + 1) y) := by
+    ext y; simp [Pi.sub_apply]
+  rw [hderiv_eq, hfn_eq]
+  rw [deriv_sub
+        ((hermiteFunction_differentiable _).differentiableAt.const_mul _)
+        ((hermiteFunction_differentiable _).differentiableAt.const_mul _)]
+  simp only [deriv_const_mul_field]
+  rw [deriv_hermiteFunction (n - 1) x, deriv_hermiteFunction (n + 1) x]
+  rw [show n + 1 - 1 = n from Nat.succ_sub_one n]
+  rw [show n + 1 + 1 = n + 2 from rfl]
+  -- The term (n - 1) + 1 from deriv_hermiteFunction (n-1) doesn't simplify to n
+  -- when n = 0. Case split:
+  cases n with
+  | zero =>
+    simp only [a, b, Nat.cast_zero, zero_div, Real.sqrt_zero, zero_mul, neg_zero, zero_sub,
+               zero_add, Nat.zero_sub]
+    ring
+  | succ m =>
+    rw [show m + 1 - 1 = m from Nat.succ_sub_one m]
+    ring
+
+-- Helper: x^2 * hermiteFunction expanded via mul_x_hermiteFunction twice.
+-- The ψ_{n-1+1} term equals ψ_n when n ≥ 1 and the coefficient vanishes when n = 0,
+-- so we handle the two cases separately.
+private theorem x_sq_mul_hermiteFunction (n : ℕ) (x : ℝ) :
+    x ^ 2 * hermiteFunction n x =
+    Real.sqrt ((↑(n + 1) : ℝ) / 2) * Real.sqrt ((↑(n + 2) : ℝ) / 2) * hermiteFunction (n + 2) x +
+    Real.sqrt ((↑(n + 1) : ℝ) / 2) * Real.sqrt ((↑(n + 1) : ℝ) / 2) * hermiteFunction n x +
+    Real.sqrt ((↑n : ℝ) / 2) * Real.sqrt ((↑n : ℝ) / 2) * hermiteFunction n x +
+    Real.sqrt ((↑n : ℝ) / 2) * Real.sqrt ((↑(n - 1) : ℝ) / 2) * hermiteFunction (n - 1 - 1) x := by
+  have hx2 : x ^ 2 * hermiteFunction n x = x * (x * hermiteFunction n x) := by ring
+  rw [hx2, mul_x_hermiteFunction n x]
+  have hdist : x * (Real.sqrt ((↑(n + 1) : ℝ) / 2) * hermiteFunction (n + 1) x +
+      Real.sqrt ((↑n : ℝ) / 2) * hermiteFunction (n - 1) x) =
+    Real.sqrt ((↑(n + 1) : ℝ) / 2) * (x * hermiteFunction (n + 1) x) +
+    Real.sqrt ((↑n : ℝ) / 2) * (x * hermiteFunction (n - 1) x) := by ring
+  rw [hdist, mul_x_hermiteFunction (n + 1) x, mul_x_hermiteFunction (n - 1) x]
+  rw [show n + 1 - 1 = n from Nat.succ_sub_one n]
+  rw [show n + 1 + 1 = n + 2 from rfl]
+  -- The problematic term: √(n/2) * √((n-1+1)/2) * ψ_{n-1+1}
+  -- When n = 0: √(0/2) = 0 so both sides have 0 for this term
+  -- When n ≥ 1: n-1+1 = n so this is √(n/2) * √(n/2) * ψ_n
+  cases n with
+  | zero =>
+    simp [Real.sqrt_zero]
+    ring
+  | succ m =>
+    rw [show m + 1 - 1 = m from Nat.succ_sub_one m]
+    rw [show m + 1 = m + 1 from rfl]
+    ring
+
+private theorem hermiteFunction_harmonic_oscillator_eigenvalue (n : ℕ) (x : ℝ) :
+    -(iteratedDeriv 2 (hermiteFunction n) x) + x ^ 2 * hermiteFunction n x =
+    (2 * ↑n + 1) * hermiteFunction n x := by
+  -- Convert iteratedDeriv 2 to deriv (deriv ...)
+  have hiter : iteratedDeriv 2 (hermiteFunction n) x = deriv (deriv (hermiteFunction n)) x := by
+    rw [iteratedDeriv_succ, iteratedDeriv_succ, iteratedDeriv_zero]
+  rw [hiter, deriv2_hermiteFunction, x_sq_mul_hermiteFunction]
+  -- Now the ψ_{n+2} and ψ_{n-1-1} terms cancel, leaving coefficient calculation on ψ_n
+  -- √(n/2)^2 + √((n+1)/2)^2 + √((n+1)/2)^2 + √(n/2)^2 = n/2 + (n+1)/2 + (n+1)/2 + n/2 = 2n+1
+  have hsq_np1 : Real.sqrt ((↑(n + 1) : ℝ) / 2) * Real.sqrt ((↑(n + 1) : ℝ) / 2) = (↑(n + 1) : ℝ) / 2 :=
+    Real.mul_self_sqrt (by positivity)
+  have hsq_n : Real.sqrt ((↑n : ℝ) / 2) * Real.sqrt ((↑n : ℝ) / 2) = (↑n : ℝ) / 2 :=
+    Real.mul_self_sqrt (by positivity)
+  rw [hsq_np1, hsq_n]
+  push_cast
+  ring
+
+private def oscPotential (d : ℕ) (x : EuclideanSpace ℝ (Fin d)) : ℂ := ∑ i, ((x i : ℝ) : ℂ) ^ 2
+
+private theorem oscPotential_temperate (d : ℕ) : (oscPotential d).HasTemperateGrowth := by
+  unfold oscPotential
+  change (fun x : EuclideanSpace ℝ (Fin d) => ∑ i : Fin d, (Complex.ofRealCLM (EuclideanSpace.proj i x)) ^ 2).HasTemperateGrowth
+  fun_prop
+
+private def hermiteOscillator (d : ℕ) :
+    SchwartzMap (EuclideanSpace ℝ (Fin d)) ℂ →L[ℂ] SchwartzMap (EuclideanSpace ℝ (Fin d)) ℂ :=
+  SchwartzMap.smulLeftCLM ℂ (oscPotential d) -
+    LineDeriv.laplacianCLM ℂ (EuclideanSpace ℝ (Fin d)) (SchwartzMap (EuclideanSpace ℝ (Fin d)) ℂ)
+
+private theorem hermite_split_lineDeriv {d : ℕ} (i : Fin d) (f : SchwartzMap (EuclideanSpace ℝ (Fin d)) ℂ)
+    (g : ℝ → ℝ) (hg : Differentiable ℝ g) (p : EuclideanSpace ℝ (Fin d) → ℝ)
+    (hp : ∀ (x : EuclideanSpace ℝ (Fin d)) (t : ℝ), p (x + t • EuclideanSpace.single i (1 : ℝ)) = p x)
+    (hf : ∀ x, f x = (g (x i) * p x : ℝ)) (x : EuclideanSpace ℝ (Fin d)) :
+    ∂_{EuclideanSpace.single i (1 : ℝ)} f x = (deriv g (x i) * p x : ℝ) := by
+  rw [SchwartzMap.lineDerivOp_apply, lineDeriv]
+  have hline : (fun t : ℝ => f (x + t • EuclideanSpace.single i (1 : ℝ))) =
+      (fun t : ℝ => ((g (x i + t) * p x : ℝ) : ℂ)) := by
+    funext t
+    rw [hf, hp]
+    congr 3
+    simp [EuclideanSpace.single]
+  rw [hline]
+  have hshift : HasDerivAt (fun t : ℝ => g (x i + t)) (deriv g (x i)) 0 := by
+    have hh := (hg (x i + 0)).hasDerivAt.comp (0 : ℝ)
+      ((hasDerivAt_id (0 : ℝ)).const_add (x i))
+    simpa [Function.comp_def] using hh
+  exact ((hshift.mul_const (p x)).ofReal_comp).deriv
+
+private theorem hermiteOscillator_eigen {d : ℕ} (a : Fin d → ℕ) (f : SchwartzMap (EuclideanSpace ℝ (Fin d)) ℂ)
+    (hf : ∀ x, f x = ((∏ i, hermiteFunction (a i) (x i) : ℝ) : ℂ)) :
+    hermiteOscillator d f = ((2 * (∑ i, a i) + d : ℕ) : ℂ) • f := by
+  classical
+  ext x
+  let φ (i : Fin d) := hermiteFunction (a i)
+  let P (i : Fin d) (y : EuclideanSpace ℝ (Fin d)) := ∏ j ∈ Finset.univ.erase i, φ j (y j)
+  have hP (i : Fin d) (y : EuclideanSpace ℝ (Fin d)) (t : ℝ) :
+      P i (y + t • EuclideanSpace.single i (1 : ℝ)) = P i y := by
+    apply Finset.prod_congr rfl
+    intro j hj
+    have hji : j ≠ i := (Finset.mem_erase.mp hj).1
+    simp [EuclideanSpace.single, hji]
+  have hsplit (i : Fin d) (y : EuclideanSpace ℝ (Fin d)) : f y = (φ i (y i) * P i y : ℝ) := by
+    rw [hf]
+    exact congrArg Complex.ofReal (Finset.mul_prod_erase _ _ (Finset.mem_univ i)).symm
+  have hfirst (i : Fin d) := hermite_split_lineDeriv i f (φ i)
+    (hermiteFunction_differentiable _) (P i) (hP i) (hsplit i)
+  have hsecond (i : Fin d) := hermite_split_lineDeriv i (∂_{EuclideanSpace.single i (1 : ℝ)} f)
+    (deriv (φ i)) ((hermiteFunction_contDiff (a i) 2).deriv'.differentiable_one)
+    (P i) (hP i) (hfirst i) x
+  have hi (i : Fin d) : ((x i : ℝ) : ℂ) ^ 2 * f x -
+      ∂_{EuclideanSpace.single i (1 : ℝ)} (∂_{EuclideanSpace.single i (1 : ℝ)} f) x =
+      ((2 * a i + 1 : ℕ) : ℂ) * f x := by
+    rw [hsecond i, hsplit i]
+    have he := hermiteFunction_harmonic_oscillator_eigenvalue (a i) (x i)
+    simp only [iteratedDeriv_succ, iteratedDeriv_zero] at he
+    push_cast
+    have hr : (x i) ^ 2 * (φ i (x i) * P i x) -
+        deriv (deriv (φ i)) (x i) * P i x = (2 * (a i : ℝ) + 1) * (φ i (x i) * P i x) := by
+      dsimp [φ]
+      linear_combination (P i x) * he
+    have hc := congrArg Complex.ofReal hr
+    push_cast at hc
+    exact hc
+  change ((SchwartzMap.smulLeftCLM ℂ (oscPotential d) f) x -
+      (LineDeriv.laplacianCLM ℂ (EuclideanSpace ℝ (Fin d)) (SchwartzMap (EuclideanSpace ℝ (Fin d)) ℂ) f) x) = _
+  rw [SchwartzMap.smulLeftCLM_apply_apply (oscPotential_temperate d), SchwartzMap.laplacianCLM_eq,
+    SchwartzMap.laplacian_eq_sum (EuclideanSpace.basisFun (Fin d) ℝ)]
+  simp only [sum_apply, EuclideanSpace.basisFun_apply, oscPotential, smul_eq_mul,
+    Finset.sum_mul, ← Finset.sum_sub_distrib, hi, smul_apply]
+  rw [← Finset.sum_mul]
+  push_cast
+  simp [Finset.sum_add_distrib, Finset.mul_sum]
+
+/-- Integration by parts makes the Schwartz oscillator symmetric in complex L². -/
+private theorem hermiteOscillator_symmetric {d : ℕ} (f g : SchwartzMap (EuclideanSpace ℝ (Fin d)) ℂ) :
+    let J := SchwartzMap.toLpCLM ℂ ℂ 2 (volume : Measure (EuclideanSpace ℝ (Fin d)))
+    inner ℂ (J f) (J (hermiteOscillator d g)) =
+      inner ℂ (J (hermiteOscillator d f)) (J g) := by
+  let J := SchwartzMap.toLpCLM ℂ ℂ 2 (volume : Measure (EuclideanSpace ℝ (Fin d)))
+  let V := SchwartzMap.smulLeftCLM ℂ (oscPotential d)
+  have hH (h : SchwartzMap (EuclideanSpace ℝ (Fin d)) ℂ) : hermiteOscillator d h = V h - Δ h := by
+    simp [hermiteOscillator, V]
+  dsimp only
+  rw [hH, hH]
+  change inner ℂ (J f) (J (V g - Δ g)) = inner ℂ (J (V f - Δ f)) (J g)
+  rw [J.map_sub, J.map_sub, inner_sub_right, inner_sub_left]
+  have hJ (u v : SchwartzMap (EuclideanSpace ℝ (Fin d)) ℂ) :
+      inner ℂ (J u) (J v) = ∫ x, inner ℂ (u x) (v x) :=
+    SchwartzMap.inner_toL2_toL2_eq u v volume
+  simp only [hJ]
+  apply congrArg₂ (· - ·)
+  · apply integral_congr_ae
+    apply Filter.Eventually.of_forall
+    intro x
+    simp [V, RCLike.inner_apply, SchwartzMap.smulLeftCLM_apply_apply (oscPotential_temperate d),
+      oscPotential, mul_comm, mul_left_comm]
+  · let L : ℂ →L[ℝ] ℂ →L[ℝ] ℂ := (ContinuousLinearMap.mul ℝ ℂ).comp Complex.conjCLE.toContinuousLinearMap
+    simpa only [RCLike.inner_apply', L, ContinuousLinearMap.comp_apply,
+      ContinuousLinearEquiv.coe_coe, Complex.conjCLE_apply, ContinuousLinearMap.mul_apply'] using
+      SchwartzMap.integral_bilinear_laplacian_right_eq_left (μ := volume) f g L
+
 /-- In positive dimension, the Hermite functions form a Hilbert basis of complex
 L² consisting of Schwartz functions. Enumerating the multi-indices in order
 of total degree gives an indexing by ℕ with polynomial growth of the basis
@@ -434,7 +1181,30 @@ private theorem euclideanSchwartz_hermite_estimates (m : ℕ) (hm : 0 < m) :
         ∀ n : ℕ, q (b n) ≤ C * ((n : ℝ) + 1) ^ k) ∧
       ∀ k : ℕ, ∃ p : Seminorm ℂ E, Continuous p ∧
         ∀ (n : ℕ) (f : E), ‖B.repr (J f) n‖ * ((n : ℝ) + 1) ^ k ≤ p f := by
-  sorry
+  classical
+  cases m with
+  | zero => omega
+  | succ d =>
+    let D := EuclideanSpace ℝ (Fin (d + 1))
+    let J := SchwartzMap.toLpCLM ℂ ℂ 2 (volume : Measure D)
+    let b (n : ℕ) := hermiteComplexSchwartz ((hermiteIndex d).symm n)
+    let B := hermiteComplexHilbertBasis d
+    refine ⟨b, B, ?_, hermiteComplex_enumerated_seminorm_bound d, ?_⟩
+    · intro n
+      exact (hermiteComplexHilbertBasis_apply d n).symm
+    · intro k
+      apply hermiteComplex_coefficients_bound d (hermiteOscillator (d + 1)) _ k
+      intro a f
+      let g := hermiteComplexSchwartz a
+      have hg : ∀ x, g x = ((∏ i, hermiteFunction (a i) (x i) : ℝ) : ℂ) := fun _ ↦ rfl
+      have heig := hermiteOscillator_eigen a g hg
+      have hsym := hermiteOscillator_symmetric g f
+      change inner ℂ (J g) (J (hermiteOscillator (d + 1) f)) =
+        ((2 * (∑ i, a i) + (d + 1) : ℕ) : ℂ) * inner ℂ (J g) (J f)
+      rw [hsym, heig, J.map_smul, inner_smul_left]
+      simp only [map_natCast, J]
+
+end HermiteEstimates
 
 /-- Paper: Proposition 2.1.1.6, p. 61. The Euclidean Schwartz space is nuclear. -/
 theorem euclideanSchwartz_nuclear (m : ℕ) :

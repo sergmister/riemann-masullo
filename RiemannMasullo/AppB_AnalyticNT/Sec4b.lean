@@ -8,6 +8,7 @@ public import RiemannMasullo.AppB_AnalyticNT.Sec4a
 public import RiemannMasullo.Ch03_IdelicZeta.Sec3b
 import all RiemannMasullo.Ch03_IdelicZeta.Sec3b
 import RiemannMasullo.ForMathlib.Analysis.Fourier.Log
+import RiemannMasullo.ForMathlib.Analysis.Distribution.SchwartzSpace.WeightedIntegral
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec1b
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec1c
 public import RiemannMasullo.AppD_SchwartzBruhat.Sec2a
@@ -1491,6 +1492,387 @@ theorem finiteLogFourier_dilate (v : Primes(F)) (f : 𝒮ₐ(v.adicCompletion F)
   rw [integral_congr_ae (ae_of_all _ hK), integral_const_mul, hEq, Complex.real_smul,
     ← mul_assoc, Complex.ofReal_inv, mul_inv_cancel₀ hne, one_mul]
 
+/-- The norm on a finite completion is discrete: a norm in `(q⁻¹, 1]` equals `1`. -/
+private theorem finiteLogFourier_eq_neg_haar_norm_eq_one (v : Primes(F))
+    (x : v.adicCompletion F) (h1 : ‖x‖ ≤ 1) (h2 : q(v)⁻¹ < ‖x‖) : ‖x‖ = 1 := by
+  have hx0 : Valued.v x ≠ 0 := by
+    intro h
+    have : x = 0 := (map_eq_zero _).mp h
+    subst this
+    simp at h2
+    exact absurd h2 (not_lt.mpr (by positivity))
+  have hq : (1 : ℝ) < q(v) := by exact_mod_cast HeightOneSpectrum.one_lt_absNorm v
+  have hn : ‖x‖ = q(v) ^ WithZero.log (Valued.v x) := by
+    rw [FinitePlace.norm_def, WithZeroMulInt.toNNReal_neg_apply _ hx0]
+    simp
+  rw [hn] at h1 h2 ⊢
+  rw [← zpow_neg_one] at h2
+  have a := (zpow_lt_zpow_iff_right₀ hq).mp h2
+  have b := (zpow_le_zpow_iff_right₀ hq).mp (h1.trans_eq (zpow_zero _).symm)
+  rw [show WithZero.log (Valued.v x) = 0 by omega, zpow_zero]
+
+/-- Additive tests are locally constant with compact support. -/
+private theorem finiteLogFourier_eq_neg_haar_testFacts (v : Primes(F))
+    (f : 𝒮ₐ(v.adicCompletion F)) :
+    IsLocallyConstant addTest(f) ∧ HasCompactSupport addTest(f) :=
+  (mem_finitePlaceSchwartz_iff F v _).mp ⟨f, fun _ ↦ rfl⟩
+
+/-- A continuous compactly supported function is bounded and supported in a ball. -/
+private theorem finiteLogFourier_eq_neg_haar_bound (v : Primes(F))
+    (φ : v.adicCompletion F → ℂ) (hc : Continuous φ) (hs : HasCompactSupport φ) :
+    ∃ C R : ℝ, 0 < R ∧ (∀ z, ‖φ z‖ ≤ C) ∧ ∀ z, φ z ≠ 0 → ‖z‖ ≤ R := by
+  obtain ⟨C, hC⟩ := hc.bounded_above_of_compact_support hs
+  obtain ⟨R, hR⟩ := (Metric.isBounded_iff_subset_closedBall 0).mp hs.isCompact.isBounded
+  refine ⟨C, max R 1, lt_max_of_lt_right one_pos, hC, fun z hz ↦ ?_⟩
+  have := hR (subset_tsupport φ hz)
+  rw [Metric.mem_closedBall, dist_zero_right] at this
+  exact this.trans (le_max_left _ _)
+
+/-- A locally constant function vanishing at zero vanishes on a ball around zero. -/
+private theorem finiteLogFourier_eq_neg_haar_vanish (v : Primes(F))
+    (h : v.adicCompletion F → ℂ) (hl : IsLocallyConstant h) (h0 : h 0 = 0) :
+    ∃ r : ℝ, 0 < r ∧ ∀ x, h x ≠ 0 → r ≤ ‖x‖ := by
+  obtain ⟨r, hr, hball⟩ := Metric.isOpen_iff.mp (hl.isOpen_fiber 0) 0 h0
+  refine ⟨r, hr, fun x hx ↦ not_lt.mp fun hlt ↦ hx ?_⟩
+  exact hball (by rwa [Metric.mem_ball, dist_zero_right])
+
+/-- The indicator of a compact clopen set is an additive test. -/
+private theorem finiteLogFourier_eq_neg_haar_clopenTest (v : Primes(F))
+    (s : Set (v.adicCompletion F)) (hs : IsClopen s) (hc : IsCompact s) :
+    ∃ g : 𝒮ₐ(v.adicCompletion F), ∀ y,
+      g (Multiplicative.ofAdd y) = s.indicator (fun _ ↦ (1 : ℂ)) y := by
+  obtain ⟨g, hg⟩ := (mem_finitePlaceSchwartz_iff F v (s.indicator (fun _ ↦ (1 : ℂ)))).mpr
+    ⟨by
+        have h : IsLocallyConstant (LocallyConstant.charFn ℂ hs : _ → ℂ) :=
+          (LocallyConstant.charFn ℂ hs).isLocallyConstant
+        rw [LocallyConstant.coe_charFn] at h
+        exact h,
+      HasCompactSupport.intro hc fun y hy ↦ indicator_of_notMem hy _⟩
+  exact ⟨g, hg⟩
+
+/-- The local standard character is continuous. -/
+private theorem finiteLogFourier_eq_neg_haar_charContinuous (v : Primes(F)) :
+    Continuous (finiteLocalStandardCharacter F v) := by
+  have hψ0 := finiteLocalStandardCharacter_exists_continuousMonoidHom F v
+  exact (hψ0.choose.continuous.comp continuous_ofAdd).congr hψ0.choose_spec.1
+
+/-- The Fourier integrand of a continuous compactly supported function is integrable. -/
+private theorem finiteLogFourier_eq_neg_haar_fourierIntegrable (v : Primes(F))
+    (h : v.adicCompletion F → ℂ) (hc : Continuous h) (hs : HasCompactSupport h)
+    (y : v.adicCompletion F) :
+    Integrable (fun x ↦ h x * star (ψ𝔭(v) (x * y) : ℂ)) ν𝔭(v) := by
+  let : ProperSpace (v.adicCompletion F) := properSpace_adicCompletion v
+  let : BorelSpace (v.adicCompletion F) := ⟨rfl⟩
+  let : (ν𝔭(v)).IsAddHaarMeasure := finiteLocalAdditiveTamagawaMeasure_isAddHaar F v
+  have hψ := finiteLogFourier_eq_neg_haar_charContinuous v
+  have hχ : Continuous fun x : v.adicCompletion F ↦ star (ψ𝔭(v) (x * y) : ℂ) :=
+    continuous_star.comp (continuous_subtype_val.comp (hψ.comp (continuous_id.mul continuous_const)))
+  exact (hc.mul hχ).integrable_of_hasCompactSupport hs.mul_right
+
+/-- The logarithmic Fourier pairing of the indicator of the unit sphere is `-1`. -/
+private theorem finiteLogFourier_eq_neg_haar_sphereTest (v : Primes(F)) :
+    ∃ g : 𝒮ₐ(v.adicCompletion F),
+      (∀ y, addTest(g) y =
+        (Metric.sphere (0 : v.adicCompletion F) 1).indicator (fun _ ↦ (1 : ℂ)) y) ∧
+      Integrable (fun y ↦ ((J𝔭(v) y : ℝ) : ℂ) *
+        tamagawaFourier ν𝔭(v) ψ𝔭(v) addTest(g) y) ν𝔭(v) ∧
+      (∫ y, ((J𝔭(v) y : ℝ) : ℂ) * tamagawaFourier ν𝔭(v) ψ𝔭(v) addTest(g) y ∂ν𝔭(v)) = -1 := by
+  let K := v.adicCompletion F
+  let : ProperSpace K := properSpace_adicCompletion v
+  obtain ⟨g, hg⟩ := finiteLogFourier_eq_neg_haar_clopenTest v (Metric.sphere (0 : K) 1)
+    (IsUltrametricDist.isClopen_sphere 0 one_ne_zero) (isCompact_sphere 0 1)
+  obtain ⟨g₁, hg₁⟩ := finiteLogFourier_eq_neg_haar_clopenTest v (Metric.closedBall (0 : K) 1)
+    (IsUltrametricDist.isClopen_closedBall 0 one_ne_zero) (isCompact_closedBall 0 1)
+  let val : Valuation K (WithZero (Multiplicative ℤ)) := Valued.v
+  obtain ⟨π, hπ⟩ := val.exists_isUniformizer_of_isCyclic_of_nontrivial
+  let p : Kˣ := Units.mk0 π.val hπ.ne_zero
+  have hp : ‖p.val‖ = q(v)⁻¹ := norm_uniformizer_adicCompletion v _ hπ
+  have hq : (1 : ℝ) < q(v) := by exact_mod_cast HeightOneSpectrum.one_lt_absNorm v
+  obtain ⟨hI1, hI2, hEq⟩ := finiteLogFourier_dilate v g₁ p
+  have hpinv : p.inv = (p.val)⁻¹ := Units.val_inv_eq_inv_val p
+  have hpt (x : K) : addTest(g) x =
+      addTest(g₁) x - (addTest(g₁) ∘ (fun x ↦ p.inv * x)) x := by
+    simp only [Function.comp_apply, hg, hg₁, Set.indicator, Metric.mem_sphere,
+      Metric.mem_closedBall, dist_zero_right, hpinv, norm_mul, norm_inv, hp, inv_inv]
+    by_cases h1 : ‖x‖ ≤ 1
+    · by_cases h2 : ‖x‖ ≤ q(v)⁻¹
+      · have hne : ‖x‖ ≠ 1 := fun h ↦ by
+          rw [h] at h2
+          exact absurd h2 (not_le.mpr (inv_lt_one_of_one_lt₀ hq))
+        have : q(v) * ‖x‖ ≤ 1 := by
+          calc q(v) * ‖x‖ ≤ q(v) * q(v)⁻¹ := by gcongr
+            _ = 1 := mul_inv_cancel₀ (by positivity)
+        simp [hne, h1, this]
+      · have he := finiteLogFourier_eq_neg_haar_norm_eq_one v x h1 (not_le.mp h2)
+        simp [he, not_le.mpr (HeightOneSpectrum.one_lt_absNorm v)]
+    · have hne : ‖x‖ ≠ 1 := fun h ↦ h1 h.le
+      have : ¬ q(v) * ‖x‖ ≤ 1 := fun h ↦ h1 (by nlinarith [norm_nonneg x])
+      simp [hne, h1, this]
+  obtain ⟨hl₁, hc₁⟩ := finiteLogFourier_eq_neg_haar_testFacts v g₁
+  have hc₁' : HasCompactSupport (addTest(g₁) ∘ (fun x ↦ p.inv * x)) := by
+    rw [hpinv]
+    exact hc₁.comp_isClosedEmbedding
+      (Homeomorph.mulLeft₀ (p.val)⁻¹ (inv_ne_zero p.ne_zero)).isClosedEmbedding
+  have hFT (y : K) : tamagawaFourier ν𝔭(v) ψ𝔭(v) addTest(g) y =
+      tamagawaFourier ν𝔭(v) ψ𝔭(v) addTest(g₁) y -
+        tamagawaFourier ν𝔭(v) ψ𝔭(v) (addTest(g₁) ∘ (fun x ↦ p.inv * x)) y := by
+    unfold tamagawaFourier
+    rw [← integral_sub
+      (finiteLogFourier_eq_neg_haar_fourierIntegrable v _ hl₁.continuous hc₁ y)
+      (finiteLogFourier_eq_neg_haar_fourierIntegrable v _
+        (hl₁.continuous.comp (by fun_prop : Continuous fun x : K ↦ p.inv * x)) hc₁' y)]
+    refine integral_congr_ae (ae_of_all _ fun x ↦ ?_)
+    dsimp only
+    rw [← sub_mul, ← hpt x]
+  refine ⟨g, hg, ?_, ?_⟩
+  · refine (hI2.sub hI1).congr (ae_of_all _ fun y ↦ ?_)
+    simp only [Pi.sub_apply]
+    rw [hFT y, mul_sub]
+  · have hJ : ((Real.log ‖p.val‖ / Real.log q(v) : ℝ) : ℂ) = -1 := by
+      rw [hp, Real.log_inv, neg_div, div_self (Real.log_pos hq).ne']
+      push_cast; ring
+    have h0 : addTest(g₁) 0 = 1 := (hg₁ 0).trans (by simp)
+    calc (∫ y, ((J𝔭(v) y : ℝ) : ℂ) * tamagawaFourier ν𝔭(v) ψ𝔭(v) addTest(g) y ∂ν𝔭(v))
+        = (∫ y, ((J𝔭(v) y : ℝ) : ℂ) * tamagawaFourier ν𝔭(v) ψ𝔭(v) addTest(g₁) y ∂ν𝔭(v)) -
+          ∫ y, ((J𝔭(v) y : ℝ) : ℂ) * tamagawaFourier ν𝔭(v) ψ𝔭(v)
+            (addTest(g₁) ∘ (fun x ↦ p.inv * x)) y ∂ν𝔭(v) := by
+          rw [← integral_sub hI2 hI1]
+          refine integral_congr_ae (ae_of_all _ fun y ↦ ?_)
+          dsimp only
+          rw [hFT y, mul_sub]
+      _ = -1 := by
+          rw [hEq, hJ, h0]
+          ring
+
+/-- Pairing the normalized logarithm with a dilate of the Fourier transform of the unit
+sphere indicator gives minus the inverse norm of the dilation. -/
+private theorem finiteLogFourier_eq_neg_haar_kernel (v : Primes(F))
+    (x : v.adicCompletion F) (hx : x ≠ 0) :
+    (∫ y, ((J𝔭(v) y : ℝ) : ℂ) * tamagawaFourier ν𝔭(v) ψ𝔭(v)
+      ((Metric.sphere (0 : v.adicCompletion F) 1).indicator (fun _ ↦ (1 : ℂ))) (x * y) ∂ν𝔭(v)) =
+      -((‖x‖⁻¹ : ℝ) : ℂ) := by
+  obtain ⟨g, hg, hint, hL⟩ := finiteLogFourier_eq_neg_haar_sphereTest v
+  have he : addTest(g) = (Metric.sphere (0 : v.adicCompletion F) 1).indicator
+      (fun _ ↦ (1 : ℂ)) := funext hg
+  have h0 : addTest(g) 0 = 0 := (hg 0).trans (by simp)
+  have h := (finiteLogFourier_comp_mul v g (Units.mk0 x hx) hint).2
+  rw [hL, h0, mul_zero, sub_zero, he, Units.val_mk0] at h
+  rw [h, Complex.real_smul]
+  ring
+
+/-- Fubini for a product of integrable functions times a bounded continuous kernel. -/
+private theorem finiteLogFourier_eq_neg_haar_swap (v : Primes(F))
+    (A B : v.adicCompletion F → ℂ) (k : v.adicCompletion F → v.adicCompletion F → ℂ)
+    (hA : Integrable A ν𝔭(v)) (hB : Integrable B ν𝔭(v)) (hk : Continuous (Function.uncurry k))
+    (C : ℝ) (hC : ∀ a b, ‖k a b‖ ≤ C) :
+    (∫ a, ∫ b, A a * B b * k a b ∂ν𝔭(v) ∂ν𝔭(v)) =
+      ∫ b, ∫ a, A a * B b * k a b ∂ν𝔭(v) ∂ν𝔭(v) := by
+  let : ProperSpace (v.adicCompletion F) := properSpace_adicCompletion v
+  let : BorelSpace (v.adicCompletion F) := ⟨rfl⟩
+  let : (ν𝔭(v)).IsAddHaarMeasure := finiteLocalAdditiveTamagawaMeasure_isAddHaar F v
+  apply integral_integral_swap
+  exact (hA.mul_prod hB).mul_bdd hk.aestronglyMeasurable (ae_of_all _ fun p ↦ hC p.1 p.2)
+
+/-- Fubini for the normalized logarithm against a dilated bounded kernel, when the
+dilations stay away from zero and the kernel has bounded support. -/
+private theorem finiteLogFourier_eq_neg_haar_swapLog (v : Primes(F))
+    (A Φ : v.adicCompletion F → ℂ) (hA : Integrable A ν𝔭(v)) (r : ℝ) (hr : 0 < r)
+    (hAr : ∀ a, A a ≠ 0 → r ≤ ‖a‖) (hΦ : Continuous Φ) (C R : ℝ) (hR : 0 < R)
+    (hC : ∀ z, ‖Φ z‖ ≤ C) (hΦR : ∀ z, Φ z ≠ 0 → ‖z‖ ≤ R) :
+    (∫ a, A a * ∫ b, ((J𝔭(v) b : ℝ) : ℂ) * Φ (a * b) ∂ν𝔭(v) ∂ν𝔭(v)) =
+      ∫ b, ((J𝔭(v) b : ℝ) : ℂ) * ∫ a, A a * Φ (a * b) ∂ν𝔭(v) ∂ν𝔭(v) := by
+  let K := v.adicCompletion F
+  let : ProperSpace K := properSpace_adicCompletion v
+  obtain ⟨gB, hgB⟩ := finiteLogFourier_eq_neg_haar_clopenTest v (Metric.closedBall (0 : K) (R / r))
+    (IsUltrametricDist.isClopen_closedBall 0 (div_pos hR hr).ne') (isCompact_closedBall 0 _)
+  let B : K → ℂ := fun b ↦ ((J𝔭(v) b : ℝ) : ℂ) *
+    (Metric.closedBall (0 : K) (R / r)).indicator (fun _ ↦ (1 : ℂ)) b
+  have hB : Integrable B ν𝔭(v) :=
+    (finiteLog_integrable_mul_test v gB).congr (ae_of_all _ fun b ↦ by
+      dsimp only [B]
+      rw [← hgB b])
+  have hpt (a b : K) : A a * (((J𝔭(v) b : ℝ) : ℂ) * Φ (a * b)) = A a * B b * Φ (a * b) := by
+    by_cases ha : A a = 0
+    · simp [ha]
+    by_cases hb : Φ (a * b) = 0
+    · simp [hb]
+    have h1 := hAr a ha
+    have h2 := hΦR _ hb
+    rw [norm_mul] at h2
+    have hb' : b ∈ Metric.closedBall (0 : K) (R / r) := by
+      rw [Metric.mem_closedBall, dist_zero_right, le_div_iff₀ hr]
+      nlinarith [norm_nonneg b]
+    simp only [B, Set.indicator_of_mem hb', mul_one]
+    ring
+  have hsw := finiteLogFourier_eq_neg_haar_swap v A B (fun a b ↦ Φ (a * b)) hA hB
+    (hΦ.comp (continuous_fst.mul continuous_snd)) C (fun a b ↦ hC _)
+  calc (∫ a, A a * ∫ b, ((J𝔭(v) b : ℝ) : ℂ) * Φ (a * b) ∂ν𝔭(v) ∂ν𝔭(v))
+      = ∫ a, ∫ b, A a * B b * Φ (a * b) ∂ν𝔭(v) ∂ν𝔭(v) := by
+        refine integral_congr_ae (ae_of_all _ fun a ↦ ?_)
+        dsimp only
+        rw [← integral_const_mul]
+        exact integral_congr_ae (ae_of_all _ fun b ↦ hpt a b)
+    _ = ∫ b, ∫ a, A a * B b * Φ (a * b) ∂ν𝔭(v) ∂ν𝔭(v) := hsw
+    _ = _ := by
+        refine integral_congr_ae (ae_of_all _ fun b ↦ ?_)
+        dsimp only
+        rw [← integral_const_mul]
+        refine integral_congr_ae (ae_of_all _ fun a ↦ ?_)
+        exact (hpt a b).symm.trans (by ring)
+
+/-- Averaging the dilates of a Fourier transform against a test is the Fourier transform of
+the test paired with the function. -/
+private theorem finiteLogFourier_eq_neg_haar_average (v : Primes(F))
+    (s h : v.adicCompletion F → ℂ) (hs : Continuous s) (hs' : HasCompactSupport s)
+    (hh : Continuous h) (hh' : HasCompactSupport h) (y : v.adicCompletion F) :
+    (∫ u, s u * tamagawaFourier ν𝔭(v) ψ𝔭(v) h (u * y) ∂ν𝔭(v)) =
+      ∫ x, h x * tamagawaFourier ν𝔭(v) ψ𝔭(v) s (x * y) ∂ν𝔭(v) := by
+  let : ProperSpace (v.adicCompletion F) := properSpace_adicCompletion v
+  let : BorelSpace (v.adicCompletion F) := ⟨rfl⟩
+  let : (ν𝔭(v)).IsAddHaarMeasure := finiteLocalAdditiveTamagawaMeasure_isAddHaar F v
+  have hψ := finiteLogFourier_eq_neg_haar_charContinuous v
+  let k : v.adicCompletion F → v.adicCompletion F → ℂ :=
+    fun u x ↦ star (ψ𝔭(v) (x * (u * y)) : ℂ)
+  have hk : Continuous (Function.uncurry k) :=
+    continuous_star.comp (continuous_subtype_val.comp (hψ.comp
+      (continuous_snd.mul (continuous_fst.mul continuous_const))))
+  have hsw := finiteLogFourier_eq_neg_haar_swap v s h k
+    (hs.integrable_of_hasCompactSupport hs') (hh.integrable_of_hasCompactSupport hh') hk 1
+    (fun a b ↦ by simp [k])
+  unfold tamagawaFourier
+  calc (∫ u, s u * ∫ x, h x * star (ψ𝔭(v) (x * (u * y)) : ℂ) ∂ν𝔭(v) ∂ν𝔭(v))
+      = ∫ u, ∫ x, s u * h x * k u x ∂ν𝔭(v) ∂ν𝔭(v) := by
+        refine integral_congr_ae (ae_of_all _ fun u ↦ ?_)
+        dsimp only
+        rw [← integral_const_mul]
+        refine integral_congr_ae (ae_of_all _ fun x ↦ ?_)
+        dsimp only [k]
+        ring
+    _ = ∫ x, ∫ u, s u * h x * k u x ∂ν𝔭(v) ∂ν𝔭(v) := hsw
+    _ = _ := by
+        refine integral_congr_ae (ae_of_all _ fun x ↦ ?_)
+        dsimp only
+        rw [← integral_const_mul]
+        refine integral_congr_ae (ae_of_all _ fun u ↦ ?_)
+        dsimp only [k]
+        rw [show u * (x * y) = x * (u * y) by ring]
+        ring
+
+/-- Integrals against multiplicative Tamagawa measure are additive integrals against the
+inverse norm, up to the constant `q / (q - 1)`. -/
+private theorem finiteLogFourier_eq_neg_haar_unitsIntegral (v : Primes(F))
+    (g : v.adicCompletion F → ℂ) :
+    (∫ u : (v.adicCompletion F)ˣ, g u.val ∂μ𝔭(v)) =
+      ((v.asIdeal.absNorm : ENNReal) / ((v.asIdeal.absNorm : ENNReal) - 1)).toReal •
+        ∫ y, ‖y‖⁻¹ • g y ∂ν𝔭(v) := by
+  let K := v.adicCompletion F
+  let : BorelSpace K := ⟨rfl⟩
+  let : BorelSpace Kˣ := ⟨rfl⟩
+  have hval := (IsOpenUnits.isOpenEmbedding_unitsVal (M := K)).measurableEmbedding
+  let d : K → ENNReal := fun x ↦ (↑‖x‖₊ : ENNReal)⁻¹
+  have hd : Measurable d := by fun_prop
+  have hdlt : ∀ᵐ y ∂(ν𝔭(v).restrict (range (Units.val : Kˣ → K))), d y < ⊤ := by
+    refine ae_restrict_of_forall_mem hval.measurableSet_range fun y ⟨u, hu⟩ ↦ ?_
+    exact ENNReal.inv_lt_top.mpr (by simp [← hu])
+  have hdy (y : K) : (d y).toReal = ‖y‖⁻¹ := by
+    rw [ENNReal.toReal_inv, ENNReal.coe_toReal, coe_nnNorm]
+  rw [finiteLocalMultiplicativeTamagawaMeasure_eq_withDensity, integral_smul_measure]
+  congr 1
+  rw [← hval.integral_map g, hval.map_comap, restrict_withDensity hval.measurableSet_range,
+    integral_withDensity_eq_integral_toReal_smul hd hdlt]
+  simp_rw [hdy]
+  refine setIntegral_eq_integral_of_forall_compl_eq_zero fun y hy ↦ ?_
+  have : y = 0 := by
+    by_contra h
+    exact hy ⟨Units.mk0 y h, rfl⟩
+  simp [this]
+
+/-- Averaging over the unit sphere: the mass of the sphere times the logarithmic Fourier
+pairing of a test vanishing at zero is minus its integral against the inverse norm. -/
+private theorem finiteLogFourier_eq_neg_haar_identity (v : Primes(F))
+    (f : 𝒮ₐ(v.adicCompletion F)) (hf : addTest(f) 0 = 0)
+    (hint : Integrable (fun y ↦ ((J𝔭(v) y : ℝ) : ℂ) *
+      tamagawaFourier ν𝔭(v) ψ𝔭(v) addTest(f) y) ν𝔭(v)) :
+    ((ν𝔭(v)).real (Metric.sphere (0 : v.adicCompletion F) 1) : ℂ) *
+        (∫ y, ((J𝔭(v) y : ℝ) : ℂ) * tamagawaFourier ν𝔭(v) ψ𝔭(v) addTest(f) y ∂ν𝔭(v)) =
+      -∫ x, ((‖x‖⁻¹ : ℝ) : ℂ) * addTest(f) x ∂ν𝔭(v) := by
+  let K := v.adicCompletion F
+  let : ProperSpace K := properSpace_adicCompletion v
+  let : BorelSpace K := ⟨rfl⟩
+  let : (ν𝔭(v)).IsAddHaarMeasure := finiteLocalAdditiveTamagawaMeasure_isAddHaar F v
+  let S := Metric.sphere (0 : K) 1
+  let s1 : K → ℂ := S.indicator (fun _ ↦ (1 : ℂ))
+  have hSc : IsClopen S := IsUltrametricDist.isClopen_sphere 0 one_ne_zero
+  obtain ⟨g₀, hg₀⟩ := finiteLogFourier_eq_neg_haar_clopenTest v S hSc (isCompact_sphere 0 1)
+  have hs1 : addTest(g₀) = s1 := funext hg₀
+  obtain ⟨hl₀, hc₀⟩ := finiteLogFourier_eq_neg_haar_testFacts v g₀
+  rw [hs1] at hl₀ hc₀
+  obtain ⟨G, hG⟩ := finiteLocal_exists_fourier_test v g₀
+  have hG' : addTest(G) = tamagawaFourier ν𝔭(v) ψ𝔭(v) s1 := by
+    rw [← hs1]
+    exact funext hG
+  obtain ⟨lG, cG⟩ := finiteLogFourier_eq_neg_haar_testFacts v G
+  rw [hG'] at lG cG
+  obtain ⟨CG, RG, hRG, hCG, hGR⟩ := finiteLogFourier_eq_neg_haar_bound v _ lG.continuous cG
+  obtain ⟨g, hg⟩ := finiteLocal_exists_fourier_test v f
+  have hφ : addTest(g) = tamagawaFourier ν𝔭(v) ψ𝔭(v) addTest(f) := funext hg
+  obtain ⟨lφ, cφ⟩ := finiteLogFourier_eq_neg_haar_testFacts v g
+  rw [hφ] at lφ cφ
+  obtain ⟨Cφ, Rφ, hRφ, hCφ, hφR⟩ := finiteLogFourier_eq_neg_haar_bound v _ lφ.continuous cφ
+  obtain ⟨hfl, hfc⟩ := finiteLogFourier_eq_neg_haar_testFacts v f
+  obtain ⟨r, hr, hvan⟩ := finiteLogFourier_eq_neg_haar_vanish v _ hfl hf
+  have hs1i : Integrable s1 ν𝔭(v) := hl₀.continuous.integrable_of_hasCompactSupport hc₀
+  have hfi : Integrable addTest(f) ν𝔭(v) := hfl.continuous.integrable_of_hasCompactSupport hfc
+  -- Every unit dilate has the same pairing.
+  have ha (u : K) : s1 u * (∫ y, ((J𝔭(v) y : ℝ) : ℂ) *
+      tamagawaFourier ν𝔭(v) ψ𝔭(v) addTest(f) (u * y) ∂ν𝔭(v)) =
+      s1 u * ∫ y, ((J𝔭(v) y : ℝ) : ℂ) * tamagawaFourier ν𝔭(v) ψ𝔭(v) addTest(f) y ∂ν𝔭(v) := by
+    by_cases hu : u ∈ S
+    · have hn : ‖u‖ = 1 := mem_sphere_zero_iff_norm.mp hu
+      have hu0 : u ≠ 0 := norm_ne_zero_iff.mp (by rw [hn]; exact one_ne_zero)
+      have h := (finiteLogFourier_comp_mul v f (Units.mk0 u hu0) hint).2
+      rw [hf, mul_zero, sub_zero, Units.val_mk0, hn, inv_one, one_smul] at h
+      rw [h]
+    · simp [s1, hu]
+  -- Unit dilates of the test against the sphere indicator.
+  have hb := finiteLogFourier_eq_neg_haar_swapLog v s1
+    (tamagawaFourier ν𝔭(v) ψ𝔭(v) addTest(f)) hs1i 1 one_pos
+    (fun u hu ↦ by
+      have : u ∈ S := by
+        by_contra h
+        exact hu (by simp [s1, h])
+      rw [mem_sphere_zero_iff_norm.mp this]) lφ.continuous Cφ Rφ hRφ hCφ hφR
+  have hd := finiteLogFourier_eq_neg_haar_swapLog v addTest(f)
+    (tamagawaFourier ν𝔭(v) ψ𝔭(v) s1) hfi r hr hvan lG.continuous CG RG hRG hCG hGR
+  have he (x : K) : addTest(f) x * (∫ y, ((J𝔭(v) y : ℝ) : ℂ) *
+      tamagawaFourier ν𝔭(v) ψ𝔭(v) s1 (x * y) ∂ν𝔭(v)) = -(((‖x‖⁻¹ : ℝ) : ℂ) * addTest(f) x) := by
+    by_cases hx : x = 0
+    · rw [hx, hf]
+      ring
+    · rw [finiteLogFourier_eq_neg_haar_kernel v x hx]
+      ring
+  calc ((ν𝔭(v)).real S : ℂ) *
+        (∫ y, ((J𝔭(v) y : ℝ) : ℂ) * tamagawaFourier ν𝔭(v) ψ𝔭(v) addTest(f) y ∂ν𝔭(v))
+      = ∫ u, s1 u * ∫ y, ((J𝔭(v) y : ℝ) : ℂ) *
+          tamagawaFourier ν𝔭(v) ψ𝔭(v) addTest(f) y ∂ν𝔭(v) ∂ν𝔭(v) := by
+        rw [integral_mul_const, integral_indicator_const _ hSc.isOpen.measurableSet,
+          Complex.real_smul, mul_one]
+    _ = ∫ u, s1 u * ∫ y, ((J𝔭(v) y : ℝ) : ℂ) *
+          tamagawaFourier ν𝔭(v) ψ𝔭(v) addTest(f) (u * y) ∂ν𝔭(v) ∂ν𝔭(v) :=
+        integral_congr_ae (ae_of_all _ fun u ↦ (ha u).symm)
+    _ = ∫ y, ((J𝔭(v) y : ℝ) : ℂ) * ∫ u, s1 u *
+          tamagawaFourier ν𝔭(v) ψ𝔭(v) addTest(f) (u * y) ∂ν𝔭(v) ∂ν𝔭(v) := hb
+    _ = ∫ y, ((J𝔭(v) y : ℝ) : ℂ) * ∫ x, addTest(f) x *
+          tamagawaFourier ν𝔭(v) ψ𝔭(v) s1 (x * y) ∂ν𝔭(v) ∂ν𝔭(v) := by
+        refine integral_congr_ae (ae_of_all _ fun y ↦ ?_)
+        dsimp only
+        rw [finiteLogFourier_eq_neg_haar_average v s1 addTest(f) hl₀.continuous hc₀
+          hfl.continuous hfc y]
+    _ = ∫ x, addTest(f) x * ∫ y, ((J𝔭(v) y : ℝ) : ℂ) *
+          tamagawaFourier ν𝔭(v) ψ𝔭(v) s1 (x * y) ∂ν𝔭(v) ∂ν𝔭(v) := hd.symm
+    _ = _ := by
+        rw [integral_congr_ae (ae_of_all _ he), integral_neg]
+
 /-- Paper: Proposition B.4.3.1(2), p. 617. On additive tests vanishing at
 zero, the Fourier transform is minus multiplicative Haar measure divided by
 the mass of the integer units. -/
@@ -1499,7 +1881,71 @@ theorem finiteLogFourier_eq_neg_haar (v : Primes(F)) (f : 𝒮ₐ(v.adicCompleti
     let K : v.adicCompletion F → ℂ := logFourierIntegrand(ν𝔭(v), ψ𝔭(v), J𝔭(v), addTest(f))
     Integrable K ν𝔭(v) ∧ Integrable (fun u : (v.adicCompletion F)ˣ ↦ addTest(f) u.val) μ𝔭(v) ∧
       (∫ y, K y ∂ν𝔭(v)) =
-        -(∫ u : (v.adicCompletion F)ˣ, addTest(f) u.val ∂μ𝔭(v)) / (V𝔭(v) : ℂ) := by sorry
+        -(∫ u : (v.adicCompletion F)ˣ, addTest(f) u.val ∂μ𝔭(v)) / (V𝔭(v) : ℂ) := by
+  intro K'
+  let : ProperSpace (v.adicCompletion F) := properSpace_adicCompletion v
+  let : BorelSpace (v.adicCompletion F) := ⟨rfl⟩
+  let : BorelSpace (v.adicCompletion F)ˣ := ⟨rfl⟩
+  let : (ν𝔭(v)).IsAddHaarMeasure := finiteLocalAdditiveTamagawaMeasure_isAddHaar F v
+  obtain ⟨g, hg⟩ := finiteLocal_exists_fourier_test v f
+  have hint : Integrable K' ν𝔭(v) :=
+    (finiteLog_integrable_mul_test v g).congr (ae_of_all _ fun y ↦ by
+      simp only [hg]; rfl)
+  obtain ⟨hfl, hfc⟩ := finiteLogFourier_eq_neg_haar_testFacts v f
+  obtain ⟨r, hr, hvan⟩ := finiteLogFourier_eq_neg_haar_vanish v _ hfl _hf
+  have hfi : Integrable addTest(f) ν𝔭(v) := hfl.continuous.integrable_of_hasCompactSupport hfc
+  have hInv : Integrable (fun y ↦ ‖y‖⁻¹ • addTest(f) y) ν𝔭(v) := by
+    refine (hfi.norm.const_mul r⁻¹).mono'
+      ((by fun_prop : Measurable fun y : v.adicCompletion F ↦ ‖y‖⁻¹).aestronglyMeasurable.smul
+        hfi.aestronglyMeasurable) (ae_of_all _ fun y ↦ ?_)
+    rw [norm_smul, norm_inv, norm_norm]
+    by_cases hy : addTest(f) y = 0
+    · rw [hy, norm_zero, mul_zero]; positivity
+    · exact mul_le_mul_of_nonneg_right (inv_anti₀ hr (hvan y hy)) (norm_nonneg _)
+  have hunits := (finiteLocal_units_integrable_iff v _).mpr hInv
+  refine ⟨hint, hunits, ?_⟩
+  have hId := finiteLogFourier_eq_neg_haar_identity v f _hf hint
+  let S := Metric.sphere (0 : v.adicCompletion F) 1
+  let s1 : v.adicCompletion F → ℂ := S.indicator (fun _ ↦ (1 : ℂ))
+  let c := ((v.asIdeal.absNorm : ENNReal) / ((v.asIdeal.absNorm : ENNReal) - 1)).toReal
+  have hq : (1 : ENNReal) < v.asIdeal.absNorm := by
+    exact_mod_cast NumberField.HeightOneSpectrum.one_lt_absNorm v
+  have hc : 0 < c := ENNReal.toReal_pos (ENNReal.div_pos (zero_lt_one.trans hq).ne'
+    (ENNReal.sub_ne_top (ENNReal.natCast_ne_top _))).ne'
+    (ENNReal.div_lt_top (ENNReal.natCast_ne_top _) (tsub_pos_of_lt hq).ne').ne
+  have hSo : IsOpen S := IsUltrametricDist.isOpen_sphere (0 : v.adicCompletion F) one_ne_zero
+  have hνS : 0 < (ν𝔭(v)).real S := ENNReal.toReal_pos
+    (hSo.measure_pos _ ⟨1, by simp [S]⟩).ne' (isCompact_sphere _ _).measure_lt_top.ne
+  have hpre : ((O(v)).units : Set (v.adicCompletion F)ˣ) = Units.val ⁻¹' S := by
+    ext u
+    simp only [SetLike.mem_coe, mem_preimage, S, mem_sphere_zero_iff_norm]
+    rw [HeightOneSpectrum.adicCompletionIntegers.mem_units_iff_valued_eq_one,
+      Valued.toNormedField.norm_eq_one_iff]
+  have hV : V𝔭(v) = c * (ν𝔭(v)).real S := by
+    have h1 := finiteLogFourier_eq_neg_haar_unitsIntegral v s1
+    have h2 : (fun u : (v.adicCompletion F)ˣ ↦ s1 u.val) =
+        (Units.val ⁻¹' S).indicator (fun _ ↦ (1 : ℂ)) := by
+      funext u
+      simp only [s1, Set.indicator, mem_preimage]
+    have h3 : (fun y ↦ ‖y‖⁻¹ • s1 y) = s1 := by
+      funext y
+      by_cases hy : y ∈ S
+      · simp [s1, hy, mem_sphere_zero_iff_norm.mp hy]
+      · simp [s1, hy]
+    rw [h2, integral_indicator_const _ (hSo.preimage Units.continuous_val).measurableSet, h3,
+      integral_indicator_const _ hSo.measurableSet, ← hpre] at h1
+    have := congrArg Complex.re h1
+    simpa [Measure.real, c, ENNReal.toReal_div] using this
+  have hU := finiteLogFourier_eq_neg_haar_unitsIntegral v addTest(f)
+  have hsm : (fun y ↦ ‖y‖⁻¹ • addTest(f) y) =
+      fun y ↦ ((‖y‖⁻¹ : ℝ) : ℂ) * addTest(f) y := funext fun y ↦ Complex.real_smul
+  rw [hU, hV, hsm, Complex.real_smul]
+  have hνS' : (((ν𝔭(v)).real S : ℝ) : ℂ) ≠ 0 := Complex.ofReal_ne_zero.mpr hνS.ne'
+  have hc' : ((c : ℝ) : ℂ) ≠ 0 := Complex.ofReal_ne_zero.mpr hc.ne'
+  change (∫ y, ((J𝔭(v) y : ℝ) : ℂ) * tamagawaFourier ν𝔭(v) ψ𝔭(v) addTest(f) y ∂ν𝔭(v)) = _
+  rw [eq_div_iff (by push_cast; exact mul_ne_zero hc' hνS'), neg_mul_eq_mul_neg, ← hId]
+  push_cast
+  ring
 
 -- TODO(paper-gap): Jᵥ is unbounded near zero and is not an additive
 -- Schwartz–Bruhat test. The normalization at one is on its punctured-field representative.
@@ -1964,12 +2410,247 @@ theorem finiteConnesPrincipalValue_one_of_apply_zero (v : Primes(F))
   rw [hT, hK, mul_div, neg_mul_neg]
   exact mul_div_cancel_left₀ _ (Complex.ofReal_ne_zero.mpr hV)
 
+/-- The elementary Schwartz space of a real vector group is the usual Schwartz space. -/
+private theorem exists_infiniteConnesPrincipalValue_elementaryEquiv (d : ℕ) :
+    ∃ e : 𝓢(EuclideanSpace ℝ (Fin d), ℂ) ≃L[ℂ] ElementarySchwartz d 0 0 PUnit,
+      ∀ f x, e f x = f x.1 := by
+  let E := EuclideanSpace ℝ (Fin d)
+  let X := 𝓢(E, ℂ)
+  let Y := ElementarySchwartz d 0 0 PUnit
+  let L : X →ₗ[ℂ] Y :=
+    { toFun := fun f ↦ ⟨fun x ↦ f x.1, (elementarySchwartzSubmodule_real_iff _).mpr ⟨f, rfl⟩⟩
+      map_add' := fun _ _ ↦ rfl
+      map_smul' := fun _ _ ↦ rfl }
+  have hL (f : X) (x : ElementaryLieGroup d 0 0 PUnit) : L f x = f x.1 := rfl
+  have hbij : Bijective L := by
+    constructor
+    · intro f g h
+      ext x
+      exact congrArg (fun s : Y ↦ s (x, 0, 0, 0)) h
+    · intro g
+      let f (x : E) := g (x, 0, 0, 0)
+      have heq : (fun x : ElementaryLieGroup d 0 0 PUnit ↦ f x.1) = g.val := by
+        funext x
+        exact congrArg g (Prod.ext rfl (Subsingleton.elim _ _))
+      have hmem := (elementarySchwartzSubmodule_real_iff f).mp (heq ▸ g.property)
+      obtain ⟨s, hs⟩ := hmem
+      refine ⟨s, Subtype.ext ?_⟩
+      change (fun x : ElementaryLieGroup d 0 0 PUnit ↦ s x.1) = g.val
+      rw [← heq]
+      exact congrArg (fun u : E → ℂ ↦ fun x : ElementaryLieGroup d 0 0 PUnit ↦ u x.1) hs
+  have hX : IsFrechetTVS X := euclideanSchwartz_frechet d
+  have : BarrelledSpace ℂ X := isFrechetTVS_barrelled hX
+  have hc : Continuous L := by
+    apply continuous_toElementarySchwartz_of_eval
+    intro g
+    exact ⟨(BoundedContinuousFunction.evalCLM ℂ g.1).comp
+      (SchwartzMap.toBoundedContinuousFunctionCLM ℂ E ℂ), fun _ ↦ rfl⟩
+  obtain ⟨hTX, -, hMX, hCX⟩ := hX
+  obtain ⟨hTY, -, hMY, hCY⟩ := elementarySchwartz_isFrechet (m := d) (n := 0) (r := 0) (F := PUnit)
+  let : UniformSpace X := IsTopologicalAddGroup.rightUniformSpace X
+  let : UniformSpace Y := IsTopologicalAddGroup.rightUniformSpace Y
+  have : IsUniformAddGroup X := isUniformAddGroup_of_addCommGroup
+  have : IsUniformAddGroup Y := isUniformAddGroup_of_addCommGroup
+  have : CompleteSpace X := hCX
+  have : CompleteSpace Y := hCY
+  have : (uniformity Y).IsCountablyGenerated := by
+    rw [uniformity_eq_comap_nhds_zero Y]
+    infer_instance
+  have : BaireSpace Y := BaireSpace.of_completelyPseudoMetrizable
+  let A : X →L[ℂ] Y := ⟨L, hc⟩
+  have hopen : IsOpenMap A := by
+    apply isOpenMap_of_not_isMeagre_range A
+    change ¬ IsMeagre (range L)
+    rw [hbij.surjective.range_eq]
+    exact not_isMeagre_of_isOpen isOpen_univ univ_nonempty
+  let e := LinearEquiv.ofBijective L hbij
+  refine ⟨{ e with continuous_toFun := hc, continuous_invFun := ?_ }, hL⟩
+  exact e.toEquiv.continuous_symm_iff.mpr hopen
+
+/-- A real vector coordinate gives a largest structural pair, with whole open subgroup,
+presented by the real vector group. -/
+private theorem exists_infiniteConnesPrincipalValue_presentation {G : Type*} [CommGroup G]
+    [TopologicalSpace G] [IsTopologicalGroup G] [T2Space G] [LocallyCompactSpace G] {d : ℕ}
+    (c : G ≃ₜ* Multiplicative (EuclideanSpace ℝ (Fin d))) :
+    ∃ a : BruhatStructuralPair G, (∀ b, b ≤ a) ∧ ∃ (hm : ∀ x : G, x ∈ a.val.1)
+        (w : a.quotient ≃ₜ* Multiplicative (ElementaryLieGroup d 0 0 PUnit)),
+        ∀ x : G, (w (QuotientGroup.mk ⟨x, hm x⟩)).toAdd.1 = (c x).toAdd := by
+  have : ConnectedSpace (Multiplicative (EuclideanSpace ℝ (Fin d))) :=
+    inferInstanceAs (ConnectedSpace (EuclideanSpace ℝ (Fin d)))
+  have : ConnectedSpace G := c.symm.surjective.connectedSpace c.symm.continuous
+  let chart : EuclideanSpace ℝ (Fin d) ≃ₜ G := c.symm.toHomeomorph
+  have hgood : IsBruhatGoodSubgroup (⊥ : Subgroup G) :=
+    isBruhatGoodSubgroup_bot_iff.mpr ⟨d, ⟨chart.chartedSpace⟩⟩
+  let H : Subgroup G := ⊤
+  let i : G ≃ₜ* H :=
+    ⟨Subgroup.topEquiv.symm, continuous_id.subtype_mk _, continuous_subtype_val⟩
+  have htop : IsOpen (H : Set G) := isOpen_univ
+  let : ConnectedSpace H := i.surjective.connectedSpace i.continuous
+  let : LocallyCompactSpace H := htop.isOpenEmbedding_subtypeVal.locallyCompactSpace
+  have hgen : IsCompactlyGeneratedGroup H := by
+    obtain ⟨U, hUc, hU⟩ := exists_compact_mem_nhds (1 : H)
+    have hOpen : IsOpen (Subgroup.closure U : Set H) :=
+      Subgroup.isOpen_of_mem_nhds _ (mem_of_superset hU Subgroup.subset_closure)
+    exact ⟨U, hU, hUc, SetLike.coe_injective
+      ((OpenSubgroup.isClopen ⟨Subgroup.closure U, hOpen⟩).eq_univ ⟨1, Subgroup.one_mem _⟩)⟩
+  let a : BruhatStructuralPair G := ⟨(H, OrderDual.toDual ⊥), htop, hgen, hgood, bot_le⟩
+  have hmem (x : G) : x ∈ a.val.1 := Subgroup.mem_top x
+  let p := (QuotientGroup.mk' _ : H →* a.quotient).comp i.toMulEquiv.toMonoidHom
+  have hp : IsOpenQuotientMap p :=
+    QuotientGroup.isOpenQuotientMap_mk.comp i.toHomeomorph.isOpenQuotientMap
+  have hinj : Injective p := (MonoidHom.ker_eq_bot_iff p).mp (le_antisymm (fun x hx ↦ by
+    change (QuotientGroup.mk (i x) : a.quotient) = 1 at hx
+    exact (a.quotient_mk_eq_one (i x)).mp hx) bot_le)
+  let q := (MulEquiv.ofBijective p ⟨hinj, hp.surjective⟩).toContinuousMulEquiv
+    (fun _ ↦ hp.isQuotientMap.isOpen_preimage)
+  let : Unique ((Fin 0 → AddCircle (1 : ℝ)) × (Fin 0 → ℤ) × PUnit) := uniqueOfSubsingleton 0
+  let w : Multiplicative (ElementaryLieGroup d 0 0 PUnit) ≃ₜ*
+      Multiplicative (EuclideanSpace ℝ (Fin d)) :=
+    ContinuousMulEquiv.mk' (Homeomorph.prodUnique _ _) (fun _ _ ↦ rfl)
+  have ha (b : BruhatStructuralPair G) : b ≤ a := by
+    change b.val.1 ≤ ⊤ ∧ (⊥ : Subgroup G) ≤ OrderDual.ofDual b.val.2
+    exact ⟨le_top, bot_le⟩
+  refine ⟨a, ha, hmem, q.symm.trans (c.trans w.symm), fun x ↦ ?_⟩
+  change (w (w.symm (c (q.symm (q x))))).toAdd = _
+  rw [q.symm_apply_apply, w.apply_symm_apply]
+
+/-- In real vector coordinates, the Schwartz–Bruhat space carries the usual Schwartz
+topology. -/
+private theorem exists_infiniteConnesPrincipalValue_coordinate {G : Type*} [CommGroup G]
+    [TopologicalSpace G] [IsTopologicalGroup G] [T2Space G] [LocallyCompactSpace G] {d : ℕ}
+    (c : G ≃ₜ* Multiplicative (EuclideanSpace ℝ (Fin d))) :
+    ∃ e : 𝓢(EuclideanSpace ℝ (Fin d), ℂ) ≃L[ℂ] SchwartzBruhat G,
+      ∀ f x, e f x = f (c x).toAdd := by
+  have : SecondCountableTopology (Multiplicative (EuclideanSpace ℝ (Fin d))) :=
+    inferInstanceAs (SecondCountableTopology (EuclideanSpace ℝ (Fin d)))
+  have : SecondCountableTopology G := c.toHomeomorph.isEmbedding.secondCountableTopology
+  refine (exists_infiniteConnesPrincipalValue_presentation c).elim fun a hp ↦ ?_
+  refine hp.2.elim fun hm hm' ↦ hm'.elim fun w hw ↦ ?_
+  have ha := hp.1
+  let e : ElementaryLCAPresentation a.quotient := ⟨d, 0, 0, PUnit, w⟩
+  let J : SchwartzBruhatStage e →ₗ[ℂ] SchwartzBruhat G := schwartzBruhatStageInclusion a e
+  have hJ : Topology.IsEmbedding J := schwartzBruhatStage_isEmbedding a e
+  have hs : Surjective J := schwartzBruhat_maxStage_surjective a ha e
+  let A := LinearEquiv.ofBijective J ⟨hJ.injective, hs⟩
+  let B := ContinuousLinearEquiv.ofIsHomeomorph A
+    (isHomeomorph_iff_isEmbedding_surjective.mpr ⟨hJ, hs⟩)
+  refine (exists_infiniteConnesPrincipalValue_elementaryEquiv d).elim fun T hT ↦ ?_
+  refine ⟨T.trans B, fun f x ↦ ?_⟩
+  change (show SchwartzBruhat G from schwartzBruhatStageInclusion a e (T f)) x = _
+  rw [schwartzBruhatStageInclusion_apply, schwartzBruhatStageRealization_apply,
+    dite_eq_left (hm x), hT]
+  exact congrArg f (hw x)
+
+/-- If, in a model of the completion, the logarithmic Fourier integrand is a weight of
+polynomial growth times a Schwartz function depending continuously on the test, then
+its integral is a continuous linear functional. -/
+private theorem exists_infiniteConnesPrincipalValue_ofModel (w : InfinitePlace F)
+    {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V] [MeasurableSpace V] [BorelSpace V]
+    [SecondCountableTopology V] (m : V ≃ᵐ w.Completion) (μ : Measure V)
+    (hμ : ν∞(w) = μ.map m) (Q : 𝒮ₐ(w.Completion) →L[ℂ] 𝓢(V, ℂ)) (L : V → ℂ)
+    (hL : AEStronglyMeasurable L μ) (k : ℕ)
+    (hk : Integrable (fun t ↦ ‖L t‖ / (1 + ‖t‖) ^ k) μ)
+    (hK : ∀ (f : 𝒮ₐ(w.Completion)) (t : V),
+      logFourierIntegrand(ν∞(w), ψ∞(w), J∞(w), addTest(f)) (m t) = L t * Q f t) :
+    ∃ T : StrongDual ℂ (𝒮ₐ(w.Completion)), ∀ f : 𝒮ₐ(w.Completion),
+      let K : w.Completion → ℂ := logFourierIntegrand(ν∞(w), ψ∞(w), J∞(w), addTest(f))
+      Integrable K ν∞(w) ∧ T f = -(∫ y, K y ∂ν∞(w)) := by
+  obtain ⟨Λ, hΛ⟩ := SchwartzMap.exists_strongDual_integral_mul μ L hL k hk
+  refine ⟨-(Λ.comp Q), fun f ↦ ?_⟩
+  intro K
+  have hKm : K ∘ m = fun t ↦ L t * Q f t := funext (hK f)
+  rw [hμ, integrable_map_equiv, integral_map_equiv]
+  refine ⟨hKm ▸ (hΛ (Q f)).1, ?_⟩
+  change -(Λ (Q f)) = -(∫ t, (K ∘ m) t ∂μ)
+  rw [hKm, (hΛ (Q f)).2]
+
 /-- Paper: Definition B.4.4.1(1), p. 619. The archimedean Fourier pairing
 defines a continuous linear functional on additive tests. -/
 theorem exists_infiniteConnesPrincipalValue (w : InfinitePlace F) :
     ∃ T : StrongDual ℂ (𝒮ₐ(w.Completion)), ∀ f : 𝒮ₐ(w.Completion),
       let K : w.Completion → ℂ := logFourierIntegrand(ν∞(w), ψ∞(w), J∞(w), addTest(f))
-      Integrable K ν∞(w) ∧ T f = -(∫ y, K y ∂ν∞(w)) := by sorry
+      Integrable K ν∞(w) ∧ T f = -(∫ y, K y ∂ν∞(w)) := by
+  let : BorelSpace w.Completion := ⟨rfl⟩
+  by_cases hw : w.IsReal
+  · let e := InfinitePlace.Completion.ringEquivRealOfIsReal hw
+    let j := InfinitePlace.Completion.isometryEquivRealOfIsReal hw
+    let m := j.symm.toHomeomorph.toMeasurableEquiv
+    have hμ : ν∞(w) = (volume : Measure ℝ).map m := dite_eq_left hw
+    have hem (t : ℝ) : e (m t) = t := e.apply_symm_apply t
+    have hnorm (t : ℝ) : ‖m t‖ = ‖t‖ := by
+      change ‖j.symm t‖ = ‖t‖
+      rw [← dist_zero_right, ← dist_zero_right t, ← j.symm.dist_eq t 0,
+        show j.symm 0 = 0 from map_zero e.symm]
+    let c : Multiplicative w.Completion ≃ₜ* Multiplicative ℝ :=
+      { toMulEquiv := e.toAddEquiv.toMultiplicative
+        continuous_toFun := j.continuous
+        continuous_invFun := j.symm.continuous }
+    obtain ⟨E, hE⟩ := schwartzBruhat_realCoordinate_equiv c
+    have hP (f : 𝒮ₐ(w.Completion)) : addTest(f) = fun x ↦ E.symm f (e x) := by
+      funext x
+      conv_lhs => rw [← E.apply_symm_apply f]
+      exact hE _ _
+    refine exists_infiniteConnesPrincipalValue_ofModel w m volume hμ
+      ((SchwartzMap.fourierTransformCLM ℂ).comp E.symm.toContinuousLinearMap)
+      (fun t ↦ (Real.log ‖t‖ : ℂ))
+      (Complex.measurable_ofReal.comp measurable_norm.log).aestronglyMeasurable 3 ?_
+      fun f t ↦ ?_
+    · have h := integrable_abs_log_norm_div_one_add_norm_pow (volume : Measure ℝ)
+        (by simp)
+      simp only [Module.finrank_self] at h
+      simpa only [Complex.norm_real, Real.norm_eq_abs] using h
+    · change (Real.log (‖m t‖ ^ w.mult) : ℂ) * tamagawaFourier ν∞(w) ψ∞(w) addTest(f) (m t) = _
+      rw [hw.mult_eq_one, pow_one, hnorm, hP f, realModelFourier w hw, hem]
+      rfl
+  · have hc : w.IsComplex := InfinitePlace.not_isReal_iff_isComplex.mp hw
+    let e := InfinitePlace.Completion.ringEquivComplexOfIsComplex hc
+    let j := InfinitePlace.Completion.isometryEquivComplexOfIsComplex hc
+    let m := j.symm.toHomeomorph.toMeasurableEquiv
+    have hμ : ν∞(w) = (2 • (volume : Measure ℂ)).map m := dite_eq_right hw
+    have hem (t : ℂ) : e (m t) = t := e.apply_symm_apply t
+    have hnorm (t : ℂ) : ‖m t‖ = ‖t‖ := by
+      change ‖j.symm t‖ = ‖t‖
+      rw [← dist_zero_right, ← dist_zero_right t, ← j.symm.dist_eq t 0,
+        show j.symm 0 = 0 from map_zero e.symm]
+    let LE : ℂ ≃L[ℝ] EuclideanSpace ℝ (Fin 2) :=
+      (LinearEquiv.ofFinrankEq ℂ (EuclideanSpace ℝ (Fin 2)) (by simp)).toContinuousLinearEquiv
+    let c₀ : w.Completion ≃ₜ EuclideanSpace ℝ (Fin 2) := j.toHomeomorph.trans LE.toHomeomorph
+    let c : Multiplicative w.Completion ≃ₜ* Multiplicative (EuclideanSpace ℝ (Fin 2)) :=
+      ContinuousMulEquiv.mk' c₀ (fun x y ↦ by
+        change LE (e (x.toAdd + y.toAdd)) = LE (e x.toAdd) + LE (e y.toAdd)
+        rw [map_add, map_add])
+    obtain ⟨E, hE⟩ := exists_infiniteConnesPrincipalValue_coordinate c
+    let P : 𝒮ₐ(w.Completion) →L[ℂ] 𝓢(ℂ, ℂ) :=
+      (SchwartzMap.compCLMOfContinuousLinearEquiv ℂ LE).comp E.symm.toContinuousLinearMap
+    have hP (f : 𝒮ₐ(w.Completion)) : addTest(f) = fun x ↦ P f (e x) := by
+      funext x
+      conv_lhs => rw [← E.apply_symm_apply f]
+      exact hE _ _
+    let A : ℂ ≃L[ℝ] ℂ := Complex.conjCLE.trans
+      (LinearEquiv.smulOfNeZero ℝ ℂ (2 : ℝ) two_ne_zero).toContinuousLinearEquiv
+    have hA (z : ℂ) : A z = (2 : ℝ) • star z := rfl
+    refine exists_infiniteConnesPrincipalValue_ofModel w m (2 • volume) hμ
+      ((SchwartzMap.compCLMOfContinuousLinearEquiv ℂ A).comp
+        ((SchwartzMap.fourierTransformCLM ℂ).comp P))
+      (fun t ↦ (Real.log (‖t‖ ^ 2) : ℂ) * 2)
+      ((Complex.measurable_ofReal.comp (measurable_norm.pow_const 2).log).mul_const
+        _).aestronglyMeasurable 4 ?_ fun f t ↦ ?_
+    · have h := integrable_abs_log_norm_div_one_add_norm_pow (volume : Measure ℂ)
+        (by simp)
+      simp only [Complex.finrank_real_complex] at h
+      have h' : Integrable (fun t : ℂ ↦ ‖(Real.log (‖t‖ ^ 2) : ℂ) * 2‖ / (1 + ‖t‖) ^ 4)
+          volume := by
+        refine (h.const_mul 4).congr (ae_of_all _ fun t ↦ ?_)
+        simp only [norm_mul, Complex.norm_real, Real.norm_eq_abs, Real.log_pow]
+        norm_num [abs_mul]
+        ring
+      rw [two_smul]
+      exact h'.add_measure h'
+    · change (Real.log (‖m t‖ ^ w.mult) : ℂ) * tamagawaFourier ν∞(w) ψ∞(w) addTest(f) (m t) = _
+      rw [hc.mult_eq_two, hnorm, hP f, complexModelFourier w hc, hem]
+      change _ = _ * FourierTransform.fourier (P f : ℂ → ℂ) (A t)
+      rw [hA]
+      ring
 
 /-- Paper: Definition B.4.4.1(1), p. 619. Connes's archimedean additive
 principal value is minus the Fourier transform of the logarithm distribution. -/

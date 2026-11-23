@@ -4443,6 +4443,491 @@ private theorem finiteLocalAdditiveTamagawaMeasure_inverseDifferentBall (v : Pri
     (ENNReal.ofReal_pos.mpr (Real.sqrt_pos_of_pos (pow_pos hq _))).ne' ENNReal.ofReal_ne_top,
     mul_one, inv_inv]
 
+section FiniteLocalTraceDual
+
+open scoped IsDedekindDomain.FiniteAdeleRing RestrictedProduct
+
+local notation "O(" F ")" => (fun w : Primes(F) ↦ HeightOneSpectrum.adicCompletionIntegers F w)
+
+/-- Norms on a completion at a finite place are integral powers of the residue cardinality. -/
+private theorem norm_adicCompletion_eq_zpow (v : Primes(F)) {z : v.adicCompletion F} (hz : z ≠ 0) :
+    ‖z‖ = (v.asIdeal.absNorm : ℝ) ^ (WithZero.log (Valued.v z)) := by
+  rw [FinitePlace.norm_def, WithZeroMulInt.toNNReal_neg_apply _ ((Valuation.ne_zero_iff _).mpr hz)]
+  push_cast
+  rfl
+
+private theorem norm_coe_le_zpow_iff (v : Primes(F)) (r : 𝓞 F) (n : ℕ) :
+    ‖(algebraMap F (v.adicCompletion F) (algebraMap (𝓞 F) F r))‖ ≤
+      (v.asIdeal.absNorm : ℝ) ^ (-(n : ℤ)) ↔ r ∈ v.asIdeal ^ n := by
+  rw [← HeightOneSpectrum.intValuation_le_pow_iff_mem, FinitePlace.norm_def]
+  have hq : (1 : ℝ≥0) < v.asIdeal.absNorm := HeightOneSpectrum.one_lt_absNorm_nnreal v
+  have hval : Valued.v (algebraMap F (v.adicCompletion F) (algebraMap (𝓞 F) F r)) =
+      v.intValuation r := by
+    rw [show algebraMap F (v.adicCompletion F) (algebraMap (𝓞 F) F r) =
+      ((algebraMap (𝓞 F) F r : F) : v.adicCompletion F) from rfl,
+      HeightOneSpectrum.valuedAdicCompletion_eq_valuation',
+      HeightOneSpectrum.valuation_of_algebraMap]
+  rw [hval, ← (WithZeroMulInt.toNNReal_strictMono hq).le_iff_le,
+    WithZeroMulInt.toNNReal_neg_apply _ WithZero.exp_ne_zero, WithZero.log_exp]
+  rw [← NNReal.coe_le_coe]
+  push_cast
+  rfl
+
+private theorem exists_ball_trace_mem (v : Primes(F)) (u : Primes(ℚ))
+    (j : u.adicCompletion ℚ →+* v.adicCompletion F) (hj : Continuous j) :
+    letI := j.toAlgebra
+    Module.Finite (u.adicCompletion ℚ) (v.adicCompletion F) →
+      ∃ ε > 0, ∀ z : v.adicCompletion F, ‖z‖ < ε →
+        Algebra.trace (u.adicCompletion ℚ) (v.adicCompletion F) z ∈ u.adicCompletionIntegers ℚ := by
+  intro hfin
+  let := j.toAlgebra
+  let K := u.adicCompletion ℚ
+  obtain ⟨π, hπ⟩ : ∃ π : u.adicCompletionIntegers ℚ, (Valued.v : Valuation K _).IsUniformizer (π : K) :=
+    (Valued.v : Valuation K _).exists_isUniformizer_of_isCyclic_of_nontrivial
+  have hπn : ‖(π : K)‖ = (u.asIdeal.absNorm : ℝ)⁻¹ := norm_uniformizer_adicCompletion u _ hπ
+  let : NontriviallyNormedField K :=
+    { (inferInstance : NormedField K) with
+      non_trivial := ⟨(π : K)⁻¹, by
+        rw [norm_inv, hπn, inv_inv]
+        exact_mod_cast HeightOneSpectrum.one_lt_absNorm u⟩ }
+  let : ContinuousSMul K (v.adicCompletion F) :=
+    ⟨(hj.comp continuous_fst).mul continuous_snd⟩
+  let : FiniteDimensional K (v.adicCompletion F) := hfin
+  have hc : Continuous (Algebra.trace K (v.adicCompletion F)) :=
+    LinearMap.continuous_of_finiteDimensional _
+  have hopen : IsOpen ((Algebra.trace K (v.adicCompletion F)) ⁻¹'
+      (u.adicCompletionIntegers ℚ : Set K)) :=
+    (Valued.isOpen_valuationSubring _).preimage hc
+  have h0 : (0 : v.adicCompletion F) ∈ (Algebra.trace K (v.adicCompletion F)) ⁻¹'
+      (u.adicCompletionIntegers ℚ : Set K) := by
+    simp only [mem_preimage, map_zero]
+    exact (u.adicCompletionIntegers ℚ).zero_mem
+  obtain ⟨ε, hε, hball⟩ := Metric.isOpen_iff.mp hopen 0 h0
+  refine ⟨ε, hε, fun z hz ↦ hball ?_⟩
+  simpa [Metric.mem_ball, dist_zero_right] using hz
+
+/-- The adelic trace of a diagonal element is the diagonal image of its field trace. -/
+private theorem adeleTrace_algebraMap (x : F) :
+    letI := (rationalAdeleEmbedding F).toAlgebra
+    Algebra.trace 𝔸[ℚ] 𝔸[F] (algebraMap F 𝔸[F] x) =
+      algebraMap ℚ 𝔸[ℚ] (Algebra.trace ℚ F x) := by
+  classical
+  let ι := Module.Free.ChooseBasisIndex ℤ (𝓞 F)
+  let dQ := algebraMap ℚ 𝔸[ℚ]
+  let dF := algebraMap F 𝔸[F]
+  let : Algebra 𝔸[ℚ] 𝔸[F] := (rationalAdeleEmbedding F).toAlgebra
+  obtain ⟨b, hb⟩ := exists_adelicIntegralBasis F
+  let c := integralBasis F
+  have hdiag (q : ι → ℚ) : b.equivFun.symm (dQ ∘ q) = dF (c.equivFun.symm q) := by
+    rw [Module.Basis.equivFun_symm_apply, Module.Basis.equivFun_symm_apply, map_sum]
+    refine Finset.sum_congr rfl fun i _ ↦ ?_
+    simp only [hb, Function.comp_apply, Algebra.smul_def, map_mul]
+    exact congrArg (· * dF (c i)) ((rationalAdeleEmbedding_spec F).2.1 (q i))
+  have hrepr (x : F) (i : ι) : b.repr (dF x) i = dQ (c.repr x i) := by
+    have h := hdiag (c.equivFun x)
+    rw [LinearEquiv.symm_apply_apply] at h
+    rw [← h, ← Module.Basis.equivFun_apply, LinearEquiv.apply_symm_apply]
+    rfl
+  change Algebra.trace 𝔸[ℚ] 𝔸[F] (dF x) = _
+  rw [Algebra.trace_eq_matrix_trace b, Algebra.trace_eq_matrix_trace c, AddMonoidHom.map_trace]
+  congr 1
+  ext i j
+  change (Algebra.leftMulMatrix b (dF x)) i j = dQ ((Algebra.leftMulMatrix c x) i j)
+  rw [Algebra.leftMulMatrix_eq_repr_mul, Algebra.leftMulMatrix_eq_repr_mul, hb, ← map_mul, hrepr]
+
+/-- The component at a rational prime of an adelic trace only sees the places above it. -/
+private theorem adeleTrace_eval_eq_sum (u : Primes(ℚ)) (S : Finset (Primes(F)))
+    (hS : ∀ w : Primes(F),
+      u.asIdeal = w.asIdeal.comap (RingOfIntegers.mapRingHom (algebraMap ℚ F)) → w ∈ S)
+    (a : 𝔸[F]) :
+    letI := (rationalAdeleEmbedding F).toAlgebra
+    finiteAdeleEval ℚ u (Algebra.trace 𝔸[ℚ] 𝔸[F] a) =
+      ∑ w ∈ S, finiteAdeleEval ℚ u (Algebra.trace 𝔸[ℚ] 𝔸[F]
+        (finiteAdeleSingle F w (finiteAdeleEval F w a))) := by
+  let := (rationalAdeleEmbedding F).toAlgebra
+  let T := Algebra.trace 𝔸[ℚ] 𝔸[F]
+  let e : 𝔸[ℚ] := finiteAdeleSingle ℚ u 1
+  let a' : 𝔸[F] := ∑ w ∈ S, finiteAdeleSingle F w (finiteAdeleEval F w a)
+  have hs := rationalAdeleEmbedding_spec F
+  have hz : rationalAdeleEmbedding F e * (a - a') = 0 := by
+    apply Prod.ext
+    · funext w
+      change (rationalAdeleEmbedding F e).1 w * (a - a').1 w = 0
+      rw [hs.2.2.1 w e rfl, zero_mul]
+    · apply FiniteAdeleRing.ext
+      intro w
+      change finiteAdeleEval F w (rationalAdeleEmbedding F e * (a - a')) = 0
+      by_cases hw : w ∈ S
+      · have h : finiteAdeleEval F w a' = finiteAdeleEval F w a := by
+          rw [map_sum, Finset.sum_eq_single w]
+          · exact RestrictedProduct.single_eq_same (O(F)) w _
+          · intro w' _ hw'
+            exact RestrictedProduct.single_eq_of_ne (O(F)) _ (Ne.symm hw')
+          · exact fun h ↦ (h hw).elim
+        rw [map_mul, map_sub, h, sub_self, mul_zero]
+      · have h : finiteAdeleEval F w (rationalAdeleEmbedding F e) = 0 := by
+          refine hs.2.2.2 (w.under (𝓞 ℚ)) w rfl e ?_
+          change RestrictedProduct.single (O(ℚ)) u 1 (w.under (𝓞 ℚ)) = 0
+          refine RestrictedProduct.single_eq_of_ne (O(ℚ)) _ fun h ↦ hw (hS w ?_)
+          rw [← h]
+          rfl
+        rw [map_mul, h, zero_mul]
+  have hT : e • T (a - a') = 0 := by
+    rw [← map_smul, Algebra.smul_def]
+    change T (rationalAdeleEmbedding F e * (a - a')) = 0
+    rw [hz, map_zero]
+  have he : finiteAdeleEval ℚ u e = 1 := RestrictedProduct.single_eq_same (O(ℚ)) u 1
+  have h0 : finiteAdeleEval ℚ u (T (a - a')) = 0 := by
+    have := congrArg (finiteAdeleEval ℚ u) hT
+    rwa [smul_eq_mul, map_mul, he, one_mul, map_zero] at this
+  rw [map_sub, map_sub, sub_eq_zero] at h0
+  change finiteAdeleEval ℚ u (T a) = _
+  rw [h0, map_sum, map_sum]
+
+/-- Only finitely many primes lie above a given rational prime. -/
+private theorem finite_primesAbove (u : Primes(ℚ)) :
+    {w : Primes(F) |
+      u.asIdeal = w.asIdeal.comap (RingOfIntegers.mapRingHom (algebraMap ℚ F))}.Finite := by
+  let I : Ideal (𝓞 F) := u.asIdeal.map (RingOfIntegers.mapRingHom (algebraMap ℚ F))
+  have hI : I ≠ 0 := by
+    intro h
+    apply u.ne_bot
+    refine (Ideal.map_eq_bot_iff_of_injective (f := RingOfIntegers.mapRingHom (algebraMap ℚ F))
+      fun a b hab ↦ RingOfIntegers.ext ((algebraMap ℚ F).injective ?_)).mp h
+    rw [← RingOfIntegers.mapRingHom_apply, ← RingOfIntegers.mapRingHom_apply, hab]
+  refine (Ideal.finite_factors hI).subset fun w hw ↦ ?_
+  change w.asIdeal ∣ I
+  rw [Ideal.dvd_iff_le]
+  exact Ideal.map_le_iff_le_comap.mpr (le_of_eq hw)
+
+/-- Local-global compatibility of traces: up to local integers, the local trace at `v`
+of a global element is its field trace once it is small at the other places above `u`. -/
+private theorem trace_localGlobal (v : Primes(F)) (u : Primes(ℚ))
+    (hu : u.asIdeal = v.asIdeal.comap (RingOfIntegers.mapRingHom (algebraMap ℚ F)))
+    (j : u.adicCompletion ℚ →+* v.adicCompletion F) (hj : Continuous j)
+    (hdiag : ∀ r : ℚ, j (algebraMap ℚ (u.adicCompletion ℚ) r) =
+      algebraMap F (v.adicCompletion F) (algebraMap ℚ F r)) :
+    letI := j.toAlgebra
+    ∃ ε : Primes(F) → ℝ, (∀ w, 0 < ε w) ∧ ∀ x : F,
+      (∀ w : Primes(F), w ≠ v →
+        u.asIdeal = w.asIdeal.comap (RingOfIntegers.mapRingHom (algebraMap ℚ F)) →
+          ‖algebraMap F (w.adicCompletion F) x‖ < ε w) →
+      Algebra.trace (u.adicCompletion ℚ) (v.adicCompletion F) (algebraMap F (v.adicCompletion F) x) -
+        algebraMap ℚ (u.adicCompletion ℚ) (Algebra.trace ℚ F x) ∈ u.adicCompletionIntegers ℚ := by
+  let := j.toAlgebra
+  let := (rationalAdeleEmbedding F).toAlgebra
+  let T := Algebra.trace 𝔸[ℚ] 𝔸[F]
+  let P := finiteAdeleEval ℚ u
+  obtain ⟨b⟩ := rationalAdeleEmbedding_hasBasis F
+  have hp : Surjective P := fun z ↦
+    ⟨finiteAdeleSingle ℚ u z, RestrictedProduct.single_eq_same (O(ℚ)) u z⟩
+  have hloc (w : Primes(F))
+      (hw : u.asIdeal = w.asIdeal.comap (RingOfIntegers.mapRingHom (algebraMap ℚ F))) :
+      ∃ ε > 0, ∀ z : w.adicCompletion F, ‖z‖ < ε →
+        P (T (finiteAdeleSingle F w z)) ∈ u.adicCompletionIntegers ℚ := by
+    obtain ⟨jw, hjw, -, hlocalw⟩ := exists_finiteAdeleEmbedding F w u hw
+    let := jw.toAlgebra
+    obtain ⟨hfinite, htrace⟩ := trace_of_algebra_projection b P hp (finiteAdeleEval F w)
+      (finiteAdeleSingle F w) (fun z ↦ RestrictedProduct.single_eq_same (O(F)) w z) hlocalw
+      (finiteAdeleSingle_mul F w)
+    obtain ⟨ε, hε, hball⟩ := exists_ball_trace_mem F w u jw hjw hfinite
+    exact ⟨ε, hε, fun z hz ↦ (htrace z).symm ▸ hball z hz⟩
+  have hv (z : v.adicCompletion F) : P (T (finiteAdeleSingle F v z)) =
+      Algebra.trace (u.adicCompletion ℚ) (v.adicCompletion F) z := by
+    obtain ⟨jv, hjv, hdiagv, hlocalv⟩ := exists_finiteAdeleEmbedding F v u hu
+    have hjj : j = jv := by
+      apply RingHom.ext
+      intro r
+      exact congrFun ((HeightOneSpectrum.denseRange_algebraMap (K := ℚ) (v := u)).equalizer
+        hj hjv (funext fun q ↦ (hdiag q).trans (hdiagv q).symm)) r
+    subst hjj
+    exact (trace_of_algebra_projection b P hp (finiteAdeleEval F v)
+      (finiteAdeleSingle F v) (fun z ↦ RestrictedProduct.single_eq_same (O(F)) v z) hlocalv
+      (finiteAdeleSingle_mul F v)).2 z
+  let ε (w : Primes(F)) : ℝ :=
+    if hw : u.asIdeal = w.asIdeal.comap (RingOfIntegers.mapRingHom (algebraMap ℚ F)) then
+      Classical.choose (hloc w hw) else 1
+  have hε (w : Primes(F)) : 0 < ε w := by
+    by_cases hw : u.asIdeal = w.asIdeal.comap (RingOfIntegers.mapRingHom (algebraMap ℚ F))
+    · simp only [ε, dite_eq_left hw]
+      exact (Classical.choose_spec (hloc w hw)).1
+    · simp only [ε, dite_eq_right hw]
+      exact one_pos
+  refine ⟨ε, hε, fun x hx ↦ ?_⟩
+  let S := (finite_primesAbove F u).toFinset
+  have hS (w : Primes(F))
+      (hw : u.asIdeal = w.asIdeal.comap (RingOfIntegers.mapRingHom (algebraMap ℚ F))) : w ∈ S :=
+    (finite_primesAbove F u).mem_toFinset.mpr hw
+  have hsum := adeleTrace_eval_eq_sum F u S hS (algebraMap F 𝔸[F] x)
+  rw [adeleTrace_algebraMap] at hsum
+  change algebraMap ℚ (u.adicCompletion ℚ) (Algebra.trace ℚ F x) =
+    ∑ w ∈ S, P (T (finiteAdeleSingle F w (algebraMap F (w.adicCompletion F) x))) at hsum
+  rw [hsum, ← Finset.add_sum_erase S _ (hS v hu), hv, sub_add_cancel_left]
+  refine neg_mem (sum_mem fun w hw ↦ ?_)
+  obtain ⟨hwv, hwS⟩ := Finset.mem_erase.mp hw
+  have hwu := (finite_primesAbove F u).mem_toFinset.mp hwS
+  refine (Classical.choose_spec (hloc w hwu)).2 _ ?_
+  have h := hx w hwv hwu
+  have hεw : ε w = Classical.choose (hloc w hwu) := dite_eq_left hwu
+  rwa [hεw] at h
+
+private theorem norm_algebraMap_adicCompletion (v : Primes(F)) (k : F) :
+    ‖algebraMap F (v.adicCompletion F) k‖ =
+      (WithZeroMulInt.toNNReal (HeightOneSpectrum.absNorm_ne_zero v) (v.valuation F k) : ℝ) := by
+  rw [FinitePlace.norm_def, show algebraMap F (v.adicCompletion F) k = (k : v.adicCompletion F)
+    from rfl, HeightOneSpectrum.valuedAdicCompletion_eq_valuation']
+
+/-- Global integers are dense in the local integers. -/
+private theorem exists_integer_near (v : Primes(F)) (b : v.adicCompletion F) (hb : ‖b‖ ≤ 1)
+    {η : ℝ} (hη : 0 < η) :
+    ∃ a : 𝓞 F, ‖b - algebraMap F (v.adicCompletion F) (algebraMap (𝓞 F) F a)‖ < η := by
+  have hq : (1 : ℝ) < v.asIdeal.absNorm := by exact_mod_cast HeightOneSpectrum.one_lt_absNorm v
+  obtain ⟨f, hf⟩ : ∃ f : F, ‖b - algebraMap F (v.adicCompletion F) f‖ < min (η / 2) 1 := by
+    obtain ⟨f, hf⟩ := Metric.denseRange_iff.mp
+      (HeightOneSpectrum.denseRange_algebraMap (K := F) (v := v)) b _
+      (lt_min (half_pos hη) one_pos)
+    exact ⟨f, by rwa [dist_eq_norm] at hf⟩
+  have hf1 : ‖algebraMap F (v.adicCompletion F) f‖ ≤ 1 := by
+    have h := IsUltrametricDist.norm_add_le_max b (algebraMap F (v.adicCompletion F) f - b)
+    rw [add_sub_cancel] at h
+    refine h.trans (max_le hb ?_)
+    rw [norm_sub_rev]
+    exact (hf.trans_le (min_le_right _ _)).le
+  have hfv : v.valuation F f ≤ 1 := by
+    rw [norm_algebraMap_adicCompletion] at hf1
+    exact (WithZeroMulInt.toNNReal_le_one_iff (HeightOneSpectrum.one_lt_absNorm_nnreal v)).mp
+      (by exact_mod_cast hf1)
+  obtain ⟨n, hn⟩ := exists_pow_lt_of_lt_one (half_pos hη) (inv_lt_one_of_one_lt₀ hq)
+  obtain ⟨a, ha⟩ := HeightOneSpectrum.exists_valuation_sub_lt_of_integer (K := F) v hfv
+    (Units.mk0 (WithZero.exp (-(n : ℤ))) WithZero.exp_ne_zero)
+  refine ⟨a, ?_⟩
+  have hfa : ‖algebraMap F (v.adicCompletion F) f -
+      algebraMap F (v.adicCompletion F) (algebraMap (𝓞 F) F a)‖ < η / 2 := by
+    rw [norm_sub_rev, ← map_sub, norm_algebraMap_adicCompletion]
+    have h1 := (WithZeroMulInt.toNNReal_strictMono (HeightOneSpectrum.one_lt_absNorm_nnreal v)) ha
+    rw [Units.val_mk0, WithZeroMulInt.toNNReal_neg_apply _ WithZero.exp_ne_zero,
+      WithZero.log_exp] at h1
+    calc _ < (((v.asIdeal.absNorm : ℝ≥0) ^ (-(n : ℤ)) : ℝ≥0) : ℝ) := NNReal.coe_lt_coe.mpr h1
+      _ = (v.asIdeal.absNorm : ℝ)⁻¹ ^ n := by
+        push_cast
+        rw [zpow_neg, zpow_natCast, inv_pow]
+      _ < η / 2 := hn
+  calc _ ≤ ‖b - algebraMap F (v.adicCompletion F) f‖ + ‖algebraMap F (v.adicCompletion F) f -
+        algebraMap F (v.adicCompletion F) (algebraMap (𝓞 F) F a)‖ := norm_sub_le_norm_sub_add_norm_sub _ _ _
+    _ < η / 2 + η / 2 := add_lt_add (hf.trans_le (min_le_left _ _)) hfa
+    _ = η := add_halves η
+
+/-- An element of a given ideal that is a unit at `v` and small at finitely many other places. -/
+private theorem exists_mem_notMem_small (v : Primes(F)) (I : Ideal (𝓞 F)) (hI : ¬ I ≤ v.asIdeal)
+    (T : Finset (Primes(F))) (η : Primes(F) → ℝ) (hη : ∀ w, 0 < η w) :
+    ∃ s ∈ I, s ∉ v.asIdeal ∧ ∀ w ∈ T, w ≠ v →
+      ‖algebraMap F (w.adicCompletion F) (algebraMap (𝓞 F) F s)‖ < η w := by
+  have hL (w : Primes(F)) : ∃ L : ℕ, (w.asIdeal.absNorm : ℝ) ^ (-(L : ℤ)) < η w := by
+    have hq : (1 : ℝ) < w.asIdeal.absNorm := by exact_mod_cast HeightOneSpectrum.one_lt_absNorm w
+    obtain ⟨n, hn⟩ := exists_pow_lt_of_lt_one (hη w) (inv_lt_one_of_one_lt₀ hq)
+    exact ⟨n, by rwa [zpow_neg, zpow_natCast, ← inv_pow]⟩
+  choose L hL using hL
+  have hM : ¬ (∏ w ∈ T.erase v, w.asIdeal ^ L w) ≤ v.asIdeal := by
+    rw [Ideal.IsPrime.prod_le v.isPrime]
+    rintro ⟨w, hw, hle⟩
+    have hwv := (Finset.mem_erase.mp hw).1
+    have hwle : w.asIdeal ≤ v.asIdeal := v.isPrime.le_of_pow_le hle
+    exact hwv (HeightOneSpectrum.ext (w.isMaximal.eq_of_le v.isPrime.ne_top hwle))
+  have hIM : ¬ I * (∏ w ∈ T.erase v, w.asIdeal ^ L w) ≤ v.asIdeal := by
+    rw [Ideal.IsPrime.mul_le v.isPrime]
+    exact not_or.mpr ⟨hI, hM⟩
+  obtain ⟨s, hs, hsv⟩ : ∃ s ∈ I * (∏ w ∈ T.erase v, w.asIdeal ^ L w), s ∉ v.asIdeal := by
+    by_contra hcon
+    exact hIM fun s hs ↦ by_contra fun hsv ↦ hcon ⟨s, hs, hsv⟩
+  have hsI : s ∈ I := (Ideal.mul_le_left : I * (∏ w ∈ T.erase v, w.asIdeal ^ L w) ≤ I) hs
+  have hsM : s ∈ ∏ w ∈ T.erase v, w.asIdeal ^ L w :=
+    (Ideal.mul_le_right : I * (∏ w ∈ T.erase v, w.asIdeal ^ L w) ≤ _) hs
+  refine ⟨s, hsI, hsv, fun w hw hwv ↦ ?_⟩
+  have hsw : s ∈ w.asIdeal ^ L w :=
+    Ideal.le_of_dvd (Finset.dvd_prod_of_mem (fun w : Primes(F) ↦ w.asIdeal ^ L w)
+      (Finset.mem_erase.mpr ⟨hwv, hw⟩)) hsM
+  exact ((norm_coe_le_zpow_iff F w s (L w)).mpr hsw).trans_lt (hL w)
+
+/-- An element of the different with the exact `v`-adic order. -/
+private theorem exists_different_witness (v : Primes(F)) :
+    ∃ δ ∈ differentIdeal ℤ (𝓞 F), δ ∈ v.asIdeal ^ differentExp(F, v) ∧
+      δ ∉ v.asIdeal ^ (differentExp(F, v) + 1) := by
+  have hD : differentIdeal ℤ (𝓞 F) ≠ ⊥ := differentIdeal_ne_bot
+  have hfin : FiniteMultiplicity v.asIdeal (differentIdeal ℤ (𝓞 F)) :=
+    FiniteMultiplicity.of_prime_left v.prime hD
+  have hle : differentIdeal ℤ (𝓞 F) ≤ v.asIdeal ^ differentExp(F, v) :=
+    Ideal.le_of_dvd (pow_multiplicity_dvd _ _)
+  have hnle : ¬ differentIdeal ℤ (𝓞 F) ≤ v.asIdeal ^ (differentExp(F, v) + 1) := fun h ↦
+    hfin.not_pow_dvd_of_multiplicity_lt (Nat.lt_succ_self _) (Ideal.dvd_iff_le.mpr h)
+  obtain ⟨δ, hδ, hδv⟩ := IsConcreteLE.not_le_iff_exists.mp hnle
+  exact ⟨δ, hδ, hle hδ, hδv⟩
+
+private theorem norm_of_exact_order (v : Primes(F)) (δ : 𝓞 F) (n : ℕ) (h1 : δ ∈ v.asIdeal ^ n)
+    (h2 : δ ∉ v.asIdeal ^ (n + 1)) :
+    ‖algebraMap F (v.adicCompletion F) (algebraMap (𝓞 F) F δ)‖ =
+      (v.asIdeal.absNorm : ℝ) ^ (-(n : ℤ)) := by
+  have hq : (1 : ℝ) < v.asIdeal.absNorm := by exact_mod_cast HeightOneSpectrum.one_lt_absNorm v
+  have hle := (norm_coe_le_zpow_iff F v δ n).mpr h1
+  have hlt : ¬ _ := mt (norm_coe_le_zpow_iff F v δ (n + 1)).mp h2
+  have hne : algebraMap F (v.adicCompletion F) (algebraMap (𝓞 F) F δ) ≠ 0 := by
+    intro h0
+    apply hlt
+    rw [h0, norm_zero]
+    positivity
+  rw [norm_adicCompletion_eq_zpow F v hne] at hle hlt ⊢
+  rw [zpow_le_zpow_iff_right₀ hq] at hle
+  rw [not_le, zpow_lt_zpow_iff_right₀ hq] at hlt
+  congr 1
+  push_cast at hlt
+  omega
+
+open scoped nonZeroDivisors in
+/-- Membership in the inverse different, as a trace condition and as a multiplier condition. -/
+private theorem trace_int_iff_mul_different (x : F) :
+    (∀ a : 𝓞 F, Algebra.trace ℚ F (x * algebraMap (𝓞 F) F a) ∈ (algebraMap ℤ ℚ).range) ↔
+      ∀ δ ∈ differentIdeal ℤ (𝓞 F), x * algebraMap (𝓞 F) F δ ∈ (algebraMap (𝓞 F) F).range := by
+  have hD : (differentIdeal ℤ (𝓞 F) : FractionalIdeal (𝓞 F)⁰ F) ≠ 0 := by
+    rw [ne_eq, FractionalIdeal.coeIdeal_eq_zero]
+    exact differentIdeal_ne_bot
+  have h1 : x ∈ FractionalIdeal.dual ℤ ℚ (1 : FractionalIdeal (𝓞 F)⁰ F) ↔
+      ∀ a : 𝓞 F, Algebra.trace ℚ F (x * algebraMap (𝓞 F) F a) ∈ (algebraMap ℤ ℚ).range := by
+    rw [FractionalIdeal.mem_dual one_ne_zero]
+    constructor
+    · intro h a
+      exact h _ (FractionalIdeal.mem_one_iff _ |>.mpr ⟨a, rfl⟩)
+    · intro h a ha
+      obtain ⟨a', rfl⟩ := (FractionalIdeal.mem_one_iff _).mp ha
+      exact h a'
+  have h2 : x ∈ FractionalIdeal.dual ℤ ℚ (1 : FractionalIdeal (𝓞 F)⁰ F) ↔
+      ∀ δ ∈ differentIdeal ℤ (𝓞 F), x * algebraMap (𝓞 F) F δ ∈ (algebraMap (𝓞 F) F).range := by
+    rw [← inv_inv (FractionalIdeal.dual ℤ ℚ (1 : FractionalIdeal (𝓞 F)⁰ F)),
+      ← coeIdeal_differentIdeal (A := ℤ) (K := ℚ) (L := F) (B := 𝓞 F), FractionalIdeal.mem_inv_iff hD]
+    constructor
+    · intro h δ hδ
+      obtain ⟨y, hy⟩ := (FractionalIdeal.mem_one_iff _).mp
+        (h _ (FractionalIdeal.mem_coeIdeal _ |>.mpr ⟨δ, hδ, rfl⟩))
+      exact ⟨y, hy⟩
+    · intro h y hy
+      obtain ⟨δ, hδ, rfl⟩ := (FractionalIdeal.mem_coeIdeal _).mp hy
+      obtain ⟨z, hz⟩ := h δ hδ
+      exact (FractionalIdeal.mem_one_iff _).mpr ⟨z, hz⟩
+  rw [← h1, h2]
+
+private theorem norm_coe_int_le_one (v : Primes(F)) (a : 𝓞 F) :
+    ‖algebraMap F (v.adicCompletion F) (algebraMap (𝓞 F) F a)‖ ≤ 1 := by
+  rw [norm_algebraMap_adicCompletion, HeightOneSpectrum.valuation_of_algebraMap]
+  exact_mod_cast (WithZeroMulInt.toNNReal_le_one_iff
+    (HeightOneSpectrum.one_lt_absNorm_nnreal v)).mpr (v.intValuation_le_one a)
+
+private theorem norm_coe_int_eq_one (v : Primes(F)) (a : 𝓞 F) (ha : a ∉ v.asIdeal) :
+    ‖algebraMap F (v.adicCompletion F) (algebraMap (𝓞 F) F a)‖ = 1 := by
+  rw [norm_algebraMap_adicCompletion, HeightOneSpectrum.valuation_of_algebraMap,
+    (v.intValuation_eq_one_iff_mem_primeCompl a).mpr ha, map_one, NNReal.coe_one]
+
+/-- Elements of the inverse different have `v`-adic norm at most `qᵥ^dᵥ`. -/
+private theorem norm_le_of_mul_different (v : Primes(F)) (x : F)
+    (hx : ∀ δ ∈ differentIdeal ℤ (𝓞 F), x * algebraMap (𝓞 F) F δ ∈ (algebraMap (𝓞 F) F).range) :
+    ‖algebraMap F (v.adicCompletion F) x‖ ≤ (v.asIdeal.absNorm : ℝ) ^ differentExp(F, v) := by
+  obtain ⟨δ, hδ, h1, h2⟩ := exists_different_witness F v
+  have hn := norm_of_exact_order F v δ _ h1 h2
+  obtain ⟨a, ha⟩ := hx δ hδ
+  have hq : (0 : ℝ) < v.asIdeal.absNorm := by
+    exact_mod_cast zero_lt_one.trans (HeightOneSpectrum.one_lt_absNorm v)
+  have hle : ‖algebraMap F (v.adicCompletion F) x‖ *
+      ‖algebraMap F (v.adicCompletion F) (algebraMap (𝓞 F) F δ)‖ ≤ 1 := by
+    rw [← norm_mul, ← map_mul, ← ha]
+    exact norm_coe_int_le_one F v a
+  rw [hn, zpow_neg, zpow_natCast, ← div_eq_mul_inv, div_le_one (pow_pos hq _)] at hle
+  exact hle
+
+/-- An element of the inverse different of exact `v`-adic norm `qᵥ^dᵥ`, small at finitely
+many other places. -/
+private theorem exists_inverseDifferent_small (v : Primes(F)) (T : Finset (Primes(F)))
+    (η : Primes(F) → ℝ) (hη : ∀ w, 0 < η w) :
+    ∃ x : F, (∀ δ ∈ differentIdeal ℤ (𝓞 F),
+        x * algebraMap (𝓞 F) F δ ∈ (algebraMap (𝓞 F) F).range) ∧
+      ‖algebraMap F (v.adicCompletion F) x‖ = (v.asIdeal.absNorm : ℝ) ^ differentExp(F, v) ∧
+      ∀ w ∈ T, w ≠ v → ‖algebraMap F (w.adicCompletion F) x‖ < η w := by
+  obtain ⟨δ, hδ, h1, h2⟩ := exists_different_witness F v
+  have hδ0 : δ ≠ 0 := by
+    rintro rfl
+    exact h2 (Ideal.zero_mem _)
+  have hδF : algebraMap (𝓞 F) F δ ≠ 0 := fun h ↦ hδ0 (RingOfIntegers.coe_injective (by
+    rw [h, map_zero]))
+  obtain ⟨E, hE⟩ : differentIdeal ℤ (𝓞 F) ∣ Ideal.span {δ} :=
+    Ideal.dvd_iff_le.mpr ((Ideal.span_singleton_le_iff_mem _).mpr hδ)
+  have hEv : ¬ E ≤ v.asIdeal := by
+    intro hle
+    apply h2
+    have hspan : Ideal.span {δ} ≤ v.asIdeal ^ (differentExp(F, v) + 1) := by
+      rw [hE, pow_succ]
+      exact Ideal.mul_mono (Ideal.le_of_dvd (pow_multiplicity_dvd _ _)) hle
+    exact hspan (Ideal.mem_span_singleton_self δ)
+  have hδw (w : Primes(F)) : 0 < ‖algebraMap F (w.adicCompletion F) (algebraMap (𝓞 F) F δ)‖ :=
+    norm_pos_iff.mpr ((map_ne_zero _).mpr hδF)
+  obtain ⟨c, hcE, hcv, hcw⟩ := exists_mem_notMem_small F v E hEv T
+    (fun w ↦ η w * ‖algebraMap F (w.adicCompletion F) (algebraMap (𝓞 F) F δ)‖)
+    (fun w ↦ mul_pos (hη w) (hδw w))
+  refine ⟨algebraMap (𝓞 F) F c / algebraMap (𝓞 F) F δ, ?_, ?_, ?_⟩
+  · intro δ' hδ'
+    have hmem : c * δ' ∈ Ideal.span {δ} := by
+      rw [hE, mul_comm c]
+      exact Ideal.mul_mem_mul hδ' hcE
+    obtain ⟨t, ht⟩ := Ideal.mem_span_singleton'.mp hmem
+    refine ⟨t, ?_⟩
+    rw [div_mul_eq_mul_div, eq_div_iff hδF, ← map_mul, ← map_mul, ht]
+  · rw [map_div₀, norm_div, norm_coe_int_eq_one F v c hcv, norm_of_exact_order F v δ _ h1 h2,
+      zpow_neg, zpow_natCast, one_div, inv_inv]
+  · intro w hw hwv
+    rw [map_div₀, norm_div, div_lt_iff₀ (hδw w)]
+    exact hcw w hw hwv
+
+private theorem natGenerator_dvd_iff' (u : Primes(ℚ)) (n : ℕ) :
+    Rat.HeightOneSpectrum.natGenerator u ∣ n ↔ (n : 𝓞 ℚ) ∈ u.asIdeal := by
+  rw [Rat.HeightOneSpectrum.natGenerator_dvd_iff, Ideal.mem_map_of_equiv]
+  constructor
+  · rintro ⟨y, hy, hy'⟩
+    have hyn : y = (n : 𝓞 ℚ) :=
+      (Rat.IsIntegralClosure.intEquiv (𝓞 ℚ)).injective (by rw [hy', map_natCast])
+    rwa [← hyn]
+  · intro h
+    exact ⟨n, h, map_natCast _ n⟩
+
+/-- A rational number which is integral at `u` and has a denominator dividing a power
+of the prime below `u` is an integer. -/
+private theorem rat_mem_range_of (u : Primes(ℚ)) (r : ℚ) (k : ℕ)
+    (hk : ((Rat.HeightOneSpectrum.natGenerator u : ℚ) ^ k * r) ∈ (algebraMap ℤ ℚ).range)
+    (hr : algebraMap ℚ (u.adicCompletion ℚ) r ∈ u.adicCompletionIntegers ℚ) :
+    r ∈ (algebraMap ℤ ℚ).range := by
+  have hp : (Rat.HeightOneSpectrum.natGenerator u).Prime :=
+    Rat.HeightOneSpectrum.prime_natGenerator u
+  have hval : u.valuation ℚ r ≤ 1 := by
+    have h := (HeightOneSpectrum.mem_adicCompletionIntegers (𝓞 ℚ) ℚ u).mp hr
+    have hcoe : algebraMap ℚ (u.adicCompletion ℚ) r = FinitePlace.embedding u r :=
+      RingHom.congr_fun (Subsingleton.elim (algebraMap ℚ (u.adicCompletion ℚ))
+        (FinitePlace.embedding u)) r
+    rwa [hcoe, FinitePlace.embedding_apply,
+      HeightOneSpectrum.valuedAdicCompletion_eq_valuation'] at h
+  have hden : ((r.den : ℕ) : 𝓞 ℚ) ∉ u.asIdeal := Rat.valuation_le_one_iff_den.mp hval
+  obtain ⟨n, hn⟩ := hk
+  have hdvd : r.den ∣ Rat.HeightOneSpectrum.natGenerator u ^ k := by
+    have hpk : ((Rat.HeightOneSpectrum.natGenerator u : ℚ) ^ k) ≠ 0 :=
+      pow_ne_zero _ (by exact_mod_cast hp.ne_zero)
+    have hr' : r = Rat.divInt n ((Rat.HeightOneSpectrum.natGenerator u : ℤ) ^ k) := by
+      rw [Rat.divInt_eq_div]
+      push_cast
+      rw [eq_div_iff hpk, mul_comm]
+      simpa using hn.symm
+    have h := Rat.den_dvd n ((Rat.HeightOneSpectrum.natGenerator u : ℤ) ^ k)
+    rw [← hr'] at h
+    exact_mod_cast h
+  have hndvd : ¬ Rat.HeightOneSpectrum.natGenerator u ∣ r.den := fun h ↦
+    hden ((natGenerator_dvd_iff' u r.den).mp h)
+  have hcop : Nat.Coprime r.den (Rat.HeightOneSpectrum.natGenerator u ^ k) :=
+    (Nat.Coprime.pow_left k (hp.coprime_iff_not_dvd.mpr hndvd)).symm
+  have hden1 : r.den = 1 := hcop.eq_one_of_dvd hdvd
+  exact ⟨r.num, by simpa using Rat.intCast_num_of_den_eq_one hden1⟩
+
 /-- Paper: Example A.3.1.10, p. 558. The trace dual of the local integer ring consists
 of the elements that pair integrally with every local integer. It is the closed ball
 of radius `qᵥ^dᵥ`, where `dᵥ` is the exponent in the global different. -/
@@ -4458,7 +4943,172 @@ theorem finiteLocalTraceDual_eq_closedBall (v : Primes(F)) (u : Primes(ℚ))
           Algebra.trace (u.adicCompletion ℚ) (v.adicCompletion F) (x * y) ∈
             u.adicCompletionIntegers ℚ) ↔
         ‖y‖ ≤ (v.asIdeal.absNorm : ℝ) ^ differentExp(F, v) := by
-  sorry
+  let := j.toAlgebra
+  intro hfinite y
+  have hq1 : (1 : ℝ) < v.asIdeal.absNorm := by exact_mod_cast HeightOneSpectrum.one_lt_absNorm v
+  have hq0 : (0 : ℝ) < v.asIdeal.absNorm := zero_lt_one.trans hq1
+  obtain ⟨ε, hε, hLG⟩ := trace_localGlobal F v u hu j hj hdiag
+  obtain ⟨εv, hεv, hball⟩ := exists_ball_trace_mem F v u j hj hfinite
+  have hT (w : Primes(F))
+      (hw : u.asIdeal = w.asIdeal.comap (RingOfIntegers.mapRingHom (algebraMap ℚ F))) :
+      w ∈ (finite_primesAbove F u).toFinset :=
+    (finite_primesAbove F u).mem_toFinset.mpr hw
+  have hmemO (z : v.adicCompletion F) : z ∈ v.adicCompletionIntegers F ↔ ‖z‖ ≤ 1 := by
+    rw [HeightOneSpectrum.mem_adicCompletionIntegers (𝓞 F) F v]
+    exact Valued.toNormedField.norm_le_one_iff.symm
+  have hmod (y z : v.adicCompletion F)
+      (hy : ∀ x ∈ v.adicCompletionIntegers F, Algebra.trace (u.adicCompletion ℚ)
+        (v.adicCompletion F) (x * y) ∈ u.adicCompletionIntegers ℚ) (hzy : ‖z‖ ≤ ‖y‖) :
+      ∀ x ∈ v.adicCompletionIntegers F, Algebra.trace (u.adicCompletion ℚ)
+        (v.adicCompletion F) (x * z) ∈ u.adicCompletionIntegers ℚ := by
+    intro x hx
+    by_cases hy0 : y = 0
+    · rw [hy0, norm_zero, norm_le_zero_iff] at hzy
+      rw [hzy, mul_zero, map_zero]
+      exact (u.adicCompletionIntegers ℚ).zero_mem
+    · have hzy' : z / y ∈ v.adicCompletionIntegers F := (hmemO _).mpr (by
+        rw [norm_div, div_le_one (norm_pos_iff.mpr hy0)]
+        exact hzy)
+      have h := hy (x * (z / y)) (mul_mem hx hzy')
+      rwa [mul_assoc, div_mul_cancel₀ z hy0] at h
+  have hintZ (t : ℚ) (ht : t ∈ (algebraMap ℤ ℚ).range) :
+      algebraMap ℚ (u.adicCompletion ℚ) t ∈ u.adicCompletionIntegers ℚ := by
+    obtain ⟨n, rfl⟩ := ht
+    rw [show algebraMap ℚ (u.adicCompletion ℚ) (algebraMap ℤ ℚ n) = (n : u.adicCompletion ℚ) by
+      simp]
+    exact intCast_mem _ n
+  have hsmall (x : F) (hx : ∀ w ∈ (finite_primesAbove F u).toFinset, w ≠ v →
+      ‖algebraMap F (w.adicCompletion F) x‖ < ε w) (a : 𝓞 F) (w : Primes(F)) (hwv : w ≠ v)
+      (hwu : u.asIdeal = w.asIdeal.comap (RingOfIntegers.mapRingHom (algebraMap ℚ F))) :
+      ‖algebraMap F (w.adicCompletion F) (x * algebraMap (𝓞 F) F a)‖ < ε w := by
+    rw [map_mul, norm_mul]
+    exact (mul_le_of_le_one_right (norm_nonneg _) (norm_coe_int_le_one F w a)).trans_lt
+      (hx w (hT w hwu) hwv)
+  constructor
+  · intro hy
+    by_contra hlt'
+    have hlt := not_le.mp hlt'
+    have hy0 : y ≠ 0 := by
+      rintro rfl
+      rw [norm_zero] at hlt
+      exact (pow_pos hq0 _).not_gt hlt
+    let p := Rat.HeightOneSpectrum.natGenerator u
+    have hp : p.Prime := Rat.HeightOneSpectrum.prime_natGenerator u
+    have hpF : (p : F) ≠ 0 := by exact_mod_cast hp.ne_zero
+    have hpL : (p : v.adicCompletion F) ≠ 0 := by
+      rw [← map_natCast (algebraMap F (v.adicCompletion F))]
+      exact (map_ne_zero _).mpr hpF
+    have hpv : (p : 𝓞 F) ∈ v.asIdeal := by
+      have h := (natGenerator_dvd_iff' u p).mp dvd_rfl
+      rw [hu, Ideal.mem_comap, map_natCast] at h
+      exact h
+    have hpn : ‖(p : v.adicCompletion F)‖ < 1 := by
+      have h := (norm_coe_le_zpow_iff F v (p : 𝓞 F) 1).mpr (by rw [pow_one]; exact hpv)
+      rw [map_natCast, map_natCast, Nat.cast_one, zpow_neg, zpow_one] at h
+      exact h.trans_lt (inv_lt_one_of_one_lt₀ hq1)
+    obtain ⟨k, hk⟩ := exists_pow_lt_of_lt_one (inv_pos.mpr (norm_pos_iff.mpr hy0)) hpn
+    let b : v.adicCompletion F := (p : v.adicCompletion F) ^ k * y
+    have hbn : ‖b‖ = ‖(p : v.adicCompletion F)‖ ^ k * ‖y‖ := by
+      rw [norm_mul, norm_pow]
+    have hb : ‖b‖ ≤ 1 := by
+      rw [hbn]
+      calc _ ≤ ‖y‖⁻¹ * ‖y‖ := mul_le_mul_of_nonneg_right hk.le (norm_nonneg _)
+        _ = 1 := inv_mul_cancel₀ (norm_ne_zero_iff.mpr hy0)
+    have hbpos : 0 < ‖b‖ := norm_pos_iff.mpr (mul_ne_zero (pow_ne_zero _ hpL) hy0)
+    obtain ⟨a, ha⟩ := exists_integer_near F v b hb hbpos
+    let x1 : F := algebraMap (𝓞 F) F a / (p : F) ^ k
+    have hx1 : ‖algebraMap F (v.adicCompletion F) x1 - y‖ < ‖y‖ := by
+      have heq : algebraMap F (v.adicCompletion F) x1 - y =
+          (algebraMap F (v.adicCompletion F) (algebraMap (𝓞 F) F a) - b) /
+            (p : v.adicCompletion F) ^ k := by
+        rw [eq_div_iff (pow_ne_zero _ hpL)]
+        simp only [x1, b, map_div₀, map_pow, map_natCast]
+        field_simp
+      rw [heq, norm_div, norm_sub_rev, norm_pow,
+        div_lt_iff₀ (pow_pos (norm_pos_iff.mpr hpL) k)]
+      calc _ < ‖b‖ := ha
+        _ = ‖y‖ * ‖(p : v.adicCompletion F)‖ ^ k := by rw [hbn, mul_comm]
+    have hx1n : ‖algebraMap F (v.adicCompletion F) x1‖ = ‖y‖ := by
+      have h1 := IsUltrametricDist.norm_add_le_max y (algebraMap F (v.adicCompletion F) x1 - y)
+      rw [add_sub_cancel] at h1
+      have h2 := IsUltrametricDist.norm_add_le_max (algebraMap F (v.adicCompletion F) x1)
+        (y - algebraMap F (v.adicCompletion F) x1)
+      rw [add_sub_cancel, norm_sub_rev] at h2
+      refine le_antisymm (h1.trans (max_le le_rfl hx1.le)) ?_
+      rcases le_max_iff.mp h2 with h | h
+      · exact h
+      · exact absurd (h.trans_lt hx1) (lt_irrefl _)
+    obtain ⟨s, -, hsv, hsw⟩ := exists_mem_notMem_small F v ⊤
+      (fun h ↦ v.isPrime.ne_top (top_le_iff.mp h)) (finite_primesAbove F u).toFinset
+      (fun w ↦ ε w / (‖algebraMap F (w.adicCompletion F) x1‖ + 1))
+      (fun w ↦ div_pos (hε w) (by positivity))
+    let x : F := x1 * algebraMap (𝓞 F) F s
+    have hxv : ‖algebraMap F (v.adicCompletion F) x‖ = ‖y‖ := by
+      rw [map_mul, norm_mul, hx1n, norm_coe_int_eq_one F v s hsv, mul_one]
+    have hxw : ∀ w ∈ (finite_primesAbove F u).toFinset, w ≠ v →
+        ‖algebraMap F (w.adicCompletion F) x‖ < ε w := by
+      intro w hw hwv
+      have h := hsw w hw hwv
+      rw [lt_div_iff₀ (by positivity)] at h
+      rw [map_mul, norm_mul]
+      nlinarith [norm_nonneg (algebraMap F (w.adicCompletion F) (algebraMap (𝓞 F) F s)),
+        norm_nonneg (algebraMap F (w.adicCompletion F) x1)]
+    have hxD := hmod y _ hy hxv.le
+    have htr (a' : 𝓞 F) :
+        Algebra.trace ℚ F (x * algebraMap (𝓞 F) F a') ∈ (algebraMap ℤ ℚ).range := by
+      have h1 := hLG (x * algebraMap (𝓞 F) F a') (hsmall x hxw a')
+      have h2 : Algebra.trace (u.adicCompletion ℚ) (v.adicCompletion F)
+          (algebraMap F (v.adicCompletion F) (x * algebraMap (𝓞 F) F a')) ∈
+            u.adicCompletionIntegers ℚ := by
+        rw [map_mul, mul_comm]
+        exact hxD _ ((hmemO _).mpr (norm_coe_int_le_one F v a'))
+      have h3 := (u.adicCompletionIntegers ℚ).sub_mem h2 h1
+      rw [sub_sub_cancel] at h3
+      refine rat_mem_range_of u _ k ?_ h3
+      have hint := (trace_int_iff_mul_different F 1).mpr
+        (fun δ _ ↦ ⟨δ, by rw [one_mul]⟩) (a * s * a')
+      rw [one_mul] at hint
+      have hpk : (p : ℚ) ^ k * Algebra.trace ℚ F (x * algebraMap (𝓞 F) F a') =
+          Algebra.trace ℚ F (algebraMap (𝓞 F) F (a * s * a')) := by
+        rw [← smul_eq_mul, ← LinearMap.map_smul, Algebra.smul_def]
+        congr 1
+        simp only [x, x1, map_mul, map_pow, map_natCast]
+        field_simp
+      rw [hpk]
+      exact hint
+    exact (not_lt.mpr (norm_le_of_mul_different F v x
+      ((trace_int_iff_mul_different F x).mp htr))) (hxv ▸ hlt)
+  · intro hy
+    obtain ⟨x, hxD, hxv, hxw⟩ := exists_inverseDifferent_small F v
+      (finite_primesAbove F u).toFinset ε hε
+    have hx0 : algebraMap F (v.adicCompletion F) x ≠ 0 := by
+      intro h
+      rw [h, norm_zero] at hxv
+      exact (pow_pos hq0 _).ne' hxv.symm
+    have hxloc : ∀ b ∈ v.adicCompletionIntegers F, Algebra.trace (u.adicCompletion ℚ)
+        (v.adicCompletion F) (b * algebraMap F (v.adicCompletion F) x) ∈
+          u.adicCompletionIntegers ℚ := by
+      intro b hb
+      obtain ⟨a, ha⟩ := exists_integer_near F v b ((hmemO b).mp hb)
+        (div_pos hεv (norm_pos_iff.mpr hx0))
+      have hsplit : b * algebraMap F (v.adicCompletion F) x =
+          (b - algebraMap F (v.adicCompletion F) (algebraMap (𝓞 F) F a)) *
+            algebraMap F (v.adicCompletion F) x +
+          algebraMap F (v.adicCompletion F) (x * algebraMap (𝓞 F) F a) := by
+        rw [map_mul]
+        ring
+      rw [hsplit, map_add]
+      refine add_mem (hball _ ?_) ?_
+      · rw [norm_mul, ← lt_div_iff₀ (norm_pos_iff.mpr hx0)]
+        exact ha
+      · have h1 := hLG (x * algebraMap (𝓞 F) F a) (hsmall x hxw a)
+        have h2 := hintZ _ ((trace_int_iff_mul_different F x).mpr hxD a)
+        have h3 := add_mem h1 h2
+        rwa [sub_add_cancel] at h3
+    exact hmod _ y hxloc (hy.trans hxv.symm.le)
+
+
+end FiniteLocalTraceDual
 
 /-- Paper: Example A.3.1.10, p. 558. The annihilator of the local integer ring
 under the standard trace pairing is the inverse different.
@@ -6109,6 +6759,343 @@ theorem infiniteLocalMultiplicativeTamagawaMeasure_regulatorStrip :
     simp only [Finset.prod_const, ← Fintype.card_subtype, InfinitePlace.not_isReal_iff_isComplex]
   rw [← ENNReal.ofReal_coe_nnreal, hc, ← ENNReal.ofReal_mul (by positivity)]
 
+/-- An idele lies in the integral idele units exactly when it is a unit at every finite place. -/
+private theorem multiplicativeTamagawaMeasure_regulatorStrip_mem_integral (g : 𝕀[F]) :
+    g ∈ (Units.map (integralAdelesOutside F ∅).subtype.toMonoidHom).range ↔
+      ∀ v : Primes(F), (finiteUnitAt) v g ∈ (v.adicCompletionIntegers F).units := by
+  have hmem (a : 𝔸[F]) : a ∈ integralAdelesOutside F ∅ ↔
+      ∀ v : Primes(F), a.2 v ∈ v.adicCompletionIntegers F := by
+    simp only [integralAdelesOutside, Subring.mem_iInf, Finset.notMem_empty, not_false_eq_true,
+      true_implies]
+    rfl
+  constructor
+  · rintro ⟨u, rfl⟩ v
+    exact ⟨(hmem _).mp u.val.property v, (hmem _).mp u.inv.property v⟩
+  · intro h
+    exact ⟨⟨⟨g.val, (hmem _).mpr fun v ↦ (h v).1⟩, ⟨g.inv, (hmem _).mpr fun v ↦ (h v).2⟩,
+      Subtype.ext g.val_inv, Subtype.ext g.inv_val⟩, Units.ext rfl⟩
+
+/-- For an idele that is a unit at every finite place, the logarithm of its norm is the
+sum of the weighted archimedean logarithms. -/
+private theorem multiplicativeTamagawaMeasure_regulatorStrip_log_norm (g : 𝕀[F])
+    (hg : ∀ v : Primes(F), (finiteUnitAt) v g ∈ (v.adicCompletionIntegers F).units) :
+    Real.log ((ideleNorm F g : ℝ≥0) : ℝ) =
+      ∑ w : InfinitePlace F, (w.mult : ℝ) * Real.log ‖g.val.1 w‖ := by
+  have hfin (v : Primes(F)) : ‖g.val.2 v‖ = 1 := by
+    apply Valued.toNormedField.norm_eq_one_iff.mpr
+    exact (HeightOneSpectrum.adicCompletionIntegers.mem_units_iff_valued_eq_one
+      (a := (finiteUnitAt) v g)).mp (hg v)
+  have hne (w : InfinitePlace F) : ‖g.val.1 w‖ ≠ 0 :=
+    norm_ne_zero_iff.mpr ((∞unitAt) w g).ne_zero
+  rw [((ideleNorm_spec F).1 g).2]
+  simp only [hfin, finprod_one, mul_one]
+  rw [Real.log_prod (fun w _ ↦ pow_ne_zero _ (hne w))]
+  simp only [Real.log_pow]
+
+/-- A principal idele that is a unit at every finite place comes from a global unit. -/
+private theorem multiplicativeTamagawaMeasure_regulatorStrip_unit (x : Fˣ)
+    (hx : ∀ v : Primes(F), (finiteUnitAt) v (IdeleGroup.unitEmbedding (𝓞 F) F x) ∈
+      (v.adicCompletionIntegers F).units) :
+    ∃ u : (𝓞 F)ˣ, Units.map (algebraMap (𝓞 F) F).toMonoidHom u = x := by
+  obtain ⟨a, ha⟩ :=
+    (multiplicativeTamagawaMeasure_regulatorStrip_mem_integral F _).mpr hx
+  have lift (y : F) (hy : algebraMap F (AdeleRing (𝓞 F) F) y ∈ integralAdelesOutside F ∅) :
+      y ∈ (algebraMap (𝓞 F) F).range := by
+    have h := (diagonal_mem_integralAdelesOutside F ∅ y).mp hy
+    rwa [Finset.coe_empty, integer_empty, Algebra.mem_bot] at h
+  have hval : a.val.val = algebraMap F (AdeleRing (𝓞 F) F) x.val := congrArg Units.val ha
+  have hinv : a.inv.val = algebraMap F (AdeleRing (𝓞 F) F) x.inv := congrArg Units.inv ha
+  obtain ⟨y, hy⟩ := lift x.val (hval ▸ a.val.property)
+  obtain ⟨z, hz⟩ := lift x.inv (hinv ▸ a.inv.property)
+  let u : (𝓞 F)ˣ := ⟨y, z,
+    (IsFractionRing.injective (𝓞 F) F) (by rw [map_mul, hy, hz, x.val_inv, map_one]),
+    (IsFractionRing.injective (𝓞 F) F) (by rw [map_mul, hy, hz, x.inv_val, map_one])⟩
+  exact ⟨u, Units.ext hy⟩
+
+/-- The principal idele of a global unit is a unit at every finite place, and its
+archimedean components have the absolute values of the unit. -/
+private theorem multiplicativeTamagawaMeasure_regulatorStrip_unit_spec (u : (𝓞 F)ˣ) :
+    (∀ v : Primes(F), (finiteUnitAt) v (IdeleGroup.unitEmbedding (𝓞 F) F
+      (Units.map (algebraMap (𝓞 F) F).toMonoidHom u)) ∈ (v.adicCompletionIntegers F).units) ∧
+    ∀ w : InfinitePlace F, ‖(IdeleGroup.unitEmbedding (𝓞 F) F
+      (Units.map (algebraMap (𝓞 F) F).toMonoidHom u)).val.1 w‖ = w (algebraMap (𝓞 F) F u) := by
+  constructor
+  · apply (multiplicativeTamagawaMeasure_regulatorStrip_mem_integral F _).mp
+    have hInt (y : F) :
+        algebraMap F (AdeleRing (𝓞 F) F) y ∈ integralAdelesOutside F ∅ ↔
+          y ∈ (algebraMap (𝓞 F) F).range := by
+      rw [diagonal_mem_integralAdelesOutside, Finset.coe_empty, integer_empty, Algebra.mem_bot]
+      rfl
+    let f := ((algebraMap F (AdeleRing (𝓞 F) F)).comp (algebraMap (𝓞 F) F)).codRestrict
+      (integralAdelesOutside F ∅) (fun y ↦ (hInt _).mpr ⟨y, rfl⟩)
+    exact ⟨Units.map f.toMonoidHom u, Units.ext rfl⟩
+  · intro w
+    change ‖algebraMap F (InfiniteAdeleRing F) (algebraMap (𝓞 F) F u.val) w‖ = _
+    rw [InfiniteAdeleRing.algebraMap_apply, AbsoluteValue.Completion.norm_coe]
+    rfl
+
+/-- Multiplying an idele by a principal idele adds the weighted archimedean logarithms. -/
+private theorem multiplicativeTamagawaMeasure_regulatorStrip_log_mul (a b : 𝕀[F])
+    (w : InfinitePlace F) :
+    (w.mult : ℝ) * Real.log ‖(a * b).val.1 w‖ =
+      (w.mult : ℝ) * Real.log ‖a.val.1 w‖ + (w.mult : ℝ) * Real.log ‖b.val.1 w‖ := by
+  have hne (g : 𝕀[F]) : ‖g.val.1 w‖ ≠ 0 := norm_ne_zero_iff.mpr ((∞unitAt) w g).ne_zero
+  rw [← mul_add, ← Real.log_mul (hne a) (hne b), ← norm_mul]
+  rfl
+
+/-- A point of the regulator strip with integral finite components stays there under a
+principal idele exactly when that idele comes from a torsion unit. -/
+private theorem multiplicativeTamagawaMeasure_regulatorStrip_translate (h : 𝕀[F])
+    (hh : (fun w ↦ (∞unitAt) w h) ∈ archimedeanRegulatorStrip F ∧
+      ∀ v : Primes(F), (finiteUnitAt) v h ∈ (v.adicCompletionIntegers F).units) (z : Fˣ) :
+    ((fun w ↦ (∞unitAt) w (h * IdeleGroup.unitEmbedding (𝓞 F) F z)) ∈
+        archimedeanRegulatorStrip F ∧ ∀ v : Primes(F),
+        (finiteUnitAt) v (h * IdeleGroup.unitEmbedding (𝓞 F) F z) ∈
+          (v.adicCompletionIntegers F).units) ↔
+      ∃ ζ ∈ Units.torsion F, Units.map (algebraMap (𝓞 F) F).toMonoidHom ζ = z := by
+  let d := IdeleGroup.unitEmbedding (𝓞 F) F
+  let ι := Units.map (algebraMap (𝓞 F) F).toMonoidHom
+  have hlog (u : (𝓞 F)ˣ) (w : InfinitePlace F) :
+      (w.mult : ℝ) * Real.log ‖(h * d (ι u)).val.1 w‖ =
+        (w.mult : ℝ) * Real.log ‖h.val.1 w‖ + (w.mult : ℝ) * Real.log (w (algebraMap (𝓞 F) F u)) := by
+    rw [multiplicativeTamagawaMeasure_regulatorStrip_log_mul,
+      (multiplicativeTamagawaMeasure_regulatorStrip_unit_spec F u).2 w]
+  constructor
+  · rintro ⟨⟨-, hpar⟩, hfin⟩
+    have hz : ∀ v : Primes(F), (finiteUnitAt) v (d z) ∈ (v.adicCompletionIntegers F).units := by
+      intro v
+      have h1 := (v.adicCompletionIntegers F).units.mul_mem
+        ((v.adicCompletionIntegers F).units.inv_mem (hh.2 v)) (hfin v)
+      rwa [← map_inv, ← map_mul, inv_mul_cancel_left] at h1
+    obtain ⟨u, rfl⟩ := multiplicativeTamagawaMeasure_regulatorStrip_unit F z hz
+    refine ⟨u, ?_, rfl⟩
+    rw [← Units.dirichletUnitTheorem.logEmbedding_eq_zero_iff]
+    by_contra hne
+    let x : (Units.logEmbedding F).range := ⟨_, Additive.ofMul u, rfl⟩
+    have hx : x ≠ 0 := fun h0 ↦ hne (congrArg Subtype.val h0)
+    refine Set.disjoint_left.mp
+      (regulatorParallelotope_disjoint F (Units.basisModTorsion F) x hx) ?_ hpar
+    refine Set.mem_vadd_set.mpr ⟨_, hh.1.2, ?_⟩
+    funext w
+    change Units.logEmbedding F (Additive.ofMul u) w + (w.val.mult : ℝ) * Real.log ‖h.val.1 w.val‖ = _
+    rw [Units.dirichletUnitTheorem.logEmbedding_component]
+    exact (add_comm _ _).trans (hlog u w.val).symm
+  · rintro ⟨ζ, hζ, rfl⟩
+    have hw (w : InfinitePlace F) := (Units.mem_torsion F).mp hζ w
+    have hlog' (w : InfinitePlace F) :
+        (w.mult : ℝ) * Real.log ‖(h * d (ι ζ)).val.1 w‖ = (w.mult : ℝ) * Real.log ‖h.val.1 w‖ := by
+      rw [hlog ζ w]
+      erw [hw w]
+      rw [Real.log_one, mul_zero, add_zero]
+    refine ⟨?_, fun v ↦ ?_⟩
+    · change (∑ w, (w.mult : ℝ) * Real.log ‖(h * d (ι ζ)).val.1 w‖) ∈ Icc 0 1 ∧
+        (fun w : {w : InfinitePlace F // w ≠ Units.dirichletUnitTheorem.w₀} ↦
+          (w.val.mult : ℝ) * Real.log ‖(h * d (ι ζ)).val.1 w.val‖) ∈
+          regulatorParallelotope F (Units.basisModTorsion F)
+      simp only [hlog']
+      exact hh.1
+    · rw [map_mul]
+      exact (v.adicCompletionIntegers F).units.mul_mem (hh.2 v)
+        ((multiplicativeTamagawaMeasure_regulatorStrip_unit_spec F ζ).1 v)
+
+/-- The class of an idele has a principal translate in the regulator strip with integral
+finite components exactly when it lies over the integral units and has norm in `[1, e]`. -/
+private theorem multiplicativeTamagawaMeasure_regulatorStrip_exists (g : 𝕀[F]) :
+    (∃ x : Fˣ, (fun w ↦ (∞unitAt) w (g * IdeleGroup.unitEmbedding (𝓞 F) F x)) ∈
+        archimedeanRegulatorStrip F ∧ ∀ v : Primes(F),
+        (finiteUnitAt) v (g * IdeleGroup.unitEmbedding (𝓞 F) F x) ∈
+          (v.adicCompletionIntegers F).units) ↔
+      QuotientGroup.mk' P[F] g ∈
+          (Units.map (integralAdelesOutside F ∅).subtype.toMonoidHom).range.map
+            (QuotientGroup.mk' P[F]) ∧
+        ((ideleClassNorm F (QuotientGroup.mk' P[F] g) : ℝ≥0) : ℝ) ∈ Icc 1 (Real.exp 1) := by
+  let d := IdeleGroup.unitEmbedding (𝓞 F) F
+  let ι := Units.map (algebraMap (𝓞 F) F).toMonoidHom
+  let q := QuotientGroup.mk' P[F]
+  have hnorm (x : Fˣ) : ideleNorm F (g * d x) = ideleNorm F g := by
+    rw [map_mul, MonoidHom.mem_ker.mp ((ideleNorm_spec F).2 ⟨x, rfl⟩), mul_one]
+  have hq (x : Fˣ) : q (g * d x) = q g := by
+    rw [map_mul, show q (d x) = 1 from (QuotientGroup.eq_one_iff (N := P[F]) (d x)).mpr ⟨x, rfl⟩,
+      mul_one]
+  have hcl : ideleClassNorm F (q g) = ideleNorm F g := rfl
+  have hpos : 0 < ((ideleNorm F g : ℝ≥0) : ℝ) :=
+    NNReal.coe_pos.mpr (pos_iff_ne_zero.mpr (ideleNorm F g).ne_zero)
+  have hIcc : ((ideleNorm F g : ℝ≥0) : ℝ) ∈ Icc 1 (Real.exp 1) ↔
+      Real.log ((ideleNorm F g : ℝ≥0) : ℝ) ∈ Icc 0 1 := by
+    rw [mem_Icc, mem_Icc, Real.log_nonneg_iff hpos, Real.log_le_iff_le_exp hpos]
+  rw [hcl, hIcc]
+  constructor
+  · rintro ⟨x, ⟨⟨hsum, -⟩, hfin⟩⟩
+    refine ⟨⟨g * d x, (multiplicativeTamagawaMeasure_regulatorStrip_mem_integral F _).mpr hfin,
+      hq x⟩, ?_⟩
+    rw [← hnorm x, multiplicativeTamagawaMeasure_regulatorStrip_log_norm F _ hfin]
+    exact hsum
+  · rintro ⟨⟨u, hu, hqu⟩, hlogn⟩
+    obtain ⟨y, hy⟩ := ((ideleClassGroup_description F).2 u g).mp hqu
+    have hgy : g * d y = u := by
+      rw [hy, mul_comm]
+    let h := g * d y
+    have hh : ∀ v : Primes(F), (finiteUnitAt) v h ∈ (v.adicCompletionIntegers F).units :=
+      (multiplicativeTamagawaMeasure_regulatorStrip_mem_integral F h).mp
+        (by rw [show h = u from hgy]; exact hu)
+    have hcover : (fun w : {w : InfinitePlace F // w ≠ Units.dirichletUnitTheorem.w₀} ↦
+        (w.val.mult : ℝ) * Real.log ‖h.val.1 w.val‖) ∈
+        ⋃ x : (Units.logEmbedding F).range,
+          x.val +ᵥ regulatorParallelotope F (Units.basisModTorsion F) := by
+      rw [regulatorParallelotope_cover F (Units.basisModTorsion F)]
+      exact Set.mem_univ _
+    obtain ⟨lam, hmem⟩ := Set.mem_iUnion.mp hcover
+    obtain ⟨p, hp, hyp⟩ := Set.mem_vadd_set.mp hmem
+    obtain ⟨a, ha⟩ := AddMonoidHom.mem_range.mp lam.property
+    let u' : (𝓞 F)ˣ := Additive.toMul a
+    refine ⟨y * ι u'⁻¹, ?_⟩
+    have hx : g * d (y * ι u'⁻¹) = h * d (ι u'⁻¹) := by
+      rw [map_mul, ← mul_assoc]
+    rw [hx]
+    have hfin' := (multiplicativeTamagawaMeasure_regulatorStrip_unit_spec F u'⁻¹).1
+    have hall : ∀ v : Primes(F), (finiteUnitAt) v (h * d (ι u'⁻¹)) ∈
+        (v.adicCompletionIntegers F).units := by
+      intro v
+      beta_reduce
+      rw [map_mul]
+      exact (v.adicCompletionIntegers F).units.mul_mem (hh v) (hfin' v)
+    have hlog (w : InfinitePlace F) :
+        (w.mult : ℝ) * Real.log ‖(h * d (ι u'⁻¹)).val.1 w‖ =
+          (w.mult : ℝ) * Real.log ‖h.val.1 w‖ +
+            (w.mult : ℝ) * Real.log (w (algebraMap (𝓞 F) F ↑u'⁻¹)) := by
+      rw [multiplicativeTamagawaMeasure_regulatorStrip_log_mul,
+        (multiplicativeTamagawaMeasure_regulatorStrip_unit_spec F u'⁻¹).2 w]
+    refine ⟨⟨?_, ?_⟩, hall⟩
+    · change (∑ w, (w.mult : ℝ) * Real.log ‖(h * d (ι u'⁻¹)).val.1 w‖) ∈ Icc 0 1
+      rw [← multiplicativeTamagawaMeasure_regulatorStrip_log_norm F _ hall, ← hx, hnorm]
+      exact hlogn
+    · change (fun w : {w : InfinitePlace F // w ≠ Units.dirichletUnitTheorem.w₀} ↦
+        (w.val.mult : ℝ) * Real.log ‖(h * d (ι u'⁻¹)).val.1 w.val‖) ∈ _
+      convert hp using 1
+      funext w
+      rw [hlog w.val]
+      have h1 := congrFun hyp w
+      have h2 : Units.logEmbedding F (Additive.ofMul u'⁻¹) w = -lam.val w := by
+        rw [ofMul_inv, map_neg, Pi.neg_apply]
+        exact congrArg (fun f : Units.dirichletUnitTheorem.logSpace F ↦ -f w) ha
+      rw [Units.dirichletUnitTheorem.logEmbedding_component] at h2
+      change lam.val w + p w = (w.val.mult : ℝ) * Real.log ‖h.val.1 w.val‖ at h1
+      rw [h2, ← h1]
+      ring
+
+/-- The principal ideles moving a fixed idele into the regulator strip with integral finite
+components are either none or one coset of the torsion units. -/
+private theorem multiplicativeTamagawaMeasure_regulatorStrip_fiber (g : 𝕀[F]) :
+    (Measure.count : Measure P[F]) {k : P[F] | g * (k : 𝕀[F]) ∈
+        {h : 𝕀[F] | (fun w ↦ (∞unitAt) w h) ∈ archimedeanRegulatorStrip F ∧
+          ∀ v : Primes(F), (finiteUnitAt) v h ∈ (v.adicCompletionIntegers F).units}} =
+      (Units.torsionOrder F : ℝ≥0∞) *
+        {c : C[F] | c ∈ (Units.map (integralAdelesOutside F ∅).subtype.toMonoidHom).range.map
+            (QuotientGroup.mk' P[F]) ∧
+          ((ideleClassNorm F c : ℝ≥0) : ℝ) ∈ Icc 1 (Real.exp 1)}.indicator 1
+          (QuotientGroup.mk' P[F] g) := by
+  let d := IdeleGroup.unitEmbedding (𝓞 F) F
+  let ι := Units.map (algebraMap (𝓞 F) F).toMonoidHom
+  let : BorelSpace 𝕀[F] := ⟨rfl⟩
+  let : T2Space 𝕀[F] := (ideleGroup_topology F).1
+  by_cases hW : QuotientGroup.mk' P[F] g ∈
+      {c : C[F] | c ∈ (Units.map (integralAdelesOutside F ∅).subtype.toMonoidHom).range.map
+          (QuotientGroup.mk' P[F]) ∧
+        ((ideleClassNorm F c : ℝ≥0) : ℝ) ∈ Icc 1 (Real.exp 1)}
+  · rw [indicator_of_mem hW, Pi.one_apply, mul_one]
+    obtain ⟨x₀, hx₀⟩ := (multiplicativeTamagawaMeasure_regulatorStrip_exists F g).mpr hW
+    let φ : Units.torsion F → P[F] := fun ζ ↦ ⟨d (x₀ * ι ζ), x₀ * ι ζ, rfl⟩
+    have hφ : Injective φ := by
+      intro a b hab
+      have h1 : d (x₀ * ι a) = d (x₀ * ι b) := congrArg Subtype.val hab
+      have h2 := mul_left_cancel ((ideleGroup_quotient.{_, 0} F).1 h1)
+      exact Subtype.ext (Units.map_injective (IsFractionRing.injective (𝓞 F) F) h2)
+    have hset : {k : P[F] | g * (k : 𝕀[F]) ∈
+        {h : 𝕀[F] | (fun w ↦ (∞unitAt) w h) ∈ archimedeanRegulatorStrip F ∧
+          ∀ v : Primes(F), (finiteUnitAt) v h ∈ (v.adicCompletionIntegers F).units}} =
+        range φ := by
+      ext ⟨_, y, rfl⟩
+      have hy : g * d y = (g * d x₀) * d (x₀⁻¹ * y) := by
+        rw [map_mul, map_inv, mul_assoc, mul_inv_cancel_left]
+      change ((fun w ↦ (∞unitAt) w (g * d y)) ∈ archimedeanRegulatorStrip F ∧
+          ∀ v : Primes(F), (finiteUnitAt) v (g * d y) ∈ (v.adicCompletionIntegers F).units) ↔ _
+      rw [hy, multiplicativeTamagawaMeasure_regulatorStrip_translate F _ hx₀]
+      constructor
+      · rintro ⟨ζ, hζ, hζy⟩
+        refine ⟨⟨ζ, hζ⟩, Subtype.ext ?_⟩
+        change d (x₀ * ι ζ) = d y
+        rw [show ι ζ = x₀⁻¹ * y from hζy, mul_inv_cancel_left]
+      · rintro ⟨⟨ζ, hζ⟩, hζy⟩
+        have h1 : d (x₀ * ι ζ) = d y := congrArg Subtype.val hζy
+        refine ⟨ζ, hζ, ?_⟩
+        rw [← (ideleGroup_quotient.{_, 0} F).1 h1, inv_mul_cancel_left]
+    rw [hset, Measure.count_apply (Set.finite_range φ).measurableSet, hφ.encard_range,
+      ENat.card_eq_coe_natCard]
+    rfl
+  · rw [indicator_of_notMem hW, mul_zero, Measure.count_eq_zero_iff]
+    apply eq_empty_iff_forall_notMem.mpr
+    rintro ⟨_, y, rfl⟩ hy
+    exact hW ((multiplicativeTamagawaMeasure_regulatorStrip_exists F g).mp ⟨y, hy⟩)
+
+/-- The canonical section of the idelic norm is a unit at every finite place. -/
+private theorem multiplicativeTamagawaMeasure_regulatorStrip_section (t : ℝ≥0ˣ) :
+    canonicalIdeleNormSection F t ∈ (Units.map (integralAdelesOutside F ∅).subtype.toMonoidHom).range := by
+  apply (multiplicativeTamagawaMeasure_regulatorStrip_mem_integral F _).mpr
+  intro v
+  have h1 : (finiteUnitAt) v (canonicalIdeleNormSection F t) = 1 := by
+    apply Units.ext
+    change (canonicalIdeleNormSection F t).val.2 v = 1
+    rw [canonicalIdeleNormSection_finite]
+    rfl
+  rw [h1]
+  exact one_mem _
+
+/-- The norm-one idele classes over the integral idele units have index the class number. -/
+private theorem multiplicativeTamagawaMeasure_regulatorStrip_index :
+    (((Units.map (integralAdelesOutside F ∅).subtype.toMonoidHom).range.map
+      (QuotientGroup.mk' P[F])).comap C₁[F].subtype).index = NumberField.classNumber F := by
+  let : TopologicalSpace (CommRing.Pic (𝓞 F)) := ⊥
+  obtain ⟨p, -, -, hexact, hpq⟩ := idele_ideal_class_exact F
+  let U := (Units.map (integralAdelesOutside F ∅).subtype.toMonoidHom).range
+  let q := QuotientGroup.mk' P[F]
+  have hker (g : 𝕀[F]) : p g = 1 ↔ q g ∈ U.map q := by
+    rw [hexact g, ← Subgroup.mem_comap, Subgroup.comap_map_eq, QuotientGroup.ker_mk', sup_comm]
+    exact ⟨fun ⟨h, hh⟩ ↦ hh ▸ h.property, fun h ↦ ⟨⟨g, h⟩, rfl⟩⟩
+  have hP : P[F] ≤ p.ker := fun g hg ↦ (hker g).mpr ⟨1, U.one_mem, by
+    rw [map_one]
+    exact ((QuotientGroup.eq_one_iff g).mpr hg).symm⟩
+  let ψ := (QuotientGroup.lift P[F] p hP).comp C₁[F].subtype
+  have hψ : (U.map q).comap C₁[F].subtype = ψ.ker := by
+    ext ⟨c, hc⟩
+    obtain ⟨g, rfl⟩ := QuotientGroup.mk'_surjective P[F] c
+    exact (hker g).symm
+  have hsurj : Surjective ψ := by
+    intro π
+    obtain ⟨g, rfl⟩ := hpq.surjective π
+    let s := canonicalIdeleNormSection F
+    let g' := g * (s (ideleNorm F g))⁻¹
+    have hs : p (s (ideleNorm F g)) = 1 :=
+      (hker _).mpr ⟨_, multiplicativeTamagawaMeasure_regulatorStrip_section F _, rfl⟩
+    have hg' : q g' ∈ C₁[F] := by
+      change ideleNorm F g' = 1
+      rw [map_mul, map_inv, canonicalIdeleNormSection_rightInverse F, mul_inv_cancel]
+    refine ⟨⟨q g', hg'⟩, ?_⟩
+    change p g' = p g
+    rw [map_mul, map_inv, hs, inv_one, mul_one]
+  rw [hψ, Subgroup.index_ker, MonoidHom.range_eq_top.mpr hsurj, Subgroup.card_top,
+    NumberField.classNumber, ← Nat.card_eq_fintype_card]
+  exact Nat.card_congr (ClassGroup.equivPic (𝓞 F)).toEquiv.symm
+
+/-- The ideles are second countable, since the adeles are. -/
+private theorem multiplicativeTamagawaMeasure_regulatorStrip_secondCountable :
+    SecondCountableTopology 𝕀[F] := by
+  let := ratAdele_secondCountable
+  obtain ⟨u, _, _⟩ := exists_adeleTrace_dualCoordinates F
+  let : SecondCountableTopology 𝔸[F] := u.symm.toHomeomorph.isEmbedding.secondCountableTopology
+  let : SecondCountableTopology 𝔸[F]ᵐᵒᵖ :=
+    MulOpposite.opHomeomorph.symm.isEmbedding.secondCountableTopology
+  exact Units.isEmbedding_embedProduct.secondCountableTopology
+
 /-- The global idelic mass of the regulator strip with integral finite components.
 The strip lies over the principal ideal class and contains all torsion sectors.
 Under the two quotient normalizations its mass is the prescribed norm-one class
@@ -6118,7 +7105,176 @@ theorem multiplicativeTamagawaMeasure_regulatorStrip :
       {g | (fun w ↦ (∞unitAt) w g) ∈ archimedeanRegulatorStrip F ∧
         ∀ v : Primes(F), (finiteUnitAt) v g ∈ (v.adicCompletionIntegers F).units} =
       archRegulatorMass(F) * ∏ᶠ v : Primes(F), differentMass(F, v) := by
-  sorry
+  let G := 𝕀[F]
+  let P := P[F]
+  let C := C[F]
+  let K := C₁[F]
+  let q := QuotientGroup.mk' P
+  let U := (Units.map (integralAdelesOutside F ∅).subtype.toMonoidHom).range
+  let Ubar := U.map q
+  let V := Ubar.comap K.subtype
+  let s := canonicalIdeleNormSection F
+  let E := {g : G | (fun w ↦ (∞unitAt) w g) ∈ archimedeanRegulatorStrip F ∧
+    ∀ v : Primes(F), (finiteUnitAt) v g ∈ (v.adicCompletionIntegers F).units}
+  let W := {c : C | c ∈ Ubar ∧ ((ideleClassNorm F c : ℝ≥0) : ℝ) ∈ Icc 1 (Real.exp 1)}
+  let I := {t : ℝ≥0ˣ | (t.val : ℝ) ∈ Icc 1 (Real.exp 1)}
+  obtain ⟨h₂, hlc, _, _, -, -⟩ := ideleGroup_topology F
+  obtain ⟨-, hP, hPd, -, hq, hC₂, hClc, -, hcn, -, ⟨sc, hsc, hrc⟩, -⟩ :=
+    ideleGroup_quotient.{_, 0} F
+  obtain ⟨hK, hKc, hK₂, -⟩ := ideleClassGroup_finiteness F
+  let : BorelSpace G := ⟨rfl⟩
+  let : BorelSpace C := ⟨rfl⟩
+  let : BorelSpace (C ⧸ K) := ⟨rfl⟩
+  let : BorelSpace ℝ≥0ˣ := borelSpace_units_of_continuousInv₀ _
+  let : SecondCountableTopology ℝ≥0ˣ := Units.isEmbedding_val₀.secondCountableTopology
+  let := multiplicativeTamagawaMeasure_regulatorStrip_secondCountable F
+  let : SecondCountableTopology C := inferInstanceAs (SecondCountableTopology (G ⧸ P))
+  let : DiscreteTopology P := isDiscrete_iff_discreteTopology.mp hPd
+  let : (Measure.count : Measure P).IsHaarMeasure :=
+    { lt_top_of_isCompact := fun _ h ↦ Measure.count_apply_lt_top.mpr h.finite_of_discrete
+      open_pos := fun _ _ h ↦ Measure.count_ne_zero h }
+  let : LocallyCompactSpace P := hP.locallyCompactSpace
+  let : (Measure.count : Measure P).Regular := inferInstance
+  let : CompactSpace K := hKc
+  let μ := multiplicativeTamagawaMeasure F
+  let η := ideleClassTamagawaMeasure F
+  let ν := normOneIdeleClassTamagawaMeasure F
+  obtain ⟨hm, hmreg, hw, hv, hvreg, hvol, hcweil⟩ :=
+    (multiplicativeTamagawaMeasures_existsUnique F).exists.choose_spec
+  let : μ.IsHaarMeasure := hm
+  let : μ.Regular := hmreg
+  let : η.IsHaarMeasure := hw.1
+  let : η.Regular := hw.2.1
+  let : ν.IsHaarMeasure := hv
+  let : ν.Regular := hvreg
+  -- Measurability of the sets involved.
+  have hUo : IsOpen (U : Set G) := (isOpenEmbedding_integralAdeleUnits F ∅).isOpen_range
+  have hUbaro : IsOpen (Ubar : Set C) := by
+    rw [Subgroup.coe_map]
+    exact hq.isOpenMap _ hUo
+  have hnormc : Continuous (fun c : C ↦ ((ideleClassNorm F c : ℝ≥0) : ℝ)) :=
+    NNReal.continuous_coe.comp (Units.continuous_val.comp hcn)
+  have hWm : MeasurableSet W :=
+    hUbaro.measurableSet.inter (measurableSet_Icc.preimage hnormc.measurable)
+  have hEm : MeasurableSet E := by
+    let (w : InfinitePlace F) : BorelSpace w.Completion := ⟨rfl⟩
+    let (w : InfinitePlace F) : BorelSpace w.Completionˣ := borelSpace_units_of_continuousInv₀ _
+    let (w : InfinitePlace F) : SecondCountableTopology w.Completion :=
+      (isometry_extensionEmbedding w).isEmbedding.secondCountableTopology
+    let (w : InfinitePlace F) : SecondCountableTopology w.Completionˣ :=
+      Units.isEmbedding_val₀.secondCountableTopology
+    have hcont : Continuous (fun g : G ↦ fun w ↦ (∞unitAt) w g) :=
+      continuous_pi fun w ↦ ((continuous_apply w).comp continuous_fst).units_map _
+    have hE : E = (fun g : G ↦ fun w ↦ (∞unitAt) w g) ⁻¹' archimedeanRegulatorStrip F ∩ U := by
+      ext g
+      exact and_congr Iff.rfl (multiplicativeTamagawaMeasure_regulatorStrip_mem_integral F g).symm
+    rw [hE]
+    exact ((archimedeanRegulatorStrip_measurableSet F).preimage hcont.measurable).inter
+      hUo.measurableSet
+  -- Weil's formula for the principal ideles counts the torsion sectors.
+  have hμE : μ E = (Units.torsionOrder F : ℝ≥0∞) * η W := by
+    obtain ⟨hκ, hμ⟩ := weilMeasure_eq_bind P hP μ Measure.count η hw
+    rw [← hμ, Measure.bind_apply hEm hκ.aemeasurable, ← lintegral_indicator_one hWm,
+      ← lintegral_const_mul _ (measurable_one.indicator hWm)]
+    apply lintegral_congr
+    intro c
+    have ht : Measurable (fun h : P ↦ c.out * (h : G)) :=
+      (continuous_const.mul continuous_subtype_val).measurable
+    rw [Measure.map_apply ht hEm]
+    have hc : q c.out = c := QuotientGroup.out_eq' c
+    have := multiplicativeTamagawaMeasure_regulatorStrip_fiber F c.out
+    rw [hc] at this
+    exact this
+  -- Weil's formula for the norm-one classes and `dt/t` reduces to the integral units.
+  have hηW : η W = ν V := by
+    obtain ⟨hκ, hη⟩ := weilMeasure_eq_bind K hK η ν
+      (positiveRealHaar.comap (QuotientGroup.kerLift (ideleClassNorm F))) hcweil
+    let L := QuotientGroup.kerLift (ideleClassNorm F)
+    let e₀ := QuotientGroup.quotientKerEquivOfRightInverse (ideleClassNorm F) sc hrc
+    let e : (C ⧸ K) ≃ₜ* ℝ≥0ˣ :=
+      { e₀ with
+        continuous_toFun := (QuotientGroup.isQuotientMap_mk K).continuous_iff.mpr hcn
+        continuous_invFun := QuotientGroup.continuous_mk.comp hsc }
+    have hemb : MeasurableEmbedding L := e.toHomeomorph.measurableEmbedding
+    have hLs : Surjective L := e.surjective
+    have hIm : MeasurableSet I :=
+      measurableSet_Icc.preimage (NNReal.continuous_coe.comp Units.continuous_val).measurable
+    have hsU (t : ℝ≥0ˣ) : q (s t) ∈ Ubar :=
+      ⟨s t, multiplicativeTamagawaMeasure_regulatorStrip_section F t, rfl⟩
+    have hpt (c : C ⧸ K) :
+        (ν.map (fun h : K ↦ c.out * (h : C))) W = (L ⁻¹' I).indicator (fun _ ↦ ν V) c := by
+      let x := c.out
+      have hm : Measurable (fun h : K ↦ x * (h : C)) :=
+        (continuous_const.mul continuous_subtype_val).measurable
+      rw [Measure.map_apply hm hWm]
+      have hLc : L c = ideleClassNorm F x := by
+        rw [← QuotientGroup.out_eq' c]
+        rfl
+      have hnx (h : K) : ideleClassNorm F (x * h) = ideleClassNorm F x := by
+        rw [map_mul, MonoidHom.mem_ker.mp h.property, mul_one]
+      by_cases hI : L c ∈ I
+      · rw [indicator_of_mem (show c ∈ L ⁻¹' I from hI)]
+        let n := ideleClassNorm F x
+        have hsn : ideleClassNorm F (q (s n)) = n := canonicalIdeleNormSection_rightInverse F n
+        let y : K := ⟨(q (s n))⁻¹ * x, by
+          change ideleClassNorm F ((q (s n))⁻¹ * x) = 1
+          rw [map_mul, map_inv, hsn, inv_mul_cancel]⟩
+        have hpre : (fun h : K ↦ x * (h : C)) ⁻¹' W = (fun h : K ↦ y * h) ⁻¹' V := by
+          ext h
+          change (x * h ∈ Ubar ∧ ((ideleClassNorm F (x * h) : ℝ≥0) : ℝ) ∈ Icc 1 (Real.exp 1)) ↔
+            (q (s n))⁻¹ * x * h ∈ Ubar
+          rw [hnx, mul_assoc, Subgroup.mul_mem_cancel_left _ (Ubar.inv_mem (hsU n))]
+          rw [hLc] at hI
+          exact and_iff_left hI
+        rw [hpre, measure_preimage_mul]
+      · rw [indicator_of_notMem (show c ∉ L ⁻¹' I from hI)]
+        have hpre : (fun h : K ↦ x * (h : C)) ⁻¹' W = ∅ := by
+          ext h
+          simp only [mem_preimage, mem_empty_iff_false, iff_false]
+          rintro ⟨-, hh⟩
+          rw [hnx, ← hLc] at hh
+          exact hI hh
+        rw [hpre, measure_empty]
+    rw [← hη, Measure.bind_apply hWm hκ.aemeasurable]
+    simp_rw [hpt]
+    rw [lintegral_indicator_const (hemb.measurable hIm), hemb.comap_apply,
+      image_preimage_eq _ hLs]
+    let T : ℝ≥0ˣ := Units.mk0 (Real.exp 1).toNNReal
+      (Real.toNNReal_pos.mpr (Real.exp_pos 1)).ne'
+    have hT : ((T.val : ℝ≥0) : ℝ) = Real.exp 1 := Real.coe_toNNReal _ (Real.exp_pos 1).le
+    have hTI := positiveRealHaar_interval T (hT ▸ Real.one_le_exp zero_le_one)
+    rw [hT, Real.log_exp, ENNReal.ofReal_one] at hTI
+    change ν V * positiveRealHaar {t : ℝ≥0ˣ | (t.val : ℝ) ∈ Icc 1 (Real.exp 1)} = ν V
+    rw [hTI, mul_one]
+  -- The integral classes have index the class number in the norm-one classes.
+  have hVm : MeasurableSet (V : Set K) := (hUbaro.preimage continuous_subtype_val).measurableSet
+  have hidx := multiplicativeTamagawaMeasure_regulatorStrip_index F
+  have : V.FiniteIndex := ⟨by
+    change (Ubar.comap K.subtype).index ≠ 0
+    rw [hidx]
+    exact (NumberField.classNumber_pos F).ne'⟩
+  have hνV := Subgroup.index_mul_measure V hVm ν
+  change ((Ubar.comap K.subtype).index : ℝ≥0∞) * ν V = ν univ at hνV
+  rw [hidx, show ν univ = _ from normOneIdeleClassTamagawaMeasure_volume F] at hνV
+  -- Collect the constants.
+  have hh := NumberField.classNumber_pos F
+  have hR := NumberField.Units.regulator_pos F
+  have hw := NumberField.Units.torsionOrder_pos F
+  have hD : 0 < Real.sqrt ((Int.natAbs (NumberField.discr F) : ℕ) : ℝ) :=
+    Real.sqrt_pos.mpr (Nat.cast_pos.mpr (Int.natAbs_pos.mpr (NumberField.discr_ne_zero F)))
+  have hνV' : ν V = ENNReal.ofReal ((2 : ℝ) ^ InfinitePlace.nrRealPlaces F *
+      (2 * Real.pi) ^ InfinitePlace.nrComplexPlaces F * Units.regulator F /
+        (Real.sqrt ((Int.natAbs (NumberField.discr F) : ℕ) : ℝ) * (Units.torsionOrder F : ℝ))) := by
+    apply (ENNReal.mul_right_inj (Nat.cast_ne_zero.mpr hh.ne') (ENNReal.natCast_ne_top _)).mp
+    rw [hνV, ← ENNReal.ofReal_natCast, ← ENNReal.ofReal_mul (Nat.cast_nonneg _)]
+    congr 1
+    ring
+  change μ E = _
+  rw [hμE, hηW, hνV', finiteLocalTamagawaMass_finprod, ← ENNReal.ofReal_natCast,
+    ← ENNReal.ofReal_mul (Nat.cast_nonneg _), ← ENNReal.ofReal_inv_of_pos hD,
+    ← ENNReal.ofReal_mul (by positivity)]
+  congr 1
+  field_simp
 
 /-- Paper: Lemma A.3.2.4, p. 560. The global multiplicative measure is the
 restricted product of the local measures, evaluated on rectangles with integer-unit tails. -/

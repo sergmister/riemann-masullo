@@ -1,0 +1,629 @@
+{
+  "upstream": "https://github.com/TauCetiProject/TauCeti",
+  "commit": "8794ab329bb60340fa690a2902cf995f0571721b",
+  "files": [
+    {
+      "path": "Analysis/Normed/Group/LocallyBounded.lean",
+      "upstream_path": "TauCeti/Analysis/Normed/Group/LocallyBounded.lean",
+      "upstream_lines": "1-8,10-18,24-28,31-85,115",
+      "upstream_sha256": "cc8378b114460333fff98350543da71c379405633123ffb3e5c3bde7fc3d90ed",
+      "sha256": "8583608e246ccf9bc8e9aa02ef2a3787f4cd3f005ed2389ce8ce0a2ea9624c86"
+    },
+    {
+      "path": "Analysis/Complex/Conformal/NormalFamilies.lean",
+      "upstream_path": "TauCeti/Analysis/Complex/Conformal/NormalFamilies.lean",
+      "upstream_lines": "1-9,11-48,54-56,60-138,184-204,232-234",
+      "upstream_sha256": "733fd79fdf87a243e01f8140cf4fdfc685518d8db61d25ec4afb88127c740d64",
+      "sha256": "f2b908b4a95b814bd3e9127f54622bb25bc665bae5b735d4d7778d2dbfb1960f"
+    },
+    {
+      "path": "Topology/ContinuousMap/Ascoli.lean",
+      "upstream_path": "TauCeti/Topology/ContinuousMap/Ascoli.lean",
+      "upstream_lines": "1-7,10,27-37,39-41,111-121,136-170",
+      "upstream_sha256": "257c60a0767cba7ea09dc72640daf4aad3a51f2b672b9e419727a7ff8c64c4fb",
+      "sha256": "5c0c3f724136d0206ade3f71c189cf573d7c1e0b3ebc27d109b4c2190d184822"
+    },
+    {
+      "path": "Analysis/Complex/Conformal/Montel/Precompact.lean",
+      "upstream_path": "TauCeti/Analysis/Complex/Conformal/Montel/Precompact.lean",
+      "upstream_lines": "1-14,16-19,24-31,34-38,42-80,90",
+      "upstream_sha256": "0245cbdd37fcea32d5776d3006169550132e24d9dc632468b607b61c53832b92",
+      "sha256": "c5aa2055c4920e6728aa1f0b49ef4a1cad3d06c9983f634b3b87c7d67ddc62b7"
+    },
+    {
+      "path": "Analysis/Complex/Conformal/Montel/Basic.lean",
+      "upstream_path": "TauCeti/Analysis/Complex/Conformal/Montel/Basic.lean",
+      "upstream_lines": "1-16,20-21,23-80",
+      "upstream_sha256": "f732b8786cd144301b7f02be28e3b162e97165287d8dde3d463dec51c0c656de",
+      "sha256": "dfdb61d6ef7dd90d1131518a5ecf58ccd939a6c7a100722e1b8a77c3334fe1cb"
+    },
+    {
+      "path": "Algebra/BigOperators/Group/Finset/Indicator.lean",
+      "upstream_path": "TauCeti/Algebra/BigOperators/Group/Finset/Indicator.lean",
+      "upstream_sha256": "0d067c626dcd9f119b8c57e2599174af174d4e10445cefdc296ded8d618b03a5",
+      "sha256": "fa947402f484c7bd7173cdb79295d8cf9ba7967dab364a6c1cc5c85cbcf7507d"
+    },
+    {
+      "path": "Algebra/MvPolynomial/AevalConstX.lean",
+      "upstream_path": "TauCeti/Algebra/MvPolynomial/AevalConstX.lean",
+      "upstream_sha256": "d244f4bb7e0d6866a8e348898a5b6993ccde813b86e63b904a2a98f57b109dc7",
+      "sha256": "6a23667611733836c65681f3e0cdbbd30af8533a69182416717ccc395d53dffe"
+    },
+    {
+      "path": "Algebra/Order/Field/SquareGap.lean",
+      "upstream_path": "TauCeti/Algebra/Order/Field/SquareGap.lean",
+      "upstream_sha256": "999e7364a447a895ecdd18ae4b7a2d5d47368aac51bf22540819fae12ddbdca9",
+      "sha256": "ef1596bbb77298219685d56542c28193e55aa652123f234499ff92ac49829a07"
+    },
+    {
+      "path": "Algebra/Order/Ring/Abs.lean",
+      "upstream_path": "TauCeti/Algebra/Order/Ring/Abs.lean",
+      "upstream_sha256": "844ad7319e89980c001fd33fc5314aa3a83a374c33722bd4276258aeb7479dda",
+      "sha256": "14bff61f52133ed459714e9a3d4a6347077db43e6910f534eac69f7a735ae3f6"
+    },
+    {
+      "path": "Analysis/Calculus/BumpFunction/Cutoff.lean",
+      "upstream_path": "TauCeti/Analysis/Calculus/BumpFunction/Cutoff.lean",
+      "upstream_sha256": "97fedfbd09efc288c0997d079d5ec563ccb68e37ae4e5c14bb38faa6a37b1691",
+      "sha256": "38b8f4f5cb939fff91c04255638cb7a80434a58662c04ad3899c02e0bdce7d02"
+    },
+    {
+      "path": "Analysis/Calculus/ContDiff/Bounds.lean",
+      "upstream_path": "TauCeti/Analysis/Calculus/ContDiff/Bounds.lean",
+      "upstream_sha256": "dd82858b2c19fa8057c78d163502359257180c123be37fc5914fcf1f51c5c7ef",
+      "sha256": "fe26f0458c2fc975d86de1266cf0d1fefad7b75432731e0d5cf448be22475e86"
+    },
+    {
+      "path": "Analysis/Calculus/Deriv/AffineProfile.lean",
+      "upstream_path": "TauCeti/Analysis/Calculus/Deriv/AffineProfile.lean",
+      "upstream_sha256": "7b2385b6e661c514d215a2a81e8f6786a0d3180dd876c43a3afc21b20054dca9",
+      "sha256": "e3630c098a2599ea5e3867b0c56f87a3d43cc22e19eb8b7b312ef96b4f3598d6"
+    },
+    {
+      "path": "Analysis/Calculus/Deriv/Second.lean",
+      "upstream_path": "TauCeti/Analysis/Calculus/Deriv/Second.lean",
+      "upstream_sha256": "dcc00f766b9d13524131f1e93513cd53e9343b34a7127630551b4a8318fc2dcb",
+      "sha256": "f1dbe81c14bccb715d794b4244ccc56b47afee90f1764fed6226ada3ecbf4e8e"
+    },
+    {
+      "path": "Analysis/Calculus/FDeriv/Comp.lean",
+      "upstream_path": "TauCeti/Analysis/Calculus/FDeriv/Comp.lean",
+      "upstream_sha256": "c5564809d313fa410b27fe7cb2715a08b98de3b1a8a8c5e27b8576f23b8abe97",
+      "sha256": "278174c94bb46e5018049099398aadce7ad2839d76b7aacee387ab218c8e3343"
+    },
+    {
+      "path": "Analysis/Calculus/FDeriv/ContinuousLinearMap.lean",
+      "upstream_path": "TauCeti/Analysis/Calculus/FDeriv/ContinuousLinearMap.lean",
+      "upstream_sha256": "e33572cb3031a19194a1a9aaa334888b80d9aaf575b5f8f49dee107eced06901",
+      "sha256": "930ede1f387e5eb1a57f0baf6ae4c59fbe426aa66129bbd7f21e757bd25476fd"
+    },
+    {
+      "path": "Analysis/Calculus/FDeriv/Norm.lean",
+      "upstream_path": "TauCeti/Analysis/Calculus/FDeriv/Norm.lean",
+      "upstream_sha256": "72ae0e3091453e0d5fbb0adc2a22fa1729f2e06a7f691d9af3d6fc52672ee6ba",
+      "sha256": "7c1906125f6499d365ba8e61b3e2f0df0899988f75222d960944eb32446d305c"
+    },
+    {
+      "path": "Analysis/Calculus/FDeriv/OfReal.lean",
+      "upstream_path": "TauCeti/Analysis/Calculus/FDeriv/OfReal.lean",
+      "upstream_sha256": "e47ee2bea72d904db334d88b4a1c88c5db3bd7303d5cc92b6e924a98789cdc87",
+      "sha256": "9da6e1ba7e21eeb4628d1175908fc172e9e8dd55389a7826b285ac81721b46ce"
+    },
+    {
+      "path": "Analysis/Calculus/FDeriv/Pi/Basic.lean",
+      "upstream_path": "TauCeti/Analysis/Calculus/FDeriv/Pi/Basic.lean",
+      "upstream_sha256": "b041d714d5effff425a6a3cc10fe15edbafe83216b1e6b57c5fa963ef9d41127",
+      "sha256": "ec76d2d24dec46f5e104f6414dcd2d2928277a5154f8efdcc9651a827e0269d1"
+    },
+    {
+      "path": "Analysis/Calculus/FDeriv/Prod.lean",
+      "upstream_path": "TauCeti/Analysis/Calculus/FDeriv/Prod.lean",
+      "upstream_sha256": "ab209d3ad2ddcb2cd420b2a7baee60c9c41a6c8f7a9a0d9f4af1c1c308a7f90d",
+      "sha256": "0f7b34b28cd4647c090623be24bc3795c89ce7a0d0f8cb676637cbdf72d03558"
+    },
+    {
+      "path": "Analysis/Calculus/FDeriv/RadialField.lean",
+      "upstream_path": "TauCeti/Analysis/Calculus/FDeriv/RadialField.lean",
+      "upstream_sha256": "47c464a19fefd14e211c445c4c5011385683a8b9cedd3bfaa2e570e8d611892f",
+      "sha256": "1aa1cd7ff9c6de9211915ddf5453664c0404198b0876b459b6e5d1b9c0769737"
+    },
+    {
+      "path": "Analysis/Calculus/Gradient.lean",
+      "upstream_path": "TauCeti/Analysis/Calculus/Gradient.lean",
+      "upstream_sha256": "14331b4429054f5fa84b729f33fb237891772ad82eb7c061a93ef875f0b720c1",
+      "sha256": "deec6081cb661cce19a8eba4e2b6476328e640c31d755ca61f4031ec46651f46"
+    },
+    {
+      "path": "Analysis/Calculus/IteratedFDeriv/Basic.lean",
+      "upstream_path": "TauCeti/Analysis/Calculus/IteratedFDeriv/Basic.lean",
+      "upstream_sha256": "ca1e3dc15bdf1e780ace9d1f740ae1ad39351083e34a660b86f0971c455cd21c",
+      "sha256": "f8ef668a26f477829cc856b130e4cf34503808b83ecb2c6765cc6424005bf4d7"
+    },
+    {
+      "path": "Analysis/Calculus/SecondDerivative.lean",
+      "upstream_path": "TauCeti/Analysis/Calculus/SecondDerivative.lean",
+      "upstream_sha256": "011121776219648f63dd355c9489c2d951389136337efe1d5e619f3774511acc",
+      "sha256": "c9764620ed41014bf74d00b7ac83ac9d5410e56da6b758f0baff1e2a57ec9881"
+    },
+    {
+      "path": "Analysis/Calculus/SegmentIncrement.lean",
+      "upstream_path": "TauCeti/Analysis/Calculus/SegmentIncrement.lean",
+      "upstream_sha256": "55bcf3575faacdc28037b6dc13e9e35870d557bd1de3b8b09c97ee56aa9b9abd",
+      "sha256": "e44b6a059685cf17c7d74bf4386b27ee10dee35f6f72adac81deacb0dcd0edb9"
+    },
+    {
+      "path": "Analysis/Complex/CauchyKernel.lean",
+      "upstream_path": "TauCeti/Analysis/Complex/CauchyKernel.lean",
+      "upstream_sha256": "1808ecbd17b5f8e5e5852f95b4a1b3846d66473fa69c53d57bec4dd19830f140",
+      "sha256": "f7ff56a8abae112124c5b078de6eae67e29f08a13370fce91f074ad6c950e154"
+    },
+    {
+      "path": "Analysis/Complex/HolomorphicFunctions/Basic.lean",
+      "upstream_path": "TauCeti/Analysis/Complex/HolomorphicFunctions/Basic.lean",
+      "upstream_sha256": "57eea5e7ca0cd9c1222554ddf22eb98d8c370ecc72e235f4fab5ae362d794d91",
+      "sha256": "5578bcc140ec4ddd947f5ad70b649cf04fb28973063333b8973b6c5b871e1434"
+    },
+    {
+      "path": "Analysis/Complex/PolynomialHull/Basic.lean",
+      "upstream_path": "TauCeti/Analysis/Complex/PolynomialHull/Basic.lean",
+      "upstream_sha256": "96c4f908dcd8cb7872897c62a069198c0bd57893b35a100fa4bab26e914d048b",
+      "sha256": "f7244deab479c601a5b7ee46d2a6fd2edb99b59f88ad6e1c538b87b1572c4e21"
+    },
+    {
+      "path": "Analysis/Complex/Pompeiu/Basic.lean",
+      "upstream_path": "TauCeti/Analysis/Complex/Pompeiu/Basic.lean",
+      "upstream_sha256": "930b3cdd4d95ed934c0299bb754b3d74518d1892c982fdb95ee6832a80262752",
+      "sha256": "9f1b88acc0c50d4702781cca45deb1c3f898ad4f27168f76d266dda89bf3daed"
+    },
+    {
+      "path": "Analysis/Complex/PowerSeries/Approximation.lean",
+      "upstream_path": "TauCeti/Analysis/Complex/PowerSeries/Approximation.lean",
+      "upstream_sha256": "f0feed387235550d94ed09ed04538946fa29ab6e884c36dd6ad24e92f482ac98",
+      "sha256": "d0a3955401032cfda3200bc663224f583e5c4681b293a48fa0d23f5dc1c391c7"
+    },
+    {
+      "path": "Analysis/Complex/Quadrature.lean",
+      "upstream_path": "TauCeti/Analysis/Complex/Quadrature.lean",
+      "upstream_sha256": "71fd48568b2a3c40ccf1554b7efff996064f083111b952b8559a0ccac864362b",
+      "sha256": "3561ae134de097a5ad6e0450123a7954296cd63f0864f587f52fa720dc8a954d"
+    },
+    {
+      "path": "Analysis/Complex/Runge/Approximation.lean",
+      "upstream_path": "TauCeti/Analysis/Complex/Runge/Approximation.lean",
+      "upstream_sha256": "c58a89c1018eca2470f4dc08483977e01a668c28019d385c8563e523664b2c3c",
+      "sha256": "07e8faca957adf7e390470dcbc641d0f8326a041fdc0e3d5921f97d87ab5fc06"
+    },
+    {
+      "path": "Analysis/Complex/Runge/Hull.lean",
+      "upstream_path": "TauCeti/Analysis/Complex/Runge/Hull.lean",
+      "upstream_sha256": "9e85e0e046004f8aaae757ad6e2df6ff51597c984bce1fbd99213255d4e3bf50",
+      "sha256": "a1293773b4c389df393c58afc008ca9104c50cf6ea55aa4abbf70c80b7505c6a"
+    },
+    {
+      "path": "Analysis/Complex/Runge/Operator.lean",
+      "upstream_path": "TauCeti/Analysis/Complex/Runge/Operator.lean",
+      "upstream_sha256": "ec3f3a723626bc6b1d1989746376a55de24478d222364ea7971d70683060c97b",
+      "sha256": "2bddb41c4635de8b48357861808b25ac17f992562c74891e2ed066224c7958ea"
+    },
+    {
+      "path": "Analysis/Complex/Runge/SimpleFraction.lean",
+      "upstream_path": "TauCeti/Analysis/Complex/Runge/SimpleFraction.lean",
+      "upstream_sha256": "c2ec8133f49317600108a65686e34d7b5d5751de2009cb91f5568a9189d2f7c7",
+      "sha256": "de6a6c2ab20f24be0116a288f075ac8135538043781943fc5e7840c797a0778b"
+    },
+    {
+      "path": "Analysis/Complex/Wirtinger/Basic.lean",
+      "upstream_path": "TauCeti/Analysis/Complex/Wirtinger/Basic.lean",
+      "upstream_sha256": "f9d8fb0495b51b72f1ee2a9a5d3d52dec44c8056d78648f5f81c2cb1d4ce86a2",
+      "sha256": "f2b03e42bbc8ca773db394583aba60b1dc089e01bf1f6391a21dadd25a0bb2a6"
+    },
+    {
+      "path": "Analysis/Complex/Wirtinger/Holomorphic.lean",
+      "upstream_path": "TauCeti/Analysis/Complex/Wirtinger/Holomorphic.lean",
+      "upstream_sha256": "dc71fa8913fa69471a3b563746ad8c142f1225bca9163cc247f0281a3a66ab2f",
+      "sha256": "1cd9d0cc43675a242070e8b0a7e8eaa729ecb7c505eb91e7b1d4a19e2a6b16d6"
+    },
+    {
+      "path": "Analysis/Convex/Caratheodory.lean",
+      "upstream_path": "TauCeti/Analysis/Convex/Caratheodory.lean",
+      "upstream_sha256": "b9536c3d687b23c150b3669339186fe55802c4088a09c2f7fbdd25b6bf7bdec7",
+      "sha256": "4102a9a58fa59021f3f4f58249f13549d916a30b47e2127a70a10832a5ffd2ab"
+    },
+    {
+      "path": "Analysis/Convolution/Holder.lean",
+      "upstream_path": "TauCeti/Analysis/Convolution/Holder.lean",
+      "upstream_sha256": "4ce3ba26137b9a7c6a6c1f2c94692935330a5a105b60c72e77b77e0235fd544d",
+      "sha256": "12b7040ab21222f790d303a146d5828eb399bb5ab9318465e51b926656c2467a"
+    },
+    {
+      "path": "Analysis/Holder/Interpolation.lean",
+      "upstream_path": "TauCeti/Analysis/Holder/Interpolation.lean",
+      "upstream_sha256": "b011691e86141ff7e2b957988a959f79149af209e865f252d8b667e5c1fb4ebc",
+      "sha256": "1ddee4bc5a50d6103cdee4b5a5bb3ad3d1ec9be0ec941e927b3d177c7f1f8de4"
+    },
+    {
+      "path": "Analysis/InnerProductSpace/Orthonormal/Multilinear.lean",
+      "upstream_path": "TauCeti/Analysis/InnerProductSpace/Orthonormal/Multilinear.lean",
+      "upstream_sha256": "d8ba53aa0a83c0fa70418d3f349df6b3722dc233a7d30ffd28d1f249f5752e9a",
+      "sha256": "cd73fe9887936931015d3c2f03f387da8f731106be715869fd2c3e9fa578f25b"
+    },
+    {
+      "path": "Analysis/Normed/Group/Basic.lean",
+      "upstream_path": "TauCeti/Analysis/Normed/Group/Basic.lean",
+      "upstream_sha256": "72372ad184ea63645f60933fd5cc4dafe7ea5abf51dea9f12684682979f629c6",
+      "sha256": "35151cc376510d779bd6c55b1d81271d3d20a18b84c83a7a287bf504f9a56f72"
+    },
+    {
+      "path": "Analysis/Normed/Group/Real.lean",
+      "upstream_path": "TauCeti/Analysis/Normed/Group/Real.lean",
+      "upstream_sha256": "bdcd3b7c588c986f3c90fc8963a1ed7af6f90490c4ec3a5e86c58416ba83432a",
+      "sha256": "77d647b4ffa2d16d71d167159f3636de8fc3ac4aaedc64fb03b2a9f0deddceef"
+    },
+    {
+      "path": "Analysis/Normed/Module/Ball.lean",
+      "upstream_path": "TauCeti/Analysis/Normed/Module/Ball.lean",
+      "upstream_sha256": "67896311e262562941b986ea61bf15a1d0598c7ce9139dbc98353f7c2c5eb63b",
+      "sha256": "ab7e5d40e706c33eb843be797d2dce8ed286432ca50f60e4b70702506410eb01"
+    },
+    {
+      "path": "Analysis/Normed/Module/Ball/Exterior.lean",
+      "upstream_path": "TauCeti/Analysis/Normed/Module/Ball/Exterior.lean",
+      "upstream_sha256": "74a436f4abecec6b4cdbb10d9f2f29009d9ab6272946a4ab3e945678613a1a1a",
+      "sha256": "1367bf4e9fa8e7b268c1e54c093287bb3220dd287df39cc7f256c7009b008c20"
+    },
+    {
+      "path": "Analysis/Normed/Module/Basic.lean",
+      "upstream_path": "TauCeti/Analysis/Normed/Module/Basic.lean",
+      "upstream_sha256": "8c99eba8363420270af32df251f00e20a943939fef194420bcfb227b61516ab4",
+      "sha256": "a5143e0b221d2969f6984ffd0a8315d358f54f7ec03b9d975f5c016353f63c50"
+    },
+    {
+      "path": "Analysis/Normed/Module/Connected.lean",
+      "upstream_path": "TauCeti/Analysis/Normed/Module/Connected.lean",
+      "upstream_sha256": "4c6c8caf7d9152074a43f9e807fdb9e51f909a557938f554b85d791744c00c9c",
+      "sha256": "e0af8f520acfa323d3a36067800fa180c8c72d9e3be7776711bf4a5af266c3aa"
+    },
+    {
+      "path": "Analysis/Normed/Module/Convex.lean",
+      "upstream_path": "TauCeti/Analysis/Normed/Module/Convex.lean",
+      "upstream_sha256": "a19f270cb0a81f1313ae99d6b774bb3e0d46800b23fe396e878fe89a2d2ebff2",
+      "sha256": "3d79383000b74b11e4a6831b09d54c3a06922b72c65b58e8d57be8dd513b991a"
+    },
+    {
+      "path": "Analysis/Normed/Module/Exhaustion.lean",
+      "upstream_path": "TauCeti/Analysis/Normed/Module/Exhaustion.lean",
+      "upstream_sha256": "418926ee3002adbe3f9acd6a6ad1aa995ae35dc4063037a503581aeb26b17685",
+      "sha256": "5716ce59f676fc83282bddaca10655c99ccdb4b070653dba1fd9c76e6abe211f"
+    },
+    {
+      "path": "Analysis/Normed/Module/FilledHull.lean",
+      "upstream_path": "TauCeti/Analysis/Normed/Module/FilledHull.lean",
+      "upstream_sha256": "fc41db8edcb046937354c934b6bb7ddb8b2ad3d8dedf821e7946a8e842b4a582",
+      "sha256": "a82fada2c304595c448f30452d49c898f40e4e76fb88e79da0dcd2489cadc5ac"
+    },
+    {
+      "path": "Analysis/Normed/Module/FilledIn.lean",
+      "upstream_path": "TauCeti/Analysis/Normed/Module/FilledIn.lean",
+      "upstream_sha256": "0ca019f5ff68f77c55e485245c48027d5772598cd4805fe685f6de2fb6be86bf",
+      "sha256": "108c37d943821dbf0fbc3ea87c0906c9482015ea6804a95bac4b6d422b9e10ad"
+    },
+    {
+      "path": "Analysis/Normed/Module/HausdorffDistance.lean",
+      "upstream_path": "TauCeti/Analysis/Normed/Module/HausdorffDistance.lean",
+      "upstream_sha256": "bb235010a3a891f5c649d52fb63de8140e3a4d3a847ca8e928f352cb0abe2416",
+      "sha256": "ab3603c69255a972fa60e41e39393b3b0170fa071543be7d8e430270067f6333"
+    },
+    {
+      "path": "Analysis/Normed/Module/RCLike/Basic.lean",
+      "upstream_path": "TauCeti/Analysis/Normed/Module/RCLike/Basic.lean",
+      "upstream_sha256": "ce316d4f10b42dfa3cb8c15e0ba8c27659f0ae5bb87c57bbdff44fc80f0282bd",
+      "sha256": "bbf94c0ec1dca0e0b92ffe59cc161f3e305581aa65f55f70a06320226f61725f"
+    },
+    {
+      "path": "Analysis/Normed/Module/RCLike/Real.lean",
+      "upstream_path": "TauCeti/Analysis/Normed/Module/RCLike/Real.lean",
+      "upstream_sha256": "8b9d1356a6ec1fd82f4f03e9f57dcb09bd7b395a50c3cbde7b435fd5982896ba",
+      "sha256": "529b22bf6545bf9a31f8985c695f261be30ee935961c9696e8df921744ac2501"
+    },
+    {
+      "path": "Analysis/Normed/Operator/ComplexLinearPart.lean",
+      "upstream_path": "TauCeti/Analysis/Normed/Operator/ComplexLinearPart.lean",
+      "upstream_sha256": "980d0f06be7f263bbce766439ec43fb9a9544f552caff1685f2ba275d7d3c33c",
+      "sha256": "0672d2da942a3d7c9807cff1eda1aebc5d43cc8d9bdbbfb29a9b4af6d0739c85"
+    },
+    {
+      "path": "Analysis/SpecialFunctions/Exp/Bounds.lean",
+      "upstream_path": "TauCeti/Analysis/SpecialFunctions/Exp/Bounds.lean",
+      "upstream_sha256": "fc99c18328b53a7037f879579c08a1cacb5be97a5388afa745d0cf7a49dd4405",
+      "sha256": "01fc312c342feb370027e4174ddc93601b251283783587b07644a81c4c7a94c3"
+    },
+    {
+      "path": "Analysis/SpecialFunctions/Exp/Deriv.lean",
+      "upstream_path": "TauCeti/Analysis/SpecialFunctions/Exp/Deriv.lean",
+      "upstream_sha256": "a7afe9aee1077aa48f56350ded085aedc810ddecf4ec029f04fe735dbb0f5de0",
+      "sha256": "0886df99da85d1de053c9f259526621758eb2315e966bd0aa444c03a7894dfc2"
+    },
+    {
+      "path": "Analysis/SpecialFunctions/Log/Deriv.lean",
+      "upstream_path": "TauCeti/Analysis/SpecialFunctions/Log/Deriv.lean",
+      "upstream_sha256": "4282db01bf6d91e2cae499f9c8a016845f7c8397f2bd2429a3d2b7d25d7d4bc1",
+      "sha256": "d408b6104729822d15d397dc53cbd056169ad1813693ce88bff2c83c66ccdfee"
+    },
+    {
+      "path": "Analysis/SpecialFunctions/Pow/Bounds.lean",
+      "upstream_path": "TauCeti/Analysis/SpecialFunctions/Pow/Bounds.lean",
+      "upstream_sha256": "dc4798e84b14174067e1453a8b1e399f5bd2cce97792f4c409c56f62ffc7e120",
+      "sha256": "4a38d9515201fb7dab3db272fc4355cb10e89a33085fc045c452c406ed359964"
+    },
+    {
+      "path": "Analysis/SpecialFunctions/Pow/NNReal.lean",
+      "upstream_path": "TauCeti/Analysis/SpecialFunctions/Pow/NNReal.lean",
+      "upstream_sha256": "33ffd4cfeba8381a9d1a32257b32e0dd11cab7c3e576ef0d1dd5be54fcd6fc33",
+      "sha256": "a1b7cf79b0c3bcd209e0283d146cca173708b2e39cc7b2d6f0e95db639738e95"
+    },
+    {
+      "path": "Analysis/SpecialFunctions/Pow/Real.lean",
+      "upstream_path": "TauCeti/Analysis/SpecialFunctions/Pow/Real.lean",
+      "upstream_sha256": "07761131299298bca6faafc1dbaafcf83fc8a0c808f3fc7bafd0e1f0b1571bbc",
+      "sha256": "801b6a3edff17ee61ff66249b90dda8ad90059fb12e8d2d4a4bfb656c06036be"
+    },
+    {
+      "path": "Analysis/SpecialFunctions/SmoothTransition.lean",
+      "upstream_path": "TauCeti/Analysis/SpecialFunctions/SmoothTransition.lean",
+      "upstream_sha256": "5fc8a0a7c03b577f55f6e6612b38ad16a185f2c91e9d1bd887e382b7cc4d8b78",
+      "sha256": "5cdc89c090e7ba50b80a98e1eaded48580987b625c63e2b75587fd0edba458c3"
+    },
+    {
+      "path": "Analysis/SpecialFunctions/Sqrt.lean",
+      "upstream_path": "TauCeti/Analysis/SpecialFunctions/Sqrt.lean",
+      "upstream_sha256": "82d6218cc69c3fb9afe915686ab59668ef77fd633b436be93519cd211528982a",
+      "sha256": "a7344f692a91e2655df3ffa689e00c58a33044a456b51923419a02cde2fc0352"
+    },
+    {
+      "path": "Analysis/SpecificLimits/DyadicSum.lean",
+      "upstream_path": "TauCeti/Analysis/SpecificLimits/DyadicSum.lean",
+      "upstream_sha256": "776c1d130db0c572a6ed5fcbb2da75d696aa17e1c71e141b28915dc4e6be81fd",
+      "sha256": "31e299b27b1dc8fc5ba28ac90586823507eb70f46fff8c59854a421337c4f459"
+    },
+    {
+      "path": "Data/ENNReal/Inv.lean",
+      "upstream_path": "TauCeti/Data/ENNReal/Inv.lean",
+      "upstream_sha256": "4b47233fa1010e6370f5d0d2b5d8123b9c24522f86f8bd67ee157cfd6968dfc8",
+      "sha256": "73cc293fd874cd53eea707d41da1ed6fda773088c7e86f9dc2b7a2b1016f0d58"
+    },
+    {
+      "path": "Geometry/Manifold/Connected.lean",
+      "upstream_path": "TauCeti/Geometry/Manifold/Connected.lean",
+      "upstream_sha256": "0225d78dfe9c7059a8ddf02ebb48ea0ebab62d6521b517f0b7bccdfcfe5eb346",
+      "sha256": "c9f0b99574e918ee90c9385959755d513ce25edbcb61c9b908b143998fedaa82"
+    },
+    {
+      "path": "LinearAlgebra/Complex/LinearPart.lean",
+      "upstream_path": "TauCeti/LinearAlgebra/Complex/LinearPart.lean",
+      "upstream_sha256": "b2b7e2a7581345a44c989245bf90ad5941165155f73e7eee1fb400ddd2358543",
+      "sha256": "c5b72196f0c7b61c33d155e1cfff92907e3bdb839a39807d51f357f2de47ea79"
+    },
+    {
+      "path": "LinearAlgebra/Complex/Module.lean",
+      "upstream_path": "TauCeti/LinearAlgebra/Complex/Module.lean",
+      "upstream_sha256": "abb28a8f0d1853f920d0c8f2709cafae941552e940172fe79ef230d528c5c9eb",
+      "sha256": "7799448c4600d159110576813302efc5115aefe0ade4fe81fbcc6b8826d048d6"
+    },
+    {
+      "path": "LinearAlgebra/Multilinear/Basis.lean",
+      "upstream_path": "TauCeti/LinearAlgebra/Multilinear/Basis.lean",
+      "upstream_sha256": "072cd06fb0720c6c21c89794991738a05342ac887b61353a331f4ed27381615d",
+      "sha256": "5bf8e257c0bfbe7fe3060bc250e4b55f2555b19f8969cce676c7664c2ec228fc"
+    },
+    {
+      "path": "MeasureTheory/Function/L1Space/Integrable.lean",
+      "upstream_path": "TauCeti/MeasureTheory/Function/L1Space/Integrable.lean",
+      "upstream_sha256": "6cb2b9f8cfd3cb1621dc5a9e97a0812843d828076fc5c11f01cd9325f444ea29",
+      "sha256": "2cbf5e5cfa57196f54c8c18b67190de8e266dc054de8440b9ac3f6015aa4b183"
+    },
+    {
+      "path": "MeasureTheory/Function/Lp/Basic.lean",
+      "upstream_path": "TauCeti/MeasureTheory/Function/Lp/Basic.lean",
+      "upstream_sha256": "00c9bb06e71949493aab1022b546bf41434fbf61bc751ec405ea67a71d0179d4",
+      "sha256": "d4acc3b9ed81d7407e6962043eef4afd787cf3ac6ca67a1ca78ce2a37048b678"
+    },
+    {
+      "path": "MeasureTheory/Function/Lp/CompMeasurePreservingEquiv.lean",
+      "upstream_path": "TauCeti/MeasureTheory/Function/Lp/CompMeasurePreservingEquiv.lean",
+      "upstream_sha256": "32401fc726eb4f946121721467a4f71607c868fa0c0b8b124a0dd98e45d14966",
+      "sha256": "74a81d946814445787f9ebdeae3abec65cafa0dd2841ed516e5c97e367eb68a0"
+    },
+    {
+      "path": "MeasureTheory/Function/Lp/LIntegralRpow.lean",
+      "upstream_path": "TauCeti/MeasureTheory/Function/Lp/LIntegralRpow.lean",
+      "upstream_sha256": "2d92734f11bdb63140e1e5cbbff817686855eae48ae1a9388336e51560767e6b",
+      "sha256": "56a66c3ad2e27a6c327db32c987a9aa4a9650f2854ac02b18b8b664a60ce6c41"
+    },
+    {
+      "path": "MeasureTheory/Function/Lp/LinearIsometry.lean",
+      "upstream_path": "TauCeti/MeasureTheory/Function/Lp/LinearIsometry.lean",
+      "upstream_sha256": "37e567bd383c07c99b381c50f2d0fa4ea8a99ad4e784ed7e9bf1068205c04ca2",
+      "sha256": "014f1e33ae280b7cd611287a2b328b658272554504a1674f8c23220c149996f5"
+    },
+    {
+      "path": "MeasureTheory/Function/Lp/Norm.lean",
+      "upstream_path": "TauCeti/MeasureTheory/Function/Lp/Norm.lean",
+      "upstream_sha256": "c1e8d9f106a3793904bc7158d07daa168d6c3cd9814a07761bc86518bb11cfdc",
+      "sha256": "6f42936853f8b9a2878eaa71a3ade3af0ccd32c178f5373dc7f27854020d2fbb"
+    },
+    {
+      "path": "MeasureTheory/Function/Lp/Translation.lean",
+      "upstream_path": "TauCeti/MeasureTheory/Function/Lp/Translation.lean",
+      "upstream_sha256": "f6b0411aa773a62becb4ba7ca57734191cf8c8894de56bd97c93ca633b8a9258",
+      "sha256": "936a6e1c42635cee82ea38eaedc70f26a1b1763ebfa7ce9a32ae057414983300"
+    },
+    {
+      "path": "MeasureTheory/Function/LpSeminorm/AddMeasure.lean",
+      "upstream_path": "TauCeti/MeasureTheory/Function/LpSeminorm/AddMeasure.lean",
+      "upstream_sha256": "d9389fa8f172083681e808b04b53a00fc38cedc9eab30f073c2ff00998ebda2b",
+      "sha256": "1e668cc28557649b0b60dff2b517242727d0f4191ae60b1dab44700114b2389f"
+    },
+    {
+      "path": "MeasureTheory/Function/LpSeminorm/Lintegral.lean",
+      "upstream_path": "TauCeti/MeasureTheory/Function/LpSeminorm/Lintegral.lean",
+      "upstream_sha256": "635737a6d39f65251ede351a7bc6122ac0452429f68b5e4b3d710671e981deb0",
+      "sha256": "22ed520e593d08dd419097334e8fc011caa28f09a962f0a2f56b22ea3c7b4c49"
+    },
+    {
+      "path": "MeasureTheory/Integral/Bochner/Set.lean",
+      "upstream_path": "TauCeti/MeasureTheory/Integral/Bochner/Set.lean",
+      "upstream_sha256": "d03e43b68f0db78aa31c9df41e2c8d9ace0ca98d5a3cd2615ec410a49ed5fd1a",
+      "sha256": "f92e4a47bc3cc6004c970d1f38a828d7c6c8484b6101dd060a926bbdb381d22b"
+    },
+    {
+      "path": "MeasureTheory/Integral/IntegralEqImproper.lean",
+      "upstream_path": "TauCeti/MeasureTheory/Integral/IntegralEqImproper.lean",
+      "upstream_sha256": "316e641376a341590f82834594bcdd8455c747b36db57bcf54bbff5b7b1caf5c",
+      "sha256": "88df110057e31bc04a8e9c8d18f9af88acd7283314da4f4ec91166158969a3be"
+    },
+    {
+      "path": "MeasureTheory/Integral/NormRpow.lean",
+      "upstream_path": "TauCeti/MeasureTheory/Integral/NormRpow.lean",
+      "upstream_sha256": "1197cba4d34fc2bb6f34302b1f704eea9e2f5b52e0cca23dc50bb971767f47a0",
+      "sha256": "dc4459b91381fec3a586d15d5ad5d0f17e6583376b20bd4b3f4fb564a024523d"
+    },
+    {
+      "path": "MeasureTheory/MeasurableSpace/Metric.lean",
+      "upstream_path": "TauCeti/MeasureTheory/MeasurableSpace/Metric.lean",
+      "upstream_sha256": "5d815c415757492b385406636a71ecf26261361634559522cee01e5e17056652",
+      "sha256": "0a023af35d2af6bd6e484424c96c15218a9348386c50db5a5f8a5eb879816d2b"
+    },
+    {
+      "path": "MeasureTheory/Measure/Haar/NormedSpace.lean",
+      "upstream_path": "TauCeti/MeasureTheory/Measure/Haar/NormedSpace.lean",
+      "upstream_sha256": "6b72ae0a41d78bccff3ce405ad6f38c9754493dc54dd2f2d35568e691da91838",
+      "sha256": "dd7c696e79994e1321ad3122cf679622b3e459c393eeb75b80ee68c258dab73b"
+    },
+    {
+      "path": "MeasureTheory/Measure/Haar/Unique.lean",
+      "upstream_path": "TauCeti/MeasureTheory/Measure/Haar/Unique.lean",
+      "upstream_sha256": "03fafb22021b2a38e7a157f1a2ee14e2006fe80a9f0b419d1d23a5cdf1c38549",
+      "sha256": "4aeb3ac4a8a005860afb69da4dbe82de47f4db8d3c75cf51645901e814e1fa45"
+    },
+    {
+      "path": "MeasureTheory/Measure/OpenPos.lean",
+      "upstream_path": "TauCeti/MeasureTheory/Measure/OpenPos.lean",
+      "upstream_sha256": "6365c36844cbdd7b84edfa940cab0011834aab2311da5e6925fe04053cc6186c",
+      "sha256": "32ef4a2dd7d37d8abebbf0a433b4512f2ae85acfc398941dd0385b700799716c"
+    },
+    {
+      "path": "RingTheory/Norm/RCLike.lean",
+      "upstream_path": "TauCeti/RingTheory/Norm/RCLike.lean",
+      "upstream_sha256": "1e7589a3dd23b13114f3485298aab5322c2bbbdd1902066fa791296fadd762dd",
+      "sha256": "548fd1b1b15ab022e7ae2edb2e2aa3d8bf429da89eea137fa7202939ecc4f7ef"
+    },
+    {
+      "path": "Topology/Algebra/Module/ComplexSmulI.lean",
+      "upstream_path": "TauCeti/Topology/Algebra/Module/ComplexSmulI.lean",
+      "upstream_sha256": "22472d528a2b17a008afcd11d4a4e74b3c1729d3826c713aff67afed359ee0c5",
+      "sha256": "2976814ef35a41d850cd28079778239c03b2987052404864bff5f58548955b91"
+    },
+    {
+      "path": "Topology/Algebra/Module/ContinuousLinearMap/Invertible.lean",
+      "upstream_path": "TauCeti/Topology/Algebra/Module/ContinuousLinearMap/Invertible.lean",
+      "upstream_sha256": "784081b8565a261501ac76a272b4c9ee4a17aebbd7f4faf51032f4646bbb35f7",
+      "sha256": "75a363b1a68a5527905da82fe955cb2b726cfcd24af205fad77739c2648e0fba"
+    },
+    {
+      "path": "Topology/Algebra/Module/Equiv/SMul.lean",
+      "upstream_path": "TauCeti/Topology/Algebra/Module/Equiv/SMul.lean",
+      "upstream_sha256": "474eeefa8fc6e632624ee197a75dc8685ef09416491b503d6425a7d7c81adae6",
+      "sha256": "5f892ed8cbea1b1258b704b487d10b3e37687e1d91548fbedf46ab8a493e5c8c"
+    },
+    {
+      "path": "Topology/Algebra/MvPolynomial/Nonvanishing.lean",
+      "upstream_path": "TauCeti/Topology/Algebra/MvPolynomial/Nonvanishing.lean",
+      "upstream_sha256": "9f3edf1bcd6b88cb16fe4095f69cccffabf80a96c77cd10e39c8d0e20e70f7d2",
+      "sha256": "4071745f6ad6d87990f82932005b0663d00d23625a7bb77cc011944027d49c0f"
+    },
+    {
+      "path": "Topology/Compactness/Compact.lean",
+      "upstream_path": "TauCeti/Topology/Compactness/Compact.lean",
+      "upstream_sha256": "bfb42ed9c7c151c2b1c060ceaa65ca12ff4d1723c3bd1e0b6a987a8ab87993e1",
+      "sha256": "423dd81b31d0dfdd0552b6d2629e95bf29d427dfcdf7eea7e11e00e3a8ff70e9"
+    },
+    {
+      "path": "Topology/ConnectedComponents.lean",
+      "upstream_path": "TauCeti/Topology/ConnectedComponents.lean",
+      "upstream_sha256": "4618e3913bcaec597d5b65c9296738326f8dd248011a0aea6f5bb357ec50fac1",
+      "sha256": "40b1f7ddfd5e8b12cc92397c93c1b6f12cd12455c6c7597771901a164ba6fda0"
+    },
+    {
+      "path": "Topology/EMetricSpace/Lipschitz.lean",
+      "upstream_path": "TauCeti/Topology/EMetricSpace/Lipschitz.lean",
+      "upstream_sha256": "8a827c0e5c8aa65257d66276fb42a1c0fa64d2fcccda63dbb56782162302d547",
+      "sha256": "2d3b40f3fcee7a28ec7f991540a87484ffa51d0684c8ce9d5a1ab225cbdd1c6c"
+    },
+    {
+      "path": "Topology/FilledHull.lean",
+      "upstream_path": "TauCeti/Topology/FilledHull.lean",
+      "upstream_sha256": "8535b2699e1fda2abe428abfd89d1b3c7b89b81b1c3adc574710ce2ced807336",
+      "sha256": "2110ce18f3ef2b98e736feb9b4e07a2f50c073c7540a67ebd2f06b23e102d8ce"
+    },
+    {
+      "path": "Topology/FilledIn.lean",
+      "upstream_path": "TauCeti/Topology/FilledIn.lean",
+      "upstream_sha256": "2e23be7bd9f57e1538040009be4191d96006514a8456646933237f9bf38ff2e4",
+      "sha256": "17ac7853f6508bcab5b913c41ae39d2b9c85db2aa526fc5b0b34593d3282c413"
+    },
+    {
+      "path": "Topology/Frontier.lean",
+      "upstream_path": "TauCeti/Topology/Frontier.lean",
+      "upstream_sha256": "924de07137afa47b04405188b22d9a1687839b6030cd8d024407b85dd40a6d19",
+      "sha256": "81ec052aed893b1fde5b2b2d45f26d5a6e7360ac1d06cd7a689afd0606c3064b"
+    },
+    {
+      "path": "Topology/Homotopy/Path.lean",
+      "upstream_path": "TauCeti/Topology/Homotopy/Path.lean",
+      "upstream_sha256": "fcd79747fe106cfd243f06f701b051bb3ee52fc6d3d96422c3c8aa60ea2a06ce",
+      "sha256": "44221732839e2989f9ca21b0054624c04a65f49a6b3c7f5e35e765975da26755"
+    },
+    {
+      "path": "Topology/Instances/ENNReal.lean",
+      "upstream_path": "TauCeti/Topology/Instances/ENNReal.lean",
+      "upstream_sha256": "0fd9c11320737e550ddbac926879858ae25bdd746537cf4e7efa1784aa188b2c",
+      "sha256": "97219b42c36a5e60efbe8b8c22753c2443f7876f9ebb33ba38159e6c3e31cc89"
+    },
+    {
+      "path": "Topology/MetricSpace/HausdorffDistance.lean",
+      "upstream_path": "TauCeti/Topology/MetricSpace/HausdorffDistance.lean",
+      "upstream_sha256": "4b19b791103076a7ba7abdac8786be1ebe46d69169586883818dac6ff097f8ac",
+      "sha256": "f09554d2469d6ae1acd6a9a66f3b60e640e5cf5e4da139dcb35ee28367d7623c"
+    },
+    {
+      "path": "Topology/MetricSpace/Holder.lean",
+      "upstream_path": "TauCeti/Topology/MetricSpace/Holder.lean",
+      "upstream_sha256": "ce1639d600dca6ed7c7be6b5f69a486404310e6c774134272a2c0a87a8de1ce6",
+      "sha256": "4e2f69e271e53fe4e89a1b2ea42128ee166427ad33dc9fbfe64d95f761e186c1"
+    },
+    {
+      "path": "Topology/PathComponent.lean",
+      "upstream_path": "TauCeti/Topology/PathComponent.lean",
+      "upstream_sha256": "dcd24aa2d4ac68712f9b47cff7740e86194665d7fa423a45b9324655b6c38aad",
+      "sha256": "527d709b361a616f0bc753e8e200d052acffec733016968743485a52aae8f7fb"
+    },
+    {
+      "path": "Topology/Separation/InvFunOn.lean",
+      "upstream_path": "TauCeti/Topology/Separation/InvFunOn.lean",
+      "upstream_sha256": "abe7bc6a2a856a9384cf276649f102bfc435cba301a94c4eca4bdb8443391579",
+      "sha256": "19849da80f4f0834dbd0c36843d99a7a776459a1a84383a16334870109ceb3b5"
+    },
+    {
+      "path": "Topology/UnitInterval.lean",
+      "upstream_path": "TauCeti/Topology/UnitInterval.lean",
+      "upstream_sha256": "775a027f1b7c0ca9592898207fbc4c3c55859d0a68c9bec75ecc2d47982b3c85",
+      "sha256": "b6dddd001d3d663ab8084d141f08275a9c32d89508ac977a4ac0922a99cd0f0e"
+    },
+    {
+      "path": "LICENSE",
+      "upstream_path": "LICENSE",
+      "upstream_sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1",
+      "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1"
+    }
+  ]
+}

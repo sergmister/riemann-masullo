@@ -2804,7 +2804,11 @@ theorem globalHomogeneousThetaSpace_mk_eq_iff (ω : PontryaginDual C₁) (f g : 
 variable (F S) in
 /-- Paper: Definition 5.2.2.1(2), p. 232.
 The S-local homogeneous theta space is the topological quotient of S-local
-Schwartz–Bruhat functions by the kernel of the S-local homogeneous transform. -/
+Schwartz–Bruhat functions by the kernel of the S-local homogeneous transform.
+
+Kept as an `abbrev` for now (#5398): as a `def` with its own instances it breaks proofs and
+statements that use it, see the issue. Do not copy this pattern: a new type synonym with
+structure is a `def` with its own instances (`AGENTS.md`). -/
 abbrev SLocalHomogeneousThetaSpace (ω : PontryaginDual (J₁(S))) :=
   ℬₛ(S) ⧸ Kₛω(ω)
 

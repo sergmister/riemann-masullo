@@ -2,13 +2,10 @@ module
 
 public import RiemannMasullo.Ch10_TraceSpectral.Sec4a
 public import RiemannMasullo.AppC_LCTVS.Sec3b
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
+import RiemannMasullo.Ch10_TraceSpectral.Sec1
 
 import all RiemannMasullo.Ch09_HardySobolev.Sec3
-import all RiemannMasullo.AppC_LCTVS.Sec2a_part2
-
-import all RiemannMasullo.AppC_LCTVS.Sec3a
-import all RiemannMasullo.AppC_LCTVS.Sec3a_part2
+import RiemannMasullo.AppC_LCTVS.Sec2a_part2
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec2b
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec3b
 public import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.Completion
@@ -138,7 +135,39 @@ theorem sobolevProjectiveKernelOperator_tmul
 
 /-- Paper: Theorem 10.4.3.1(3), p. 467, and Theorem 10.4.3.5(3), p. 473.
 The canonical map from completed projective kernels to operators is injective. -/
-theorem sobolevProjectiveKernelOperator_injective : Injective ξ := by sorry
+theorem sobolevProjectiveKernelOperator_injective : Injective ξ := by
+  have (V : Type _) [NormedAddCommGroup V] [NormedSpace ℂ V] :
+      PolynormableSpace ℂ (StrongDual ℂ V) :=
+    (norm_withSeminorms ℂ (StrongDual ℂ V)).toPolynormableSpace
+  have (V : Type _) [UniformSpace V] : T2Space (Completion V) := inferInstance
+  have inj {X E : Type _} [NormedAddCommGroup X] [NormedSpace ℂ X]
+      [NormedAddCommGroup E] [InnerProductSpace ℂ E] [CompleteSpace E]
+      (e : StrongDual ℂ E ≃ₗᵢ[ℂ] X) :
+      let f := e.symm.toContinuousLinearEquiv.toContinuousLinearMap
+      let i : ProjectiveTensor X E →L[ℂ] ProjectiveTensor (StrongDual ℂ E) E :=
+        ⟨projectiveTensorMap f.toLinearMap (LinearMap.id : E →ₗ[ℂ] E),
+          projectiveTensorMap_continuous f (ContinuousLinearMap.id ℂ E)⟩
+      Injective ((completedProjectiveTensorToOperators (E := E) (F := E)).comp i.completion) := by
+    intro f i
+    let g := e.toContinuousLinearEquiv.toContinuousLinearMap
+    let j : ProjectiveTensor (StrongDual ℂ E) E →L[ℂ] ProjectiveTensor X E :=
+      ⟨projectiveTensorMap g.toLinearMap (LinearMap.id : E →ₗ[ℂ] E),
+        projectiveTensorMap_continuous g (ContinuousLinearMap.id ℂ E)⟩
+    have hi (z : ProjectiveTensor X E) : j (i z) = z := by
+      induction z using TensorProduct.inductionOn with
+      | tmul v x => exact congrArg (fun w : X ↦ w ⊗ₜ[ℂ] x) (e.apply_symm_apply v)
+      | add x y hx hy =>
+        exact (congrArg j (i.map_add x y)).trans
+          ((j.map_add (i x) (i y)).trans (congrArg₂ (fun a b : ProjectiveTensor X E ↦ a + b) hx hy))
+    have hji (z : Completion (ProjectiveTensor X E)) : j.completion (i.completion z) = z := by
+      refine Completion.induction_on z (isClosed_eq (j.completion.continuous.comp i.completion.continuous)
+        continuous_id) fun w ↦ ?_
+      rw [i.completion_apply_coe, j.completion_apply_coe, hi]
+    obtain ⟨t, ht, -⟩ := (exists_projectiveTensorCompletion_traceClassIsometry (E := E) (F := E)).2
+    intro v w he
+    have hh := t.injective (Subtype.ext ((ht (i.completion v)).trans (he.trans (ht (i.completion w)).symm)))
+    exact (hji v).symm.trans ((congrArg j.completion hh).trans (hji w))
+  exact inj (T)
 
 end ProjectiveKernels
 
@@ -241,7 +270,110 @@ theorem spectralLineAmbientKernel_tendsto (_ha : 0 < a)
     (_hχ : IsSpectralBasepointChoice χ) (_he : ∀ z, (e z).1 = eχ z.val.1)
     (_horder : Order₀(χ, e)) (_hb : Bases₀(χ, x, f)) (φ : BruhatCompactSupport C𝔽) :
     ∃ K, Tendsto (spectralKernelRectangle e (fun z ↦ N(χ, z)) jet
-      (fun j ↦ D₀ ((f j).comp (Aq₀(φ)))) (fun j ↦ S₀ (x j))) atTop (𝓝 K) := by sorry
+      (fun j ↦ D₀ ((f j).comp (Aq₀(φ)))) (fun j ↦ S₀ (x j))) atTop (𝓝 K) := by
+  have lift {Z J E G X Y : Type _} [NormedAddCommGroup E] [NormedSpace ℂ E]
+      [NormedAddCommGroup G] [NormedSpace ℂ G] [NormedAddCommGroup X] [NormedSpace ℂ X]
+      [NormedAddCommGroup Y] [NormedSpace ℂ Y]
+      (d : E →L[ℂ] X) (j : G →L[ℂ] Y) (e : Z ↪ ℕ × ℕ) (N : Z → ℕ)
+      (i : (z : Z) → Fin (N z) → J) (u : J → E) (v : J → G)
+      (h : ∃ K, Tendsto (spectralKernelRectangle e N i u v) atTop (𝓝 K)) :
+      ∃ K, Tendsto (spectralKernelRectangle e N i (fun z ↦ d (u z)) (fun z ↦ j (v z))) atTop (𝓝 K) := by
+    let L : ProjectiveTensor E G →L[ℂ] ProjectiveTensor X Y :=
+      ⟨projectiveTensorMap d.toLinearMap j.toLinearMap, projectiveTensorMap_continuous d j⟩
+    obtain ⟨K, hK⟩ := h
+    refine ⟨L.completion K, (L.completion.continuous.continuousAt.tendsto.comp hK).congr ?_⟩
+    intro ij
+    unfold Function.comp spectralKernelRectangle
+    rw [ContinuousLinearMap.completion_apply_coe]
+    apply congrArg ((↑) : ProjectiveTensor X Y → Π(X, Y))
+    change projectiveTensorMap d.toLinearMap j.toLinearMap _ = _
+    rw [map_sum]
+    apply Finset.sum_congr rfl
+    intro z _
+    exact (map_sum (TensorProduct.map d.toLinearMap j.toLinearMap)
+      (fun m : Fin (N z) ↦ u (i z m) ⊗ₜ[ℂ] v (i z m)) Finset.univ).trans
+      (Finset.sum_congr rfl fun m _ ↦ TensorProduct.map_tmul _ _ _ _)
+  let E := H(a, (le_refl (0 : ℝ)), hs₀(hs))
+  let θ := Θ(a, (le_refl (0 : ℝ)), hs₀(hs))
+  let d : StrongDual ℂ E →L[ℂ] W'(0, s) := ⟨D₀,
+    (spectralSobolevDualEmbedding_isometry_range (F := F) a (hStrip((le_refl (0 : ℝ)))) hs₀(hs)).1.continuous⟩
+  let j : E →L[ℂ] W(0, s) := θ.orthogonal.subtypeL.comp
+    θ.quotientEquivOrthogonal.toContinuousLinearEquiv.toContinuousLinearMap
+  exact lift d j e _ _ _ _ (spectralLineQuotientKernel_tendsto (F := F) a hs _ha χ eχ e x f _hχ _he _horder _hb φ)
+
+/-- A rectangle eventually contains the only jet that contributes to a single coordinate. -/
+private theorem spectralLineAmbientKernel_operator_single {Z J V : Type*} [AddCommMonoid V]
+    (e : Z ↪ ℕ × ℕ) (N : Z → ℕ) (j : (z : Z) → Fin (N z) → J)
+    (hj : Bijective (fun p : (z : Z) × Fin (N z) ↦ j p.1 p.2))
+    (i : J) (c : J → V) (hc : ∀ k, k ≠ i → c k = 0) :
+    ∀ᶠ ij : ℕ × ℕ in atTop,
+      (∑ z ∈ ((Finset.Iic ij.1).product (Finset.Iic ij.2)).preimage e e.injective.injOn,
+        ∑ m : Fin (N z), c (j z m)) = c i := by
+  classical
+  obtain ⟨p, hp⟩ := hj.surjective i
+  filter_upwards [eventually_ge_atTop (e p.1)] with ij hij
+  rw [Finset.sum_sigma', Finset.sum_eq_single_of_mem p]
+  · exact congrArg c hp
+  · simp [Finset.mem_product, hij.1, hij.2]
+  · intro q _ hq
+    exact hc _ (fun h ↦ hq (hj.injective (h.trans hp.symm)))
+
+/-- Evaluation of the ambient kernel rectangle is the finite sum of its rank-one actions. -/
+private theorem spectralLineAmbientKernel_operator_eval {Z J : Type*} {α s : ℝ}
+    (a : ℝ) (hα : 0 ≤ α) (hs : 0 ≤ s) (e : Z ↪ ℕ × ℕ) (N : Z → ℕ)
+    (j : (z : Z) → Fin (N z) → J) (f : J → StrongDual ℂ H(a, hα, hs))
+    (y : J → W(α, s)) (ij : ℕ × ℕ) (v : W(α, s)) :
+    sobolevProjectiveKernelOperator (F := F) hα hs
+      (spectralKernelRectangle e N j (fun k ↦ spectralSobolevDualEmbedding F a (hStrip(hα)) hs (f k))
+        y ij) v =
+      ∑ z ∈ ((Finset.Iic ij.1).product (Finset.Iic ij.2)).preimage e e.injective.injOn,
+        ∑ m : Fin (N z), f (j z m) (Q(a, hα, hs) v) • y (j z m) := by
+  let M := (((ContinuousLinearMap.apply ℂ (W(α, s)) v).comp
+    (sobolevProjectiveKernelOperator (F := F) hα hs)).comp
+    (Completion.toComplL : ProjectiveTensor W'(α, s) W(α, s) →L[ℂ] _))
+  change M _ = _
+  simp only [map_sum]
+  apply Finset.sum_congr rfl
+  intro z _
+  let term (m : Fin (N z)) : ProjectiveTensor W'(α, s) W(α, s) :=
+    spectralSobolevDualEmbedding F a (hStrip(hα)) hs (f (j z m)) ⊗ₜ[ℂ] y (j z m)
+  refine (map_sum M term Finset.univ).trans (Finset.sum_congr rfl ?_)
+  intro m _
+  apply (sobolevProjectiveKernelOperator_tmul hα hs _ _ v).trans
+  exact congrArg (fun c : ℂ ↦ c • y (j z m))
+    (spectralSobolevPairing_dual (hStrip(hα)) hs ((f (j z m)).comp (Q(a, hα, hs))) v).2.symm
+
+/-- A limit of lifted biorthogonal partial sums recovers its prescribed quotient coordinates. -/
+private theorem spectralLineAmbientKernel_operator_limit {Z J H V : Type*}
+    [NormedAddCommGroup H] [NormedSpace ℂ H] [NormedAddCommGroup V] [NormedSpace ℂ V]
+    (q : V →L[ℂ] H) (S : H →L[ℂ] V) (hq : ∀ u, q (S u) = u)
+    (e : Z ↪ ℕ × ℕ) (N : Z → ℕ) (j : (z : Z) → Fin (N z) → J)
+    (hj : Bijective (fun p : (z : Z) × Fin (N z) ↦ j p.1 p.2))
+    (x : J → H) (f : J → StrongDual ℂ H) (hb : IsSpectralMarkushevichBasis x f)
+    (u : H) (w : V)
+    (h : Tendsto (fun ij : ℕ × ℕ ↦
+      ∑ z ∈ ((Finset.Iic ij.1).product (Finset.Iic ij.2)).preimage e e.injective.injOn,
+        ∑ m : Fin (N z), f (j z m) u • S (x (j z m))) atTop (𝓝 w)) :
+    w = S u := by
+  let b (ij : ℕ × ℕ) := ∑ z ∈ ((Finset.Iic ij.1).product (Finset.Iic ij.2)).preimage e e.injective.injOn,
+    ∑ m : Fin (N z), f (j z m) u • x (j z m)
+  have hS : Tendsto (fun ij ↦ S (b ij)) atTop (𝓝 w) := by simpa only [b, map_sum, map_smul] using h
+  have hq' : Tendsto b atTop (𝓝 (q w)) := by
+    simpa only [Function.comp_def, hq] using (q.continuous.tendsto w).comp hS
+  have he : ContinuousLinearMap.apply ℂ ℂ (q w) = ContinuousLinearMap.apply ℂ ℂ u := by
+    apply ContinuousLinearMap.ext_on hb.2.2.2
+    rintro _ ⟨i, rfl⟩
+    change f i (q w) = f i u
+    apply tendsto_nhds_unique ((f i).continuous.continuousAt.tendsto.comp hq')
+    apply tendsto_const_nhds.congr'
+    have hcoord := spectralLineAmbientKernel_operator_single e N j hj i
+      (fun k ↦ f k u * f i (x k)) (fun k hk ↦ by rw [hb.2.1 k i hk, mul_zero])
+    filter_upwards [hcoord] with ij hij
+    simpa only [Function.comp_apply, b, map_sum, map_smul, smul_eq_mul, hb.1, mul_one] using hij.symm
+  have hqu : q w = u := (SeparatingDual.eq_iff_forall_dual_eq (R := ℂ)).mpr
+    (fun ℓ ↦ DFunLike.congr_fun he ℓ)
+  rw [← hqu]
+  exact tendsto_nhds_unique hS ((S.continuous.tendsto _).comp hq')
 
 /-- Paper: Theorem 10.4.3.1(3), p. 467. The limit of the ambient kernels
 represents spectral projection after convolution. -/
@@ -256,7 +388,28 @@ theorem spectralLineAmbientKernel_operator (_ha : 0 < a)
     (_hK : Tendsto (spectralKernelRectangle e (fun z ↦ N(χ, z)) jet
       (fun j ↦ D₀ ((f j).comp (Aq₀(φ)))) (fun j ↦ S₀ (x j))) atTop (𝓝 K)) :
     sobolevProjectiveKernelOperator (F := F) (le_refl (0 : ℝ)) hs₀(hs) K =
-      (Pspec(a, (le_refl (0 : ℝ)), hs₀(hs))).comp (A₀(φ)) := by sorry
+      (Pspec(a, (le_refl (0 : ℝ)), hs₀(hs))).comp (A₀(φ)) := by
+  let θ := Θ(a, (le_refl (0 : ℝ)), hs₀(hs))
+  let lift := θ.orthogonal.subtypeL.comp θ.quotientEquivOrthogonal.toContinuousLinearEquiv.toContinuousLinearMap
+  have hsection (u) : θ.mkQL (lift u) = u :=
+    (θ.quotientEquivOrthogonal_symm_eq_mk _ (θ.quotientEquivOrthogonal u).property).symm.trans
+      (θ.quotientEquivOrthogonal.symm_apply_apply u)
+  let key (z : Z(χ)) (m : Fin N(χ, z)) : SpectralLineJetIndex χ a s :=
+    ⟨(z.val.1, z.val.2, m.val), m.isLt⟩
+  let index : ((z : Z(χ)) × Fin N(χ, z)) ≃ SpectralLineJetIndex χ a s :=
+    ⟨fun p ↦ key p.1 p.2,
+      fun j ↦ ⟨⟨(j.val.1, j.val.2.1), SpectralLineJetIndex.order_pos j⟩, ⟨j.val.2.2, j.property⟩⟩,
+      fun _ ↦ rfl, fun _ ↦ rfl⟩
+  apply Eq.trans _ (spectralProjection_convolution_factor (F := F) a (le_refl (0 : ℝ)) hs₀(hs) φ).symm
+  apply ContinuousLinearMap.ext
+  intro v
+  apply spectralLineAmbientKernel_operator_limit θ.mkQL lift hsection e (fun z ↦ N(χ, z)) key
+    index.bijective x f _hb.1 ((Aq₀(φ)) (θ.mkQL v))
+  let ev := (ContinuousLinearMap.apply ℂ (W(0, s)) v).comp
+    (sobolevProjectiveKernelOperator (F := F) (le_refl (0 : ℝ)) hs₀(hs))
+  refine ((ev.continuous.tendsto K).comp _hK).congr fun ij ↦ ?_
+  exact spectralLineAmbientKernel_operator_eval a (le_refl (0 : ℝ)) hs₀(hs) e (fun z ↦ N(χ, z)) key
+    (fun j ↦ (f j).comp (Aq₀(φ))) (fun j ↦ lift (x j)) ij v
 
 end LineTensors
 
@@ -281,6 +434,109 @@ theorem sobolevProjectiveKernel_existsUnique_l2 (hα : 0 ≤ α) (hs : 0 ≤ s)
     ∃! k : L²mixed, integrates(μ𝔽, sobolevProjectiveKernelOperator (F := F) hα hs K, k) :=
   by sorry
 
+/-- Paper: (10.4.3.23)–(10.4.3.25), p. 470.
+The product of two weighted square-integrable functions lies in the mixed product space. -/
+private theorem sobolevProjectiveKernel_l2_tmul_memLp
+    {F : Type*} [Field F] [NumberField F]
+    {α s : ℝ}
+    (v : (CompactIntervalSobolev (ideleClassTamagawaMeasure F) (fun g : IdeleClassGroup (𝓞 F) F ↦
+        Real.log ((ideleClassNorm F g).val : ℝ)) (-α) α s true)) (u : (CompactIntervalSobolev
+        (ideleClassTamagawaMeasure F) (fun g : IdeleClassGroup (𝓞 F) F ↦ Real.log ((ideleClassNorm F
+        g).val : ℝ)) (-α) α s)) :
+    MemLp (fun p : (IdeleClassGroup (𝓞 F) F) × (IdeleClassGroup (𝓞 F) F) ↦ v p.2 * u p.1) 2
+      ((((ideleClassTamagawaMeasure F).withDensity fun g ↦ ENNReal.ofReal (intervalSobolevDensity
+          (-α) α s (Real.log ((ideleClassNorm F g).val : ℝ))))).prod (((ideleClassTamagawaMeasure
+          F).withDensity fun g ↦ ENNReal.ofReal (intervalSobolevDensity (-α) α s (Real.log
+          ((ideleClassNorm F g).val : ℝ)))⁻¹))) := by
+  have hu := Lp.memLp u
+  have hv := Lp.memLp v
+  have hm : AEStronglyMeasurable (fun p : (IdeleClassGroup (𝓞 F) F) × (IdeleClassGroup (𝓞 F) F) ↦ v
+      p.2 * u p.1)
+      ((((ideleClassTamagawaMeasure F).withDensity fun g ↦ ENNReal.ofReal (intervalSobolevDensity
+          (-α) α s (Real.log ((ideleClassNorm F g).val : ℝ))))).prod (((ideleClassTamagawaMeasure
+          F).withDensity fun g ↦ ENNReal.ofReal (intervalSobolevDensity (-α) α s (Real.log
+          ((ideleClassNorm F g).val : ℝ)))⁻¹))) :=
+    hv.aestronglyMeasurable.comp_snd.mul hu.aestronglyMeasurable.comp_fst
+  refine (eLpNorm_lt_top_iff_lintegral_rpow_eNorm_lt_top (by norm_num)
+    (by norm_num) hm).mpr ?_
+  simp only [eNorm_mul, ENNReal.mul_rpow_of_nonneg _ _ (by positivity : 0 ≤ (2 : ENNReal).toReal)]
+  simp_rw [mul_comm (‖v _‖ₑ ^ (2 : ENNReal).toReal)]
+  rw [lintegral_prod_mul (f := fun x ↦ ‖u x‖ₑ ^ (2 : ENNReal).toReal)
+    (g := fun y ↦ ‖v y‖ₑ ^ (2 : ENNReal).toReal)
+    (by fun_prop) (by fun_prop)]
+  exact ENNReal.mul_lt_top
+    (lintegral_rpow_eNorm_lt_top_of_eLpNorm_lt_top (by norm_num) (by norm_num) hu.eLpNorm_lt_top)
+    (lintegral_rpow_eNorm_lt_top_of_eLpNorm_lt_top (by norm_num) (by norm_num) hv.eLpNorm_lt_top)
+
+/-- Paper: (10.4.3.23)–(10.4.3.25), p. 470.
+An almost-everywhere product representative integrates to the elementary tensor operator. -/
+private theorem sobolevProjectiveKernel_l2_tmul_integrates
+    {F : Type*} [Field F] [NumberField F] {α s : ℝ}
+    (hα : 0 ≤ α) (hs : 0 ≤ s) (v : (CompactIntervalSobolev (ideleClassTamagawaMeasure F) (fun g :
+        IdeleClassGroup (𝓞 F) F ↦ Real.log ((ideleClassNorm F g).val : ℝ)) (-α) α s true)) (u :
+        (CompactIntervalSobolev (ideleClassTamagawaMeasure F) (fun g : IdeleClassGroup (𝓞 F) F ↦
+        Real.log ((ideleClassNorm F g).val : ℝ)) (-α) α s))
+    (k : Lp ℂ 2 ((((ideleClassTamagawaMeasure F).withDensity fun g ↦ ENNReal.ofReal
+        (intervalSobolevDensity (-α) α s (Real.log ((ideleClassNorm F g).val : ℝ))))).prod
+        (((ideleClassTamagawaMeasure F).withDensity fun g ↦ ENNReal.ofReal (intervalSobolevDensity
+        (-α) α s (Real.log ((ideleClassNorm F g).val : ℝ)))⁻¹))))
+    (hk : (k : (IdeleClassGroup (𝓞 F) F) × (IdeleClassGroup (𝓞 F) F) → ℂ)
+        =ᵐ[(((ideleClassTamagawaMeasure F).withDensity fun g ↦ ENNReal.ofReal
+        (intervalSobolevDensity (-α) α s (Real.log ((ideleClassNorm F g).val : ℝ))))).prod
+        (((ideleClassTamagawaMeasure F).withDensity fun g ↦ ENNReal.ofReal (intervalSobolevDensity
+        (-α) α s (Real.log ((ideleClassNorm F g).val : ℝ)))⁻¹))]
+      (fun p ↦ v p.2 * u p.1)) :
+    ∀ f : (CompactIntervalSobolev (ideleClassTamagawaMeasure F) (fun g : IdeleClassGroup (𝓞 F) F ↦
+        Real.log ((ideleClassNorm F g).val : ℝ)) (-α) α s), ∀ᵐ x ∂(ideleClassTamagawaMeasure F),
+      Integrable (fun y ↦ k (x, y) * f y) (ideleClassTamagawaMeasure F) ∧
+      (sobolevProjectiveKernelOperator (F := F) hα hs
+      ((show ProjectiveTensor (CompactIntervalSobolev (ideleClassTamagawaMeasure F) (fun g :
+          IdeleClassGroup (𝓞 F) F ↦ Real.log ((ideleClassNorm F g).val : ℝ)) (-α) α s true)
+          (CompactIntervalSobolev (ideleClassTamagawaMeasure F) (fun g : IdeleClassGroup (𝓞 F) F ↦
+          Real.log ((ideleClassNorm F g).val : ℝ)) (-α) α s) from v ⊗ₜ[ℂ] u) :
+        Completion (ProjectiveTensor (CompactIntervalSobolev (ideleClassTamagawaMeasure F) (fun g :
+            IdeleClassGroup (𝓞 F) F ↦ Real.log ((ideleClassNorm F g).val : ℝ)) (-α) α s true)
+            (CompactIntervalSobolev (ideleClassTamagawaMeasure F) (fun g : IdeleClassGroup (𝓞 F) F ↦
+            Real.log ((ideleClassNorm F g).val : ℝ)) (-α) α s))) f : (IdeleClassGroup (𝓞 F) F) → ℂ)
+            x = ∫ y, k (x, y) * f y ∂(ideleClassTamagawaMeasure F) := by
+  have hw : Measurable ((fun g : IdeleClassGroup (𝓞 F) F ↦ intervalSobolevDensity (-α) α s (Real.log
+      ((ideleClassNorm F g).val : ℝ)))) :=
+    ((continuous_intervalSobolevDensity (-α) α s).comp
+      (continuous_logModule' (⟨ideleClassNorm F, (isProperMap_ideleClassNorm F).continuous⟩ :
+          IdeleClassGroup (𝓞 F) F →ₜ* ℝ≥0ˣ))).measurable
+  have hp (x : (IdeleClassGroup (𝓞 F) F)) : 0 < (fun g : IdeleClassGroup (𝓞 F) F ↦
+      intervalSobolevDensity (-α) α s (Real.log ((ideleClassNorm F g).val : ℝ))) x :=
+      intervalSobolevDensity_pos' _ _ _ _
+  have ha (p : (IdeleClassGroup (𝓞 F) F) → Prop) (h : ∀ᵐ x ∂((ideleClassTamagawaMeasure
+      F).withDensity fun g ↦ ENNReal.ofReal (intervalSobolevDensity (-α) α s (Real.log
+      ((ideleClassNorm F g).val : ℝ)))), p x) : ∀ᵐ x ∂(ideleClassTamagawaMeasure F), p x := by
+    exact ((ae_withDensity_iff hw.ennreal_ofReal).mp h).mono
+      (fun x hx ↦ hx (ne_of_gt (ENNReal.ofReal_pos.mpr (hp x))))
+  have ha' (p : (IdeleClassGroup (𝓞 F) F) → Prop) (h : ∀ᵐ x ∂((ideleClassTamagawaMeasure
+      F).withDensity fun g ↦ ENNReal.ofReal (intervalSobolevDensity (-α) α s (Real.log
+      ((ideleClassNorm F g).val : ℝ)))⁻¹), p x) : ∀ᵐ x ∂(ideleClassTamagawaMeasure F), p x := by
+    exact ((ae_withDensity_iff hw.inv.ennreal_ofReal).mp h).mono
+      (fun x hx ↦ hx (ne_of_gt (ENNReal.ofReal_pos.mpr (inv_pos.mpr (hp x)))))
+  have hk' := ha _ (Measure.ae_ae_of_ae_prod hk)
+  intro f
+  let T := (modulatedIntervalSobolev_dual (⟨ideleClassNorm F, (isProperMap_ideleClassNorm
+      F).continuous⟩ : IdeleClassGroup (𝓞 F) F →ₜ* ℝ≥0ˣ)
+    ⟨isProperMap_ideleClassNorm F, ideleClassNorm_ne_one (F := F)⟩
+    (ideleClassTamagawaMeasure F) (-α) α s ((neg_nonpos.mpr hα).trans hα) hs).exists.choose
+  have hi : Integrable (fun y ↦ f y * v y) (ideleClassTamagawaMeasure F) := by
+    have hh := (spectralSobolevPairing_dual ((neg_nonpos.mpr hα).trans hα) hs (T.symm v) f).1
+    simpa only [T, LinearIsometryEquiv.apply_symm_apply] using hh
+  have hu := ha _ (Lp.coeFn_smul (spectralSobolevPairing (F := F) f v) u)
+  filter_upwards [hk', hu] with x hx hux
+  have he : (fun y ↦ k (x, y) * f y) =ᵐ[(ideleClassTamagawaMeasure F)] (fun y ↦ (f y * v y) * u x)
+      := by
+    filter_upwards [ha' _ hx] with y hy
+    rw [hy]
+    ring
+  refine ⟨(hi.mul_const (u x)).congr he.symm, ?_⟩
+  rw [sobolevProjectiveKernelOperator_tmul, hux, integral_congr_ae he, integral_mul_const]
+  rfl
+
 /-- Paper: (10.4.3.23)–(10.4.3.25), p. 470. An elementary tensor has
 mixed-weight representative given by the product of its factors.
 Deviation: The reciprocal-weight factor is evaluated at the input coordinate. -/
@@ -290,7 +546,12 @@ theorem sobolevProjectiveKernel_l2_tmul (hα : 0 ≤ α) (hs : 0 ≤ s)
       (k : C𝔽 × C𝔽 → ℂ) =ᵐ[(ν(α, s)).prod (ν'(α, s))] (fun p ↦ v p.2 * u p.1) ∧
       integrates(μ𝔽, sobolevProjectiveKernelOperator (F := F) hα hs
         ((show ProjectiveTensor W'(α, s) W(α, s) from v ⊗ₜ[ℂ] u) : Π(W'(α, s), W(α, s))), k) :=
-  by sorry
+  by
+    let h := sobolevProjectiveKernel_l2_tmul_memLp (F := F) v u
+    let k : L²mixed := h.toLp (fun p ↦ v p.2 * u p.1)
+    refine ⟨k, ?_, ?_⟩
+    · exact h.coeFn_toLp
+    · exact sobolevProjectiveKernel_l2_tmul_integrates (F := F) hα hs v u k h.coeFn_toLp
 
 /-- Paper: (10.4.3.23)–(10.4.3.25), p. 470. A projective tensor has
 a mixed-weight kernel class giving its operator under Haar integration.
@@ -391,7 +652,39 @@ operator has a unique mixed-weight kernel. Existence also follows from the
 nuclearity and factorization of quotient convolution in §§10.3–10.4.2.
 Deviation: That factorization applies to every real twist. -/
 theorem spectralLineKernel_existsUnique :
-    ∃! k : L²line, lineKernelFor(k) := by sorry
+    ∃! k : L²line, lineKernelFor(k) := by
+  have hasTensor {E : Type _} [NormedAddCommGroup E] [InnerProductSpace ℂ E] [CompleteSpace E]
+      (op : E →L[ℂ] E) (hn : IsNuclearOperator (E := E) (F := E) op) :
+      ∃ w : Completion (ProjectiveTensor (StrongDual ℂ E) E),
+        completedProjectiveTensorToOperators (E := E) (F := E) w = op :=
+    (isBanachNuclear_iff_mem_range (E := E) (F := E) op).mp
+      ((isNuclearOperator_iff_isBanachNuclear (E := E) (F := E) op).mp hn)
+  have transport {Y X E : Type _} [NormedAddCommGroup Y] [NormedSpace ℂ Y] [NormedAddCommGroup X] [NormedSpace ℂ X]
+      [NormedAddCommGroup E] [NormedSpace ℂ E]
+      (e : Y ≃ₗᵢ[ℂ] X) :
+      let f := e.symm.toContinuousLinearEquiv.toContinuousLinearMap
+      let i : ProjectiveTensor X E →L[ℂ] ProjectiveTensor Y E :=
+        ⟨projectiveTensorMap f.toLinearMap (LinearMap.id : E →ₗ[ℂ] E),
+          projectiveTensorMap_continuous f (ContinuousLinearMap.id ℂ E)⟩
+      Surjective i.completion := by
+    intro f i
+    exact completedProjectiveTensorMap_surjective f (ContinuousLinearMap.id ℂ E)
+      e.symm.toHomeomorph.isQuotientMap Topology.IsQuotientMap.id
+  let lineOp : W(0, s) →L[ℂ] W(0, s) := Bline
+  have hB : IsNuclearOperator (E := W(0, s)) (F := W(0, s)) lineOp := spectralProjection_convolution_nuclear (F := F) a hline hs₀(hs) φ
+    (spectralStripConvolution_nuclear (F := F) a hline hs φ)
+  let e : StrongDual ℂ W(0, s) ≃ₗᵢ[ℂ] W'(0, s) := (modulatedIntervalSobolev_dual m𝔽
+    ⟨isProperMap_ideleClassNorm F, ideleClassNorm_ne_one (F := F)⟩
+    μ𝔽 (-(0 : ℝ)) 0 s (hStrip(hline)) hs₀(hs)).exists.choose
+  have hrep := hasTensor (E := W(0, s)) lineOp hB
+  have hlift := transport (Y := StrongDual ℂ W(0, s)) (E := W(0, s)) (X := W'(0, s)) e hrep.choose
+  let K := hlift.choose
+  have hEq : sobolevProjectiveKernelOperator (F := F) hline hs₀(hs) K = Bline :=
+    (congrArg (completedProjectiveTensorToOperators (E := W(0, s)) (F := W(0, s))) hlift.choose_spec).trans hrep.choose_spec
+  let property (op : W(0, s) →L[ℂ] W(0, s)) := ∃! k : L²line,
+    ∀ u : W(0, s), ∀ᵐ x ∂μ𝔽, Integrable (fun y ↦ k (x, y) * u y) μ𝔽 ∧
+      op u x = ∫ y, k (x, y) * u y ∂μ𝔽
+  exact (congrArg property hEq).mp (sobolevProjectiveKernel_existsUnique_l2 (F := F) hline hs₀(hs) K)
 
 /-- Paper: Definition 10.4.3.2(1), p. 470. The global line spectral kernel
 is the representative of the unique kernel of projection after convolution.
@@ -414,6 +707,67 @@ def globalLineGeometricKernel (p : C𝔽 × C𝔽) : ℂ :=
 
 local notation "geomLine" => globalLineGeometricKernel (F := F) a hs φ
 
+/-- Evaluate the two projection identities on a vector fixed by the geometric projection. -/
+private theorem geometricLineKernel_apply_projections {E : Type*} [NormedAddCommGroup E]
+    [NormedSpace ℂ E] (P Q A : E →L[ℂ] E) (u : E) (hu : P u = u)
+    (hP : P.comp (A.comp P) = A.comp P) (hQ : Q.comp (A.comp P) = 0) :
+    P (A u) = A u ∧ Q (A u) = 0 := by
+  have hp := DFunLike.congr_fun hP u
+  have hq := DFunLike.congr_fun hQ u
+  simpa only [ContinuousLinearMap.comp_apply, hu, zero_apply] using And.intro hp hq
+
+/-- Subtracting a spectral row of integral zero leaves the Haar convolution on the
+given input. Inversion followed by translation gives the output-first kernel. -/
+private theorem geometricLineKernel_apply_sub {G : Type*} [CommGroup G]
+    [MeasurableSpace G] [MeasurableMul₂ G] [MeasurableInv G] (μ : Measure G)
+    [μ.IsMulLeftInvariant] [μ.IsInvInvariant] (φ u A : G → ℂ) (k : G × G → ℂ)
+    (hi : ∀ᵐ x ∂μ, Integrable (fun y ↦ φ y * u (y⁻¹ * x)) μ)
+    (hA : ∀ᵐ x ∂μ, A x = ∫ y, φ y * u (y⁻¹ * x) ∂μ)
+    (hk : ∀ᵐ x ∂μ, Integrable (fun y ↦ k (x, y) * u y) μ ∧
+      (∫ y, k (x, y) * u y ∂μ) = 0) :
+    ∀ᵐ x ∂μ, Integrable (fun y ↦ (φ (x * y⁻¹) - k (x, y)) * u y) μ ∧
+      A x = ∫ y, (φ (x * y⁻¹) - k (x, y)) * u y ∂μ := by
+  filter_upwards [hi, hA, hk] with x hx hAx ⟨hkx, hzero⟩
+  let f (g : G) := φ g * u (g⁻¹ * x)
+  have hsub (y : G) : f (x / y) = φ (x * y⁻¹) * u y := by simp [f, div_eq_mul_inv]
+  have hint : Integrable (fun y ↦ φ (x * y⁻¹) * u y) μ := by
+    have hy := ((Measure.measurePreserving_div_left μ x).integrable_comp_emb
+      (MeasurableEquiv.divLeft x).measurableEmbedding).mpr hx
+    exact hy.congr (.of_forall hsub)
+  simp only [sub_mul]
+  refine ⟨hint.sub hkx, ?_⟩
+  rw [integral_sub hint hkx, hzero, sub_zero, hAx, ← integral_div_left_eq_self f μ x]
+  simp_rw [hsub]
+
+/-- On a weighted Sobolev space, subtract the kernel of a vanishing projection block
+from the convolution kernel. The positive weight transfers the zero representative to Haar measure. -/
+private theorem geometricLineKernel_apply_rows {G : Type*} [CommGroup G]
+    [TopologicalSpace G] [IsTopologicalGroup G] [T2Space G] [LocallyCompactSpace G]
+    [MeasurableSpace G] [BorelSpace G] [SecondCountableTopology G] (μ : Measure G)
+    [μ.IsHaarMeasure] (m : G →ₜ* ℝ≥0ˣ) (a b s : ℝ) (hab : a ≤ b) (hs : 0 ≤ s)
+    (φ : BruhatCompactSupport G)
+    (u : CompactIntervalSobolev μ (fun g ↦ Real.log ((m g).val : ℝ)) a b s)
+    (k : G × G → ℂ)
+    (hk : ∀ᵐ x ∂μ, Integrable (fun y ↦ k (x, y) * u y) μ ∧
+      (0 : CompactIntervalSobolev μ (fun g ↦ Real.log ((m g).val : ℝ)) a b s) x =
+        ∫ y, k (x, y) * u y ∂μ) :
+    ∀ᵐ x ∂μ, Integrable (fun y ↦ (φ.val (x * y⁻¹) - k (x, y)) * u y) μ ∧
+      hardySobolevTestAction μ m a b s hab hs φ u x =
+        ∫ y, (φ.val (x * y⁻¹) - k (x, y)) * u y ∂μ := by
+  have hc : Continuous φ.val :=
+    continuous_of_bruhatSmooth ((mem_bruhatSmoothSubmodule_iff _).1 φ.property.1)
+  have hi := hc.integrable_of_hasCompactSupport (μ := μ) φ.property.2
+  have horbit := hardySobolev_orbit_integral μ m a b s hab hs (φ := φ.val) hi φ.property.2 u
+  let w (g : G) := intervalSobolevDensity a b s (Real.log ((m g).val : ℝ))
+  have hw : Continuous w := (continuous_intervalSobolevDensity a b s).comp (continuous_logModule' m)
+  let ν := μ.withDensity (fun g ↦ ENNReal.ofReal (w g))
+  have hμ : μ ≪ ν := withDensity_absolutelyContinuous' hw.measurable.ennreal_ofReal.aemeasurable
+    (.of_forall fun g ↦ (ENNReal.ofReal_pos.mpr (intervalSobolevDensity_pos' a b s _)).ne')
+  apply geometricLineKernel_apply_sub μ φ.val u _ k (horbit.mono fun _ h ↦ h.1)
+    (hardySobolevTestAction_apply μ m a b s hab hs φ u)
+  filter_upwards [hk, hμ.ae_le (Lp.coeFn_zero ℂ 2 ν)] with x hx hx₀
+  exact ⟨hx.1, hx.2.symm.trans hx₀⟩
+
 /-- Paper: Theorem 10.4.3.4(1), p. 470. On a theta vector the global
 geometric kernel represents convolution and geometric projection after convolution.
 The tested row is Haar integrable almost everywhere. -/
@@ -421,7 +775,22 @@ theorem geometricLineKernel_apply (_ha : 0 < a)
     (u : W(0, s)) (_hu : u ∈ Θline) :
     ∀ᵐ x ∂μ𝔽, Integrable (fun y ↦ geomLine (x, y) * u y) μ𝔽 ∧
       Aline u x = (Pgeom(a, hline, hs₀(hs))).comp Aline u x ∧
-      Aline u x = ∫ y, geomLine (x, y) * u y ∂μ𝔽 := by sorry
+      Aline u x = ∫ y, geomLine (x, y) * u y ∂μ𝔽 := by
+  obtain ⟨hgeom, hspec⟩ := geometricLineKernel_apply_projections
+    (Pgeom(a, hline, hs₀(hs))) (Pspec(a, hline, hs₀(hs))) Aline u
+    (geometricProjection_apply_of_mem (F := F) a hline hs₀(hs) _hu)
+    (geometricProjection_convolution_geometricProjection (F := F) a hline hs₀(hs) φ)
+    (spectralProjection_convolution_geometricProjection (F := F) a hline hs₀(hs) φ)
+  have hk := spectralLineKernel_apply (F := F) a hs φ u
+  let row (v : W(0, s)) := ∀ᵐ x ∂μ𝔽, Integrable (fun y ↦ kLine (x, y) * u y) μ𝔽 ∧
+    v x = ∫ y, kLine (x, y) * u y ∂μ𝔽
+  have hk₀ : row 0 := Eq.mp (congrArg row hspec) hk
+  -- Specialize the Haar identity before inserting the Sobolev vector and kernel.
+  let haarRows := geometricLineKernel_apply_rows (G := C𝔽) μ𝔽 m𝔽 (-0) 0 s
+    (hStrip(hline)) hs₀(hs) φ
+  have hrows := haarRows u (kLine : C𝔽 × C𝔽 → ℂ) hk₀
+  filter_upwards [hrows] with x hx
+  exact ⟨hx.1, congrArg (fun v : W(0, s) ↦ v x) hgeom.symm, hx.2⟩
 
 /-- Paper: Theorem 10.4.3.4(2), pp. 470–471, first formula. Divide the
 global spectral kernel by the input weight to obtain the Hilbert-Schmidt
@@ -436,7 +805,39 @@ real-valued as in §9.3 and is viewed as a scalar on complex functions. -/
 theorem spectralLineTruncatedKernel_hilbertSchmidt (_ha : 0 < a)
     (hρ : hcut) (_hband : innerBand) :
     IsSobolevHilbertSchmidtKernel (F := F) (spectralTruncatedConvolution (F := F) a hline hs₀(hs) hρ φ)
-      (cut(weightedLine(kLine))) := by sorry
+      (cut(weightedLine(kLine))) := by
+  have mulKernel {X : Type _} [TopologicalSpace X] [T2Space X] [LocallyCompactSpace X]
+      [SecondCountableTopology X] [MeasurableSpace X] [BorelSpace X]
+      (ν : Measure X) [IsFiniteMeasureOnCompacts ν] [Measure.InnerRegular ν] [SFinite ν]
+      (r : X → ℝ) (hm : Measurable r) (hr : ∀ x, |r x| ≤ 1)
+      (M : Lp ℂ 2 ν →L[ℂ] Lp ℂ 2 ν) (hM : ∀ f : Lp ℂ 2 ν,
+        (M f : X → ℂ) =ᵐ[ν] fun x ↦ (r x : ℂ) * f x)
+      {k : X × X → ℂ} (hk : MemLp k 2 (ν.prod ν)) :
+      ∃ ha : MemLp (fun p : X × X ↦ r p.1 • k p) 2 (ν.prod ν),
+        (integralKernelOperator ν (ha.toLp _)).val = M.comp (integralKernelOperator ν (hk.toLp k)).val := by
+    have hb : MemLp (fun p : X × X ↦ r p.1) ⊤ (ν.prod ν) :=
+      memLp_top_of_bound (hm.comp measurable_fst).aestronglyMeasurable 1
+        (.of_forall fun p ↦ hr p.1)
+    have ha : MemLp (fun p : X × X ↦ r p.1 • k p) 2 (ν.prod ν) := hb.smul hk
+    refine ⟨ha, ?_⟩
+    ext1 f
+    apply Lp.ext
+    filter_upwards [integralKernelOperator_apply ν (ha.toLp _) f,
+      integralKernelOperator_apply ν (hk.toLp _) f, Measure.ae_ae_of_ae_prod ha.coeFn_toLp,
+      Measure.ae_ae_of_ae_prod hk.coeFn_toLp, hM ((integralKernelOperator ν (hk.toLp _)).val f)]
+      with x hx hx' hax hkx hmx
+    change (integralKernelOperator ν (ha.toLp _)).val f x =
+      M ((integralKernelOperator ν (hk.toLp _)).val f) x
+    rw [hx.2, hmx, hx'.2, ← integral_const_mul]
+    apply integral_congr_ae
+    filter_upwards [hax, hkx] with y ha' hk'
+    rw [ha', hk']
+    exact mul_assoc (r x : ℂ) (k (x, y)) (f y)
+  obtain ⟨hk, hB⟩ := spectralLineKernel_hilbertSchmidt (F := F) a hs φ _ha
+  let ν := ν(0, s)
+  let M := modulatedCutoffOperator m𝔽 ν hρ
+  obtain ⟨hg, he⟩ := mulKernel ν ρ hρ.measurable hρ.abs_le_one M (modulatedCutoffOperator_apply m𝔽 ν hρ) hk
+  exact ⟨hg, he.trans (congrArg (fun U : W(0, s) →L[ℂ] W(0, s) ↦ M.comp U) hB)⟩
 
 /-- Paper: Theorem 10.4.3.4(3), p. 471. Applying the cutoff in the
 output variable and the reciprocal weight in the input variable gives the
@@ -444,7 +845,60 @@ Hilbert-Schmidt representative of truncated geometric convolution. -/
 theorem geometricLineTruncatedKernel_hilbertSchmidt (_ha : 0 < a)
     (hρ : hcut) (_hband : innerBand) :
     IsSobolevHilbertSchmidtKernel (F := F) (geometricTruncatedConvolution (F := F) a hline hs₀(hs) hρ φ)
-      (cut(weightedLine(geomLine))) := by sorry
+      (cut(weightedLine(geomLine))) := by
+  have subKernel {X : Type _} [TopologicalSpace X] [T2Space X] [LocallyCompactSpace X]
+      [SecondCountableTopology X] [MeasurableSpace X] [BorelSpace X]
+      (ν : Measure X) [IsFiniteMeasureOnCompacts ν] [Measure.InnerRegular ν] [SFinite ν]
+      {k q g : X × X → ℂ} (hk : MemLp k 2 (ν.prod ν)) (hq : MemLp q 2 (ν.prod ν))
+      (he : ∀ p, k p - q p = g p) (T Q G : Lp ℂ 2 ν →L[ℂ] Lp ℂ 2 ν)
+      (ht : ∀ u : Lp ℂ 2 ν, ∀ᵐ x ∂ν, Integrable (fun y ↦ k (x,y) * u y) ν ∧
+        T u x = ∫ y, k (x,y) * u y ∂ν)
+      (hQ : (integralKernelOperator ν (hq.toLp q)).val = Q) (hsum : T = G + Q) :
+      ∃ hg : MemLp g 2 (ν.prod ν), (integralKernelOperator ν (hg.toLp g)).val = G := by
+    have hg : MemLp g 2 (ν.prod ν) := (hk.sub hq).ae_eq (.of_forall he)
+    refine ⟨hg, ?_⟩
+    ext1 u
+    apply Lp.ext
+    have hqs := integralKernelOperator_apply ν (hq.toLp q) u
+    rw [hQ] at hqs
+    have hd : (G u : X → ℂ) =ᵐ[ν] fun x ↦ T u x - Q u x := by
+      rw [eq_sub_of_add_eq hsum.symm]
+      exact Lp.coeFn_sub _ _
+    filter_upwards [integralKernelOperator_apply ν (hg.toLp g) u, ht u, hqs, hd,
+      Measure.ae_ae_of_ae_prod hg.coeFn_toLp, Measure.ae_ae_of_ae_prod hq.coeFn_toLp]
+      with x hx ht' hqs' hd' hGx hQx
+    rw [hx.2, hd', ht'.2, hqs'.2, ← integral_sub ht'.1 hqs'.1]
+    apply integral_congr_ae
+    filter_upwards [hGx, hQx] with y hy hz
+    rw [hy, hz, ← he, sub_mul]
+  let ν := ν(0, s)
+  let M := modulatedCutoffOperator m𝔽 ν hρ
+  let k : C𝔽 × C𝔽 → ℂ := fun p ↦ (ρ p.1 : ℂ) * φ.val (p.1 * p.2⁻¹) / (w(0, s) p.2 : ℂ)
+  let q := cut(weightedLine(kLine))
+  let g := cut(weightedLine(geomLine))
+  have hφs := (mem_bruhatSmoothSubmodule_iff _).mp φ.property.1
+  have hc := continuous_of_bruhatSmooth hφs
+  have hb := hc.bounded_above_of_compact_support (show HasCompactSupport φ.val from φ.property.2)
+  have hm : IsModulation m𝔽 := ⟨isProperMap_ideleClassNorm F, ideleClassNorm_ne_one (F := F)⟩
+  have hsur : Surjective m𝔽 := (ideleGroup_quotient.{_, 0} F).2.2.2.2.2.2.2.2.2.1
+  obtain ⟨-, hk, hrow⟩ := truncatedHardySobolevConvolution_hilbertSchmidt μ𝔽 m𝔽 (-0) 0 s
+    (hStrip(hline)) hs₀(hs) φ.val hc.aemeasurable φ.property.2 hb hm hsur hρ _hband
+  obtain ⟨hq, hQ⟩ := spectralLineTruncatedKernel_hilbertSchmidt (F := F) a hs φ _ha hρ _hband
+  have he (p : C𝔽 × C𝔽) : k p - q p = g p := by
+    have alg (r w : ℝ) (z t : ℂ) :
+        (r : ℂ) * z / (w : ℂ) - r • (w⁻¹ • t) = r • (w⁻¹ • (z - t)) := by
+      simp only [Complex.real_smul, Complex.ofReal_inv, div_eq_mul_inv]
+      ring
+    exact alg (ρ p.1) (w(0, s) p.2) (φ.val (p.1 * p.2⁻¹)) (kLine p)
+  let A := A(hline, hs₀(hs), φ)
+  let Q := spectralTruncatedConvolution (F := F) a hline hs₀(hs) hρ φ
+  let G := geometricTruncatedConvolution (F := F) a hline hs₀(hs) hρ φ
+  have hsum : M.comp A = G + Q := by
+    exact truncatedConvolution_eq_geometric_add_spectral (F := F) a hline hs₀(hs) hρ φ
+  have hconv := hardySobolevConvolution_eq_testAction μ𝔽 m𝔽 (-0) 0 s (hStrip(hline))
+    hs₀(hs) φ hc.aemeasurable hb
+  have hOp := congrArg (fun U : W(0, s) →L[ℂ] W(0, s) ↦ M.comp U) hconv
+  exact subKernel ν hk hq he _ Q G hrow hQ (hOp.trans hsum)
 
 /-- Paper: Definition 10.4.3.2, p. 470. The two line representatives are measurable. -/
 theorem globalLineKernels_measurable :
@@ -485,6 +939,37 @@ local notation "Order(" χ ", " e ")" => (∀ z z' : Z(χ), z.val.1 = z'.val.1 �
 local notation "rectangle(" χ ", " e ")" =>
   spectralKernelRectangle e (fun z ↦ N(χ, z)) (fun z m ↦ jet(z, m))
 
+section TraceClassRectangles
+
+/-- Projective tensors for the finite quotient rectangles inherit their trace-norm limit. -/
+private theorem spectralKernelRectangle_limit_of_traceNorm {H Z J : Type*} [NormedAddCommGroup H] [InnerProductSpace ℂ H]
+    [CompleteSpace H] (A : H →L[ℂ] H) (x : J → H) (f : J → StrongDual ℂ H)
+    (e : Z ↪ ℕ × ℕ) (N : Z → ℕ) (i : (z : Z) → Fin (N z) → J)
+    (hc : let partialOp (ij : ℕ × ℕ) := spectralConvolutionFiniteSum A x f
+            (((Finset.Iic ij.1).product (Finset.Iic ij.2)).preimage e e.injective.injOn) N i
+          ∃ (hA : A ∈ traceClassOperators H H) (hB : ∀ ij, partialOp ij ∈ traceClassOperators H H),
+            Tendsto (fun ij ↦ schattenNorm (⟨partialOp ij, hB ij⟩ - ⟨A, hA⟩ : traceClassOperators H H))
+              atTop (𝓝 0)) :
+    ∃ K, Tendsto (spectralKernelRectangle e N i (fun j ↦ (f j).comp A) x) atTop (𝓝 K) := by
+  let rect (ij : ℕ × ℕ) := ((Finset.Iic ij.1).product (Finset.Iic ij.2)).preimage e e.injective.injOn
+  let partialOp (ij : ℕ × ℕ) := spectralConvolutionFiniteSum A x f (rect ij) N i
+  let w (ij : ℕ × ℕ) : StrongDual ℂ H ⊗[ℂ] H :=
+    ∑ z ∈ rect ij, ∑ m : Fin (N z), (f (i z m)).comp A ⊗ₜ[ℂ] x (i z m)
+  have hR (ij) : tensorToFiniteRank (w ij) = partialOp ij := by
+    unfold w partialOp spectralConvolutionFiniteSum
+    simp only [map_sum]
+    apply Finset.sum_congr rfl
+    intro z _
+    apply Finset.sum_congr rfl
+    intro m _
+    ext y
+    exact tensorToFiniteRank_tmul _ _ y
+  obtain ⟨hA, hB, hc⟩ := hc
+  exact exists_tendsto_projectiveTensor_of_traceNorm atTop w ⟨A, hA⟩
+    (fun ij ↦ ⟨partialOp ij, hB ij⟩) hR hc
+
+end TraceClassRectangles
+
 /-- Paper: Theorem 10.4.3.5(2), pp. 472–473, equation (10.4.3.42).
 The quotient tensors converge in the completed projective tensor topology.
 Deviation: The zero set is restricted to the strip, and its boundary and interior
@@ -499,55 +984,7 @@ theorem spectralStripQuotientKernel_tendsto (_ha : 0 < a)
     ∃ K, Tendsto (rectangle(χ, e)
       (fun j ↦ (f j).comp (Aq(a, hα, hs₀(hs), φ))) x) atTop (𝓝 K) := by
   classical
-  have transfer {H Z J : Type _} [NormedAddCommGroup H] [InnerProductSpace ℂ H]
-      [CompleteSpace H] (A : H →L[ℂ] H) (x : J → H) (f : J → StrongDual ℂ H)
-      (e : Z ↪ ℕ × ℕ) (N : Z → ℕ) (i : (z : Z) → Fin (N z) → J)
-      (hc : let partialOp (ij : ℕ × ℕ) := spectralConvolutionFiniteSum A x f
-              (((Finset.Iic ij.1).product (Finset.Iic ij.2)).preimage e e.injective.injOn) N i
-            ∃ (hA : A ∈ traceClassOperators H H) (hB : ∀ ij, partialOp ij ∈ traceClassOperators H H),
-              Tendsto (fun ij ↦ schattenNorm (⟨partialOp ij, hB ij⟩ - ⟨A, hA⟩ : traceClassOperators H H))
-                atTop (𝓝 0)) :
-      ∃ K, Tendsto (spectralKernelRectangle e N i (fun j ↦ (f j).comp A) x) atTop (𝓝 K) := by
-    let P := ProjectiveTensor (StrongDual ℂ H) H
-    let W := WithLocalSeminorm (banachProjectiveSeminorm (X := StrongDual ℂ H) (Y := H))
-    let toW : P →L[ℂ] W := toProjectiveSeminorm (X := StrongDual ℂ H) (Y := H)
-    let fromW : W →L[ℂ] P := fromProjectiveSeminorm (X := StrongDual ℂ H) (Y := H)
-    let rect (ij : ℕ × ℕ) := ((Finset.Iic ij.1).product (Finset.Iic ij.2)).preimage e e.injective.injOn
-    let partialOp (ij : ℕ × ℕ) := spectralConvolutionFiniteSum A x f (rect ij) N i
-    let w (ij : ℕ × ℕ) : StrongDual ℂ H ⊗[ℂ] H :=
-      ∑ z ∈ rect ij, ∑ m : Fin (N z), (f (i z m)).comp A ⊗ₜ[ℂ] x (i z m)
-    let R (ij : ℕ × ℕ) : Completion W := ↑(toW (w ij))
-    let L := projectiveModelToOperator (E := H) (F := H)
-    obtain ⟨hA, hB, hc⟩ := hc
-    obtain ⟨k, hk⟩ := exists_projectiveModel_preimage (E := H) (F := H) (⟨A, hA⟩ : traceClassOperators H H)
-    have hR (ij) : L (R ij) = partialOp ij := by
-      rw [show L (R ij) = tensorToFiniteRank (w ij) from projectiveModelToOperator_coe (E := H) (F := H) _]
-      unfold w partialOp spectralConvolutionFiniteSum
-      simp only [map_sum]
-      apply Finset.sum_congr rfl
-      intro z _
-      apply Finset.sum_congr rfl
-      intro m _
-      ext y
-      exact tensorToFiniteRank_tmul _ _ y
-    have hn (v : Completion W) (S : traceClassOperators H H) (hS : L v = S.val) :
-        ‖v‖ = schattenNorm S := by
-      obtain ⟨d, hd⟩ := projectiveModel_singular_sum (E := H) (F := H) v
-      change _ = (∑' n, approximationNumber S.val n ^ (1 : ℝ)) ^ (1 / (1 : ℝ))
-      rw [← hS]
-      simpa only [d.coeff_eq_approximationNumber, Real.rpow_one, div_one, L] using hd.tsum_eq.symm
-    have hconv : Tendsto R atTop (𝓝 k) := by
-      rw [tendsto_iff_norm_sub_tendsto_zero]
-      apply hc.congr
-      intro ij
-      apply Eq.symm
-      apply hn (R ij - k) (⟨partialOp ij, hB ij⟩ - ⟨A, hA⟩)
-      change L (R ij - k) = partialOp ij - A
-      rw [map_sub, hR, show L k = A from hk]
-    refine ⟨fromW.completion k, (fromW.completion.continuous.continuousAt.tendsto.comp hconv).congr ?_⟩
-    intro ij
-    exact (fromW.completion_apply_coe (toW (w ij))).trans rfl
-  exact transfer (Aq(a, hα, hs₀(hs), φ)) x f e _ _
+  exact spectralKernelRectangle_limit_of_traceNorm (Aq(a, hα, hs₀(hs), φ)) x f e _ _
     (spectralStripConvolution_schatten_tendsto (F := F) a χ _hχ hα hs φ eχ e _he x f _hb.1 _hb.2 1 le_rfl)
 
 /-- Paper: Theorem 10.4.3.5(2), pp. 472–473, equation (10.4.3.43).
@@ -562,7 +999,36 @@ theorem spectralStripTransposedKernel_tendsto (_ha : 0 < a)
     (_horder : Order(χ, e)) (_hb : Bases(χ, x, f)) :
     ∃ K : Π(W'(α, s), W(α, s)),
       Tendsto (rectangle(χ, e) (fun j ↦ D ((f j).comp (Aq(a, hα, hs₀(hs), φ))))
-      (fun j ↦ S(a, hα, hs₀(hs)) (x j))) atTop (𝓝 K) := by sorry
+      (fun j ↦ S(a, hα, hs₀(hs)) (x j))) atTop (𝓝 K) := by
+  have lift {Z J E G X Y : Type _} [NormedAddCommGroup E] [NormedSpace ℂ E]
+      [NormedAddCommGroup G] [NormedSpace ℂ G] [NormedAddCommGroup X] [NormedSpace ℂ X]
+      [NormedAddCommGroup Y] [NormedSpace ℂ Y]
+      (d : E →L[ℂ] X) (j : G →L[ℂ] Y) (e : Z ↪ ℕ × ℕ) (N : Z → ℕ)
+      (i : (z : Z) → Fin (N z) → J) (u : J → E) (v : J → G)
+      (h : ∃ K, Tendsto (spectralKernelRectangle e N i u v) atTop (𝓝 K)) :
+      ∃ K, Tendsto (spectralKernelRectangle e N i (fun z ↦ d (u z)) (fun z ↦ j (v z))) atTop (𝓝 K) := by
+    let L : ProjectiveTensor E G →L[ℂ] ProjectiveTensor X Y :=
+      ⟨projectiveTensorMap d.toLinearMap j.toLinearMap, projectiveTensorMap_continuous d j⟩
+    obtain ⟨K, hK⟩ := h
+    refine ⟨L.completion K, (L.completion.continuous.continuousAt.tendsto.comp hK).congr ?_⟩
+    intro ij
+    unfold Function.comp spectralKernelRectangle
+    rw [ContinuousLinearMap.completion_apply_coe]
+    apply congrArg ((↑) : ProjectiveTensor X Y → Π(X, Y))
+    change projectiveTensorMap d.toLinearMap j.toLinearMap _ = _
+    rw [map_sum]
+    apply Finset.sum_congr rfl
+    intro z _
+    exact (map_sum (TensorProduct.map d.toLinearMap j.toLinearMap)
+      (fun m : Fin (N z) ↦ u (i z m) ⊗ₜ[ℂ] v (i z m)) Finset.univ).trans
+      (Finset.sum_congr rfl fun m _ ↦ TensorProduct.map_tmul _ _ _ _)
+  let E := H(a, hα, hs₀(hs))
+  let θ := Θ(a, hα, hs₀(hs))
+  let d : StrongDual ℂ E →L[ℂ] W'(α, s) := ⟨D,
+    (spectralSobolevDualEmbedding_isometry_range (F := F) a (hStrip(hα)) hs₀(hs)).1.continuous⟩
+  let j : E →L[ℂ] W(α, s) := θ.orthogonal.subtypeL.comp
+    θ.quotientEquivOrthogonal.toContinuousLinearEquiv.toContinuousLinearMap
+  exact lift d j e _ _ _ _ (spectralStripQuotientKernel_tendsto (F := F) a hα hs φ _ha χ eχ e x f _hχ _he _horder _hb)
 
 -- TODO(paper-gap): The estimate at the end of §10.4.2 does not prove convergence
 -- of the ambient net with convolution on the output factor. The quotient net
@@ -586,6 +1052,32 @@ theorem spectralStripAmbientKernel_tendsto (_ha : 0 < a)
     ∃ K, Tendsto (rectangle(χ, e) (fun j ↦ D (f j))
       (fun j ↦ B (S(a, hα, hs₀(hs)) (x j)))) atTop (𝓝 K) := by sorry
 
+/-- On a lifted basis vector biorthogonality makes the rectangular net eventually constant.
+The rectangle only uses the quotient of its input, so this determines the operator everywhere. -/
+private theorem spectralStripAmbientKernel_operator_limit {Z J H V : Type*}
+    [NormedAddCommGroup H] [NormedSpace ℂ H] [NormedAddCommGroup V] [NormedSpace ℂ V]
+    (q : V →L[ℂ] H) (S : H →L[ℂ] V) (hq : ∀ u, q (S u) = u) (A T : V →L[ℂ] V)
+    (e : Z ↪ ℕ × ℕ) (N : Z → ℕ) (j : (z : Z) → Fin (N z) → J)
+    (hj : Bijective (fun p : (z : Z) × Fin (N z) ↦ j p.1 p.2))
+    (x : J → H) (f : J → StrongDual ℂ H) (hb : IsSpectralMarkushevichBasis x f)
+    (h : ∀ v, Tendsto (fun ij : ℕ × ℕ ↦
+      ∑ z ∈ ((Finset.Iic ij.1).product (Finset.Iic ij.2)).preimage e e.injective.injOn,
+        ∑ m : Fin (N z), f (j z m) (q v) • A (S (x (j z m)))) atTop (𝓝 (T v))) :
+    ∀ v, T v = A (S (q v)) := by
+  have hlift : T.comp S = A.comp S := by
+    apply ContinuousLinearMap.ext_on hb.2.2.1
+    rintro _ ⟨i, rfl⟩
+    apply tendsto_nhds_unique (h (S (x i)))
+    apply tendsto_const_nhds.congr'
+    have hc := spectralLineAmbientKernel_operator_single e N j hj i
+      (fun k ↦ f k (x i) • A (S (x k))) (fun k hk ↦ by rw [hb.2.1 i k hk.symm, zero_smul])
+    filter_upwards [hc] with ij hij
+    simpa only [hq, hb.1, one_smul, ContinuousLinearMap.comp_apply] using hij.symm
+  intro v
+  have hv := h (S (q v))
+  simp only [hq] at hv
+  exact (tendsto_nhds_unique (h v) hv).trans (DFunLike.congr_fun hlift (q v))
+
 /-- Paper: Theorem 10.4.3.5(3), p. 473. The ambient limit represents
 convolution after spectral projection.
 Deviation: The limit is taken in the ambient space of (10.4.3.43), with
@@ -600,7 +1092,29 @@ theorem spectralStripAmbientKernel_operator (_ha : 0 < a)
     (_horder : Order(χ, e)) (_hb : Bases(χ, x, f)) (K : Π(W'(α, s), W(α, s)))
     (_hK : Tendsto (rectangle(χ, e) (fun j ↦ D (f j))
       (fun j ↦ B (S(a, hα, hs₀(hs)) (x j)))) atTop (𝓝 K)) :
-    sobolevProjectiveKernelOperator (F := F) hα hs₀(hs) K = Bpre := by sorry
+    sobolevProjectiveKernelOperator (F := F) hα hs₀(hs) K = Bpre := by
+  let θ := Θ(a, hα, hs₀(hs))
+  let lift := θ.orthogonal.subtypeL.comp θ.quotientEquivOrthogonal.toContinuousLinearEquiv.toContinuousLinearMap
+  have hsection (u) : θ.mkQL (lift u) = u :=
+    (θ.quotientEquivOrthogonal_symm_eq_mk _ (θ.quotientEquivOrthogonal u).property).symm.trans
+      (θ.quotientEquivOrthogonal.symm_apply_apply u)
+  let key (z : Z(χ)) (m : Fin N(χ, z)) : SpectralStripJetIndex χ a α s :=
+    ⟨(z.val.1, z.val.2.1, z.val.2.2, m.val), m.isLt⟩
+  let index : ((z : Z(χ)) × Fin N(χ, z)) ≃ SpectralStripJetIndex χ a α s :=
+    ⟨fun p ↦ key p.1 p.2,
+      fun j ↦ ⟨⟨(j.val.1, j.val.2.1, j.val.2.2.1), SpectralStripJetIndex.mem_strip_order_pos hα j⟩,
+        ⟨j.val.2.2.2, j.property⟩⟩, fun _ ↦ rfl, fun _ ↦ rfl⟩
+  let T := sobolevProjectiveKernelOperator (F := F) hα hs₀(hs) K
+  have h := spectralStripAmbientKernel_operator_limit θ.mkQL lift hsection B T e
+    (fun z ↦ N(χ, z)) key index.bijective x f _hb.1 (fun v ↦ by
+      let ev := (ContinuousLinearMap.apply ℂ (W(α, s)) v).comp
+        (sobolevProjectiveKernelOperator (F := F) hα hs₀(hs))
+      refine ((ev.continuous.tendsto K).comp _hK).congr fun ij ↦ ?_
+      exact spectralLineAmbientKernel_operator_eval a hα hs₀(hs) e (fun z ↦ N(χ, z)) key f
+        (fun j ↦ B (lift (x j))) ij v)
+  apply ContinuousLinearMap.ext
+  intro v
+  exact (h v).trans (congrArg B (spectralStripKernel_orthogonalLift (F := F) a hα hs _ha _ v rfl))
 
 end StripTensors
 
@@ -654,7 +1168,39 @@ kernel in (10.4.3.47). The cutoff is real-valued as in §9.3. -/
 theorem spectralStripRestrictionKernel_hilbertSchmidt (_ha : 0 < a)
     (hρ : hcut) (_hband : innerBand) (hK : stripTensorExists) :
     IsSobolevHilbertSchmidtKernel (F := F) (spectralRestriction (F := F) a hα hs₀(hs) hρ φ)
-      (cut(weighted(kStrip(hK)))) := by sorry
+      (cut(weighted(kStrip(hK)))) := by
+  have mulKernel {X : Type _} [TopologicalSpace X] [T2Space X] [LocallyCompactSpace X]
+      [SecondCountableTopology X] [MeasurableSpace X] [BorelSpace X]
+      (ν : Measure X) [IsFiniteMeasureOnCompacts ν] [Measure.InnerRegular ν] [SFinite ν]
+      (r : X → ℝ) (hm : Measurable r) (hr : ∀ x, |r x| ≤ 1)
+      (M : Lp ℂ 2 ν →L[ℂ] Lp ℂ 2 ν) (hM : ∀ f : Lp ℂ 2 ν,
+        (M f : X → ℂ) =ᵐ[ν] fun x ↦ (r x : ℂ) * f x)
+      {k : X × X → ℂ} (hk : MemLp k 2 (ν.prod ν)) :
+      ∃ ha : MemLp (fun p : X × X ↦ r p.1 • k p) 2 (ν.prod ν),
+        (integralKernelOperator ν (ha.toLp _)).val = M.comp (integralKernelOperator ν (hk.toLp k)).val := by
+    have hb : MemLp (fun p : X × X ↦ r p.1) ⊤ (ν.prod ν) :=
+      memLp_top_of_bound (hm.comp measurable_fst).aestronglyMeasurable 1
+        (.of_forall fun p ↦ hr p.1)
+    have ha : MemLp (fun p : X × X ↦ r p.1 • k p) 2 (ν.prod ν) := hb.smul hk
+    refine ⟨ha, ?_⟩
+    ext1 f
+    apply Lp.ext
+    filter_upwards [integralKernelOperator_apply ν (ha.toLp _) f,
+      integralKernelOperator_apply ν (hk.toLp _) f, Measure.ae_ae_of_ae_prod ha.coeFn_toLp,
+      Measure.ae_ae_of_ae_prod hk.coeFn_toLp, hM ((integralKernelOperator ν (hk.toLp _)).val f)]
+      with x hx hx' hax hkx hmx
+    change (integralKernelOperator ν (ha.toLp _)).val f x =
+      M ((integralKernelOperator ν (hk.toLp _)).val f) x
+    rw [hx.2, hmx, hx'.2, ← integral_const_mul]
+    apply integral_congr_ae
+    filter_upwards [hax, hkx] with y ha' hk'
+    rw [ha', hk']
+    exact mul_assoc (r x : ℂ) (k (x, y)) (f y)
+  obtain ⟨hk, hB⟩ := spectralStripKernel_hilbertSchmidt (F := F) a hα hs φ _ha hK
+  let ν := ν(α, s)
+  let M := modulatedCutoffOperator m𝔽 ν hρ
+  obtain ⟨hg, he⟩ := mulKernel ν ρ hρ.measurable hρ.abs_le_one M (modulatedCutoffOperator_apply m𝔽 ν hρ) hk
+  exact ⟨hg, he.trans (congrArg (fun U : W(α, s) →L[ℂ] W(α, s) ↦ M.comp U) hB)⟩
 
 /-- Paper: Theorem 10.4.3.6(3), p. 473. The cutoff geometric kernel,
 divided by the input weight, is the Hilbert-Schmidt representative of
@@ -662,7 +1208,63 @@ the geometric restriction on the strip. -/
 theorem geometricStripRestrictionKernel_hilbertSchmidt (_ha : 0 < a)
     (hρ : hcut) (_hband : innerBand) (hK : stripTensorExists) :
     IsSobolevHilbertSchmidtKernel (F := F) (geometricRestriction (F := F) a hα hs₀(hs) hρ φ)
-      (cut(weighted(geomStrip(hK)))) := by sorry
+      (cut(weighted(geomStrip(hK)))) := by
+  have subKernel {X : Type _} [TopologicalSpace X] [T2Space X] [LocallyCompactSpace X]
+      [SecondCountableTopology X] [MeasurableSpace X] [BorelSpace X]
+      (ν : Measure X) [IsFiniteMeasureOnCompacts ν] [Measure.InnerRegular ν] [SFinite ν]
+      {k q g : X × X → ℂ} (hk : MemLp k 2 (ν.prod ν)) (hq : MemLp q 2 (ν.prod ν))
+      (he : ∀ p, k p - q p = g p) (T Q G : Lp ℂ 2 ν →L[ℂ] Lp ℂ 2 ν)
+      (ht : ∀ u : Lp ℂ 2 ν, ∀ᵐ x ∂ν, Integrable (fun y ↦ k (x,y) * u y) ν ∧
+        T u x = ∫ y, k (x,y) * u y ∂ν)
+      (hQ : (integralKernelOperator ν (hq.toLp q)).val = Q) (hsum : T = G + Q) :
+      ∃ hg : MemLp g 2 (ν.prod ν), (integralKernelOperator ν (hg.toLp g)).val = G := by
+    have hg : MemLp g 2 (ν.prod ν) := (hk.sub hq).ae_eq (.of_forall he)
+    refine ⟨hg, ?_⟩
+    ext1 u
+    apply Lp.ext
+    have hqs := integralKernelOperator_apply ν (hq.toLp q) u
+    rw [hQ] at hqs
+    have hd : (G u : X → ℂ) =ᵐ[ν] fun x ↦ T u x - Q u x := by
+      rw [eq_sub_of_add_eq hsum.symm]
+      exact Lp.coeFn_sub _ _
+    filter_upwards [integralKernelOperator_apply ν (hg.toLp g) u, ht u, hqs, hd,
+      Measure.ae_ae_of_ae_prod hg.coeFn_toLp, Measure.ae_ae_of_ae_prod hq.coeFn_toLp]
+      with x hx ht' hqs' hd' hGx hQx
+    rw [hx.2, hd', ht'.2, hqs'.2, ← integral_sub ht'.1 hqs'.1]
+    apply integral_congr_ae
+    filter_upwards [hGx, hQx] with y hy hz
+    rw [hy, hz, ← he, sub_mul]
+  let ν := ν(α, s)
+  let M := modulatedCutoffOperator m𝔽 ν hρ
+  let k : C𝔽 × C𝔽 → ℂ := fun p ↦ (ρ p.1 : ℂ) * φ.val (p.1 * p.2⁻¹) / (w(α, s) p.2 : ℂ)
+  let q := cut(weighted(kStrip(hK)))
+  let g := cut(weighted(geomStrip(hK)))
+  have hφs := (mem_bruhatSmoothSubmodule_iff _).mp φ.property.1
+  have hc := continuous_of_bruhatSmooth hφs
+  have hb := hc.bounded_above_of_compact_support (show HasCompactSupport φ.val from φ.property.2)
+  have hm : IsModulation m𝔽 := ⟨isProperMap_ideleClassNorm F, ideleClassNorm_ne_one (F := F)⟩
+  have hsur : Surjective m𝔽 := (ideleGroup_quotient.{_, 0} F).2.2.2.2.2.2.2.2.2.1
+  obtain ⟨-, hk, hrow⟩ := truncatedHardySobolevConvolution_hilbertSchmidt μ𝔽 m𝔽 (-α) α s
+    (hStrip(hα)) hs₀(hs) φ.val hc.aemeasurable φ.property.2 hb hm hsur hρ _hband
+  obtain ⟨hq, hQ⟩ := spectralStripRestrictionKernel_hilbertSchmidt (F := F) a hα hs φ _ha hρ _hband hK
+  have he (p : C𝔽 × C𝔽) : k p - q p = g p := by
+    have alg (r w : ℝ) (z t : ℂ) :
+        (r : ℂ) * z / (w : ℂ) - r • (w⁻¹ • t) = r • (w⁻¹ • (z - t)) := by
+      simp only [Complex.real_smul, Complex.ofReal_inv, div_eq_mul_inv]
+      ring
+    exact alg (ρ p.1) (w(α, s) p.2) (φ.val (p.1 * p.2⁻¹)) (kStrip(hK) p)
+  let A := A(hα, hs₀(hs), φ)
+  let Q := spectralRestriction (F := F) a hα hs₀(hs) hρ φ
+  let G := geometricRestriction (F := F) a hα hs₀(hs) hρ φ
+  have hsum : M.comp A = G + Q := by
+    ext1 u
+    change M (A u) = M (A (Pg u)) + M (A (Ps u))
+    rw [← map_add, ← map_add]
+    exact congrArg (fun v ↦ M (A v)) ((Θ(a, hα, hs₀(hs))).starProjection_add_starProjection_orthogonal u).symm
+  have hconv := hardySobolevConvolution_eq_testAction μ𝔽 m𝔽 (-α) α s (hStrip(hα))
+    hs₀(hs) φ hc.aemeasurable hb
+  have hOp := congrArg (fun U : W(α, s) →L[ℂ] W(α, s) ↦ M.comp U) hconv
+  exact subKernel ν hk hq he _ Q G hrow hQ (hOp.trans hsum)
 
 /-- Paper: Definition 10.4.3.7, pp. 473–474. The two strip representatives are measurable. -/
 theorem globalStripKernels_measurable (hK : stripTensorExists) :

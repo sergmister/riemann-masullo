@@ -1,7 +1,7 @@
 module
 
 public import RiemannMasullo.Ch10_TraceSpectral.Sec3
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
+import RiemannMasullo.Ch10_TraceSpectral.Sec1
 
 /-! # §10.3 assertions that are false as printed -/
 
@@ -109,7 +109,18 @@ Choose a+it to be a nontrivial zero of its completed L-function, so the offset
 b = 0 is interior. The same bump times the conjugate of θ(g)|g|^(it) acts
 nontrivially on that zeroth jet, which annihilates the printed output isotype. -/
 theorem Printed.spectralStripConvolution_conjugateWeight_range_false :
-    ¬ Printed.spectralStripConvolution_conjugateWeight_range := by sorry
+    ¬ Printed.spectralStripConvolution_conjugateWeight_range := by
+  intro h
+  apply Printed.spectralLineConvolution_conjugateWeight_range_false
+  intro F _ _ χ hχ a s hs ω φ hφ
+  let P (l : ℝ) (hl : l ≤ 0) : Prop :=
+    range (spectralConvolution (F := F) a hl hs₀(hs) φ) ⊆
+      range (fun v : Wω(F, l, 0, s, hl, hs₀(hs), ω) ↦
+        (globalThetaSobolev F a hl hs₀(hs)).mkQ v.val)
+  have transport (l : ℝ) (hl : l ≤ 0) (he : l = 0) (hp : P l hl) : P 0 le_rfl := by
+    subst l
+    exact hp
+  exact transport _ _ (neg_zero : -(0 : ℝ) = 0) (h F χ hχ a 0 s le_rfl hs ω φ hφ)
 
 /-- Paper: Theorem 10.3.1.1(3), p. 449. A test of conjugate weight is
 claimed to act through the indicated isotype by a strongly nuclear operator.

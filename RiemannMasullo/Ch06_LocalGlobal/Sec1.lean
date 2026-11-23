@@ -1938,21 +1938,6 @@ theorem finitePlaceUnitAverage_integrable (w : Places) (f : ℬᵥ(w)) (x : L(w)
     ((ae_restrict_iff' (units_isOpen w).measurableSet).2 (Filter.Eventually.of_forall hC))
 
 
-/-- Paper: Lemma 6.1.2.4(2), (6.1.2.13)–(6.1.2.14), p. 292.
-Local unit averaging defines a linear map to compactly supported continuous functions
-which is continuous for their uniform norm. -/
-theorem finitePlaceUnitAverage_continuous_uniform (w : Places) :
-    ∃ A : ℬᵥ(w) →ₗ[ℂ] C_c(L(w), ℂ),
-      (∀ f x, A f x = finitePlaceUnitAverage w f x) ∧
-        Continuous (fun f ↦ (A f).toBoundedContinuousFunction) := by sorry
-
-/-- Paper: Lemma 6.1.2.4(2), p. 292.
-Local unit averaging also defines a continuous linear map in the intrinsic
-Schwartz–Bruhat topology. -/
-theorem finitePlaceUnitAverage_continuous_schwartzBruhat (w : Places) :
-    ∃ A : ℬᵥ(w) →L[ℂ] ℬᵥ(w),
-      ∀ f x, A f (Multiplicative.ofAdd x) = finitePlaceUnitAverage w f x := by sorry
-
 /-- Paper: Lemma 6.1.2.4(2), p. 292.
 A test function averages to zero exactly when it belongs to the span of unit
 translation differences. -/
@@ -2145,6 +2130,66 @@ theorem finitePlaceUnitAverage_coinvariants_equiv (w : Places) :
       (finitePlaceUnitAverage_coinvariants_equiv_fixed (F := F) w)
       (finitePlaceUnitAverage_coinvariants_equiv_surj (F := F) w)
 
+/-- Paper: Lemma 6.1.2.4(2), p. 292.
+Local unit averaging also defines a continuous linear map in the intrinsic
+Schwartz–Bruhat topology. -/
+theorem finitePlaceUnitAverage_continuous_schwartzBruhat (w : Places) :
+    ∃ A : ℬᵥ(w) →L[ℂ] ℬᵥ(w),
+      ∀ f x, A f (Multiplicative.ofAdd x) = finitePlaceUnitAverage w f x := by
+  let K := Representation.Coinvariants.ker (ρ(w))
+  let I := Representation.invariants (ρ(w))
+  let N := (finitePlaceUnitAverage_coinvariants_equiv w).choose
+  let A : ℬᵥ(w) →L[ℂ] ℬᵥ(w) :=
+    { toLinearMap := I.subtype.comp (N.toLinearEquiv.toLinearMap.comp K.mkQ)
+      cont := continuous_subtype_val.comp (N.continuous.comp K.continuous_mkQ) }
+  exact ⟨A, (finitePlaceUnitAverage_coinvariants_equiv w).choose_spec⟩
+
+private theorem finitePlaceUnitAverage_continuous_uniform_of_finest {E X : Type*}
+    [AddCommGroup E] [Module ℂ E] [t : TopologicalSpace E] [TopologicalSpace X]
+    (ht : t = (inferInstance : TopologicalSpace (FinestLocallyConvex E)))
+    (L : E →ₗ[ℂ] (X → ℂ))
+    (hc : ∀ f, Continuous (L f)) (hs : ∀ f, HasCompactSupport (L f)) :
+    ∃ A : E →ₗ[ℂ] C_c(X, ℂ), (∀ f x, A f x = L f x) ∧
+      Continuous (fun f ↦ (A f).toBoundedContinuousFunction) := by
+  let A : E →ₗ[ℂ] C_c(X, ℂ) :=
+    { toFun := fun f ↦ ⟨⟨L f, hc f⟩, hs f⟩
+      map_add' := fun f g ↦ CompactlySupportedContinuousMap.ext fun x ↦
+        congrFun (L.map_add f g) x
+      map_smul' := fun c f ↦ CompactlySupportedContinuousMap.ext fun x ↦
+        congrFun (L.map_smul c f) x }
+  let B : FinestLocallyConvex E →ₗ[ℂ] (BoundedContinuousFunction X ℂ) :=
+    { toFun := fun f ↦ (A f).toBoundedContinuousFunction
+      map_add' := fun f g ↦ BoundedContinuousFunction.ext fun x ↦
+        congrFun (L.map_add f g) x
+      map_smul' := fun c f ↦ BoundedContinuousFunction.ext fun x ↦
+        congrFun (L.map_smul c f) x }
+  exact ⟨A, fun _ _ ↦ rfl,
+    (congrArg (fun t' ↦ @Continuous E (BoundedContinuousFunction X ℂ) t' _ B) ht).mpr
+      (continuous_of_finestLocallyConvex E B)⟩
+
+/-- Paper: Lemma 6.1.2.4(2), (6.1.2.13)–(6.1.2.14), p. 292.
+Local unit averaging defines a linear map to compactly supported continuous functions
+which is continuous for their uniform norm. -/
+theorem finitePlaceUnitAverage_continuous_uniform (w : Places) :
+    ∃ A : ℬᵥ(w) →ₗ[ℂ] C_c(L(w), ℂ),
+      (∀ f x, A f x = finitePlaceUnitAverage w f x) ∧
+        Continuous (fun f ↦ (A f).toBoundedContinuousFunction) := by
+  let N := (finitePlaceUnitAverage_continuous_schwartzBruhat w).choose
+  let L : ℬᵥ(w) →ₗ[ℂ] (L(w) → ℂ) :=
+    { toFun := fun f x ↦ N f (Multiplicative.ofAdd x)
+      map_add' := fun f g ↦ funext fun x ↦
+        congrArg (fun h : ℬᵥ(w) ↦ h (Multiplicative.ofAdd x)) (N.map_add f g)
+      map_smul' := fun c f ↦ funext fun x ↦
+        congrArg (fun h : ℬᵥ(w) ↦ h (Multiplicative.ofAdd x)) (N.map_smul c f) }
+  have hc (f : ℬᵥ(w)) : Continuous (L f) :=
+    (schwartzBruhat_continuous (N f)).comp continuous_ofAdd
+  have hs (f : ℬᵥ(w)) : HasCompactSupport (L f) :=
+    ((mem_finitePlaceSchwartz_iff F w (L f)).mp ⟨N f, fun _ ↦ rfl⟩).2
+  have h := finitePlaceUnitAverage_continuous_uniform_of_finest
+    (finitePlaceSchwartz_finestTopology F w) L hc hs
+  refine ⟨h.choose, fun f x ↦ (h.choose_spec.1 f x).trans ?_, h.choose_spec.2⟩
+  exact (finitePlaceUnitAverage_continuous_schwartzBruhat w).choose_spec f x
+
 local notation "K(" D ")" => FinitePlaceProduct F D
 local notation "KUnits(" D ")" =>
   (Subgroup.pi Set.univ (fun w : D ↦ U(w.val))).comap
@@ -2209,6 +2254,96 @@ theorem finiteProductSchwartz_unitInvariants_isClosed (D : Finset Places) (_hD :
     IsClosed ((Representation.invariants (ρΠ(D))) : Set ℬ(K(D))) :=
   unitInvariants_isClosed _
 
+private theorem finiteProductUnitAverage_coinvariants_equiv_representative
+    (D : Finset Places) (f : ℬ(K(D))) :
+    ∃ y : Representation.invariants (ρΠ(D)),
+      Representation.Coinvariants.mk (ρΠ(D)) y.val =
+        Representation.Coinvariants.mk (ρΠ(D)) f := by
+  classical
+  let C : Set (K(D)) := univ.pi fun v : D ↦ (O(v.val) : Set (L(v.val)))
+  have hC : IsCompact C := isCompact_univ_pi fun v : D ↦
+    isCompact_iff_compactSpace.mpr (compactSpace_adicCompletionIntegers v.val)
+  let : TotallyDisconnectedSpace (Multiplicative (K(D))) :=
+    inferInstanceAs (TotallyDisconnectedSpace (∀ v : D, L(v.val)))
+  have hf := schwartzBruhat_locallyConstant_compactSupport
+    (finitePlaceProduct_compact_subset_subgroup F D) f
+  have hfinite := finite_unit_dilates C hC f hf.1 hf.2
+  have horbit : (range fun g : KUnits(D) ↦ (ρΠ(D)) g f).Finite := by
+    refine hfinite.subset ?_
+    rintro _ ⟨g, rfl⟩
+    have hu (v : D) : MulEquiv.piUnits (M := fun v : D ↦ L(v.val)) g.val v ∈ U(v.val) :=
+      g.property v (mem_univ v)
+    exact ⟨⟨g.val, fun v _ ↦ (hu v).1, fun v _ ↦ (hu v).2⟩, rfl⟩
+  exact finitePlaceUnitAverage_coinvariants_equiv_representative
+    (G := KUnits(D)) (E := ℬ(K(D))) (ρΠ(D)) f horbit.toFinset fun y ↦ by
+      rw [Set.Finite.mem_toFinset, Set.mem_range]
+
+private theorem finiteProductUnitAverage_coinvariants_equiv_integral (D : Finset Places) :
+    let ν := Measure.pi fun v : D ↦ (μ(v.val)).restrict (U(v.val))
+    let m : ℂ := (ν.real univ : ℝ)
+    m ≠ 0 ∧
+      (∀ x : K(D), ∃ l : (ℬ(K(D)) ⧸ Representation.Coinvariants.ker (ρΠ(D))) →ₗ[ℂ] ℂ,
+        ∀ f, l ((Representation.Coinvariants.ker (ρΠ(D))).mkQ f) =
+          finiteProductUnitAverage D f x) ∧
+      (∀ (y : Representation.invariants (ρΠ(D))) (x : K(D)),
+        finiteProductUnitAverage D y.val x = m * y.val (Multiplicative.ofAdd x)) := by
+  classical
+  let ν := Measure.pi fun v : D ↦ (μ(v.val)).restrict (U(v.val))
+  let m : ℂ := (ν.real univ : ℝ)
+  let H := Subgroup.pi Set.univ fun v : D ↦ U(v.val)
+  let (v : D) : (μ(v.val)).IsHaarMeasure :=
+    finiteLocalMultiplicativeTamagawaMeasure_isHaarMeasure v.val
+  let ambientMeasure := Measure.pi fun v : D ↦ μ(v.val)
+  let e := MulEquiv.piUnits (M := fun v : D ↦ L(v.val))
+  have hH : MeasurableSet (H : Set (∀ v : D, (L(v.val))ˣ)) :=
+    MeasurableSet.univ_pi fun v ↦ (units_isOpen v.val).measurableSet
+  have hν : ambientMeasure.restrict (H : Set (∀ v : D, (L(v.val))ˣ)) = ν :=
+    Measure.restrict_pi_pi (fun v : D ↦ μ(v.val)) (fun v ↦ (U(v.val) : Set (L(v.val))ˣ))
+  have hm : m ≠ 0 := by
+    change ((ν univ).toReal : ℂ) ≠ 0
+    rw [Measure.pi_univ, ENNReal.toReal_prod, Complex.ofReal_prod]
+    simp only [Measure.restrict_apply_univ]
+    exact Finset.prod_ne_zero_iff.mpr (fun v _ ↦ finitePlaceUnitAverage_coinvariants_equiv_mass v.val)
+  refine ⟨hm, ?_, ?_⟩
+  · intro x
+    let A : ℬ(K(D)) →ₗ[ℂ] ℂ :=
+      { toFun := fun f ↦ finiteProductUnitAverage D f x
+        map_add' := fun f g ↦ integral_add (finiteProductUnitAverage_integrable D f x)
+          (finiteProductUnitAverage_integrable D g x)
+        map_smul' := fun c f ↦ integral_smul c _ }
+    refine ⟨Representation.Coinvariants.lift (ρΠ(D)) A
+      (fun g ↦ LinearMap.ext fun f ↦ ?_), fun _ ↦ rfl⟩
+    let a := e (g⁻¹ : KUnits(D)).val
+    have ha : a ∈ H := (g⁻¹ : KUnits(D)).property
+    let φ (u : ∀ v : D, (L(v.val))ˣ) := f (Multiplicative.ofAdd (x * (e.symm u).val))
+    have hφ (u : ∀ v : D, (L(v.val))ˣ) :
+        ((ρΠ(D)) g f) (Multiplicative.ofAdd (x * (e.symm u).val)) = φ (a * u) := by
+      change f (Multiplicative.ofAdd ((g.val⁻¹ : (K(D))ˣ).val * (x * (e.symm u).val))) =
+        f (Multiplicative.ofAdd (x * (e.symm (a * u)).val))
+      refine congrArg (fun z : K(D) ↦ f (Multiplicative.ofAdd z)) ?_
+      rw [e.symm.map_mul, show e.symm a = g.val⁻¹ from e.symm_apply_apply _]
+      exact mul_left_comm _ _ _
+    change (∫ u, ((ρΠ(D)) g f) (Multiplicative.ofAdd (x * (e.symm u).val)) ∂ν) = ∫ u, φ u ∂ν
+    simp_rw [hφ]
+    rw [← hν]
+    exact finitePlaceUnitAverage_coinvariants_equiv_restrict ambientMeasure H hH a ha φ
+  · intro y x
+    let φ (u : ∀ v : D, (L(v.val))ˣ) := y.val (Multiplicative.ofAdd (x * (e.symm u).val))
+    have hφ (u : ∀ v : D, (L(v.val))ˣ) (hu : u ∈ H) :
+        φ u = y.val (Multiplicative.ofAdd x) := by
+      let g : KUnits(D) := ⟨e.symm u, by change e (e.symm u) ∈ H; rwa [e.apply_symm_apply]⟩
+      have he := congrArg (fun f : ℬ(K(D)) ↦ f (Multiplicative.ofAdd x)) (y.property g⁻¹)
+      change y.val (Multiplicative.ofAdd (((g⁻¹ : KUnits(D)).val⁻¹ : (K(D))ˣ).val * x)) =
+        y.val (Multiplicative.ofAdd x) at he
+      rw [Subgroup.coe_inv, inv_inv, mul_comm] at he
+      exact he
+    change ∫ u, φ u ∂ν = m * y.val (Multiplicative.ofAdd x)
+    calc
+      ∫ u, φ u ∂ν = ∫ u, y.val (Multiplicative.ofAdd x) ∂ν := by
+        rw [← hν]
+        exact setIntegral_congr_fun hH hφ
+      _ = _ := (integral_const _).trans Complex.real_smul
+
 /-- Paper: Lemma 6.1.2.4(3), (6.1.2.16), p. 292.
 The product of the local unit averages induces a linear homeomorphism from
 coinvariants with their quotient topology to invariants on the finite product.
@@ -2216,7 +2351,26 @@ Deviation: The place set is written directly as the finite set of additional pla
 theorem finiteProductUnitAverage_coinvariants_equiv (D : Finset Places) (_hD : D.Nonempty) :
     ∃ N : (ℬ(K(D)) ⧸ Representation.Coinvariants.ker (ρΠ(D))) ≃L[ℂ] (Representation.invariants (ρΠ(D))),
       ∀ (f : ℬ(K(D))) x, (N (Submodule.Quotient.mk f)).val (Multiplicative.ofAdd x) =
-        finiteProductUnitAverage D f x := by sorry
+        finiteProductUnitAverage D f x := by
+  let E := ℬ(K(D))
+  let v (f : E) (x : K(D)) := f (Multiplicative.ofAdd x)
+  let ν := Measure.pi fun v : D ↦ (μ(v.val)).restrict (U(v.val))
+  let m : ℂ := (ν.real univ : ℝ)
+  have hc (T : E →ₗ[ℂ] E) : Continuous T := by
+    have h := finestLocallyConvex_withSeminorms E
+    let : IsTopologicalAddGroup (FinestLocallyConvex E) := h.isTopologicalAddGroup
+    let T' : FinestLocallyConvex E →ₗ[ℂ] FinestLocallyConvex E := T
+    have hT := h.continuous_of_continuous_comp T' fun p ↦ h.continuous_seminorm (p.comp T')
+    exact (congrArg (fun t ↦ @Continuous E E t t T)
+      (finiteProduct_tailSchwartz_finestTopology F D ∅).1).mpr hT
+  have hv (f g : E) (h : ∀ x, v f x = v g x) : f = g :=
+    Subtype.ext (funext fun x ↦ h x.toAdd)
+  have hsmul (f : E) (x : K(D)) : v (m • f) x = m * v f x := rfl
+  have h := finiteProductUnitAverage_coinvariants_equiv_integral (F := F) D
+  have result := finitePlaceUnitAverage_coinvariants_equiv_assemble (E := E)
+    (G := KUnits(D)) (X := K(D)) (ρΠ(D)) hc m h.1 v (finiteProductUnitAverage D) hv hsmul
+  with_reducible
+    exact result h.2.1 h.2.2 (finiteProductUnitAverage_coinvariants_equiv_representative D)
 
 end Averaging
 

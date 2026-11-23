@@ -2,7 +2,7 @@ module
 
 public import RiemannMasullo.Ch10_TraceSpectral.Sec4b
 public import RiemannMasullo.Ch04_PeriodicSchauderBases.Sec6
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
+import RiemannMasullo.Ch10_TraceSpectral.Sec1
 
 import all RiemannMasullo.Ch03_IdelicZeta.Sec2
 
@@ -208,6 +208,37 @@ the enumeration of Dirichlet rows with the trivial character first.
 The lexicographic initial segment through `(1,0,0)` includes every
 zeroth jet `(0,j,0)` of the trivial row. -/
 theorem Printed.spectralLineJet_lexInitialSegment_finite_false :
-    ¬ Printed.spectralLineJet_lexInitialSegment_finite := by sorry
+    ¬ Printed.spectralLineJet_lexInitialSegment_finite := by
+  classical
+  intro hfin
+  apply Printed.spectralLineJet_cofinite_iff_coordinates_false
+  intro F _ _ a s ha hs χ hχ ω t ht i
+  let J := lineJetIndices(χ, ω, t, a, s)
+  have hcut : 0 < ⌊(s - 1) / 2 + 1⌋₊ := Nat.floor_pos.mpr (by linarith)
+  have ordpos (k n : ℕ) : 0 < (zeroOrder(χ (ω k), a, ((t k) n).val)).untop₀.toNat := by
+    let z : ℂ := (a : ℂ) + (((t k) n).val : ℂ) * Complex.I
+    let L := continuedCompletedHeckeL (χ (ω k))
+    obtain ⟨hL, heq⟩ := continuedCompletedHeckeL_spec (χ (ω k))
+    have htwo : meromorphicOrderAt L 2 ≠ ⊤ := by
+      intro h
+      have hp : 0 < meromorphicOrderAt L 2 := h ▸ WithTop.coe_lt_top (0 : ℤ)
+      have hb := completedHeckeL_continuation_zeros (χ (ω k)) _ hL heq
+        (by norm_num : 0 < (2 : ℂ).re) hp
+      norm_num at hb
+    have hne : meromorphicOrderAt L z ≠ ⊤ := hL.meromorphicOn.meromorphicOrderAt_ne_top_of_isPreconnected
+      isPreconnected_univ (mem_univ _) (mem_univ z) htwo
+    have hp : 0 < meromorphicOrderAt L z := ((t k) n).property
+    rw [← WithTop.coe_untop₀_of_ne_top hne] at hp
+    have hint : 0 < (meromorphicOrderAt L z).untop₀ := WithTop.coe_lt_coe.mp hp
+    change 0 < (meromorphicOrderAt L z).untop₀.toNat
+    omega
+  let j (k n : ℕ) : J := ⟨(k, n, 0), lt_min (ordpos k n) hcut⟩
+  have hinj : Injective (j 0) := fun m n he ↦ congrArg (fun v : J ↦ v.val.2.1) he
+  have hf := hfin F a s ha hs χ hχ ω t ht (j 1 0)
+  apply False.elim
+  apply (Set.infinite_range_of_injective hinj)
+  apply hf.subset
+  rintro _ ⟨n, rfl⟩
+  exact Or.inr (Prod.Lex.left _ _ (Nat.zero_lt_succ 0))
 
 end RiemannMasullo

@@ -1,0 +1,482 @@
+/-
+Copyright (c) 2026 The Tau Ceti contributors. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: The Tau Ceti contributors
+-/
+/-
+Vendored from TauCetiProject/TauCeti at 8794ab329bb60340fa690a2902cf995f0571721b,
+file TauCeti/Analysis/Normed/Module/Ball.lean.
+Changes are listed in MODIFICATIONS.md in the vendoring directory.
+-/
+module
+
+public import Mathlib.Analysis.Normed.Group.AddTorsor
+public import Mathlib.Analysis.Normed.Group.BallSphere
+public import Mathlib.Analysis.Normed.Module.Basic
+public import Mathlib.Analysis.Normed.Module.Ball.Pointwise
+public import Mathlib.LinearAlgebra.Span.Defs
+public import RiemannMasullo.External.TauCeti.Analysis.Normed.Module.RCLike.Real
+import Mathlib.Tactic.Module
+import Mathlib.Topology.Algebra.Module.Equiv.Basic
+import Mathlib.Topology.Instances.Nat
+
+/-!
+# Metric balls and spheres in normed spaces
+
+This file records how the affine map `y ↦ c • y +ᵥ x` pulls metric balls, closed balls, and
+spheres back to their corresponding sets centered at zero.
+
+The preimage formulas need only `[Norm 𝕜] [SMul 𝕜 E] [NormSMulClass 𝕜 E]` on the
+scalars and their action. Balls and closed balls require `0 < ‖c‖`; spheres only require
+`‖c‖ ≠ 0`. Over a normed division ring these conditions are equivalent to `c ≠ 0`, via
+`norm_pos_iff` and `norm_ne_zero_iff` respectively. For a distributive action, scaling by `c`
+pulls `Metric.ball (c • x) (‖c‖ * r)` back to `Metric.ball x r`
+(`RiemannMasullo.External.TauCeti.preimage_smul_ball_smul_norm`).
+
+Sets that agree on `ball x (r * R)` have preimages under the blow-up map `y ↦ x + r • y`,
+`r > 0`, that agree on `ball 0 R` (`RiemannMasullo.External.TauCeti.preimage_add_smul_inter_ball_eq`), and hence the same
+symmetric difference with any set inside it (`RiemannMasullo.External.TauCeti.preimage_add_smul_symmDiff_inter_eq`).
+
+The range formula identifies a positive real scaling of the unit sphere with the sphere
+of that radius in a seminormed real vector space. Two points on a sphere of nonzero radius
+centered at zero lie on the same line exactly when they are equal or antipodal.
+
+The normalization lemmas compute the norm of `R⁻¹ • z` when `R ≥ 0` and characterize the unit
+norm conditions for `R⁻¹ • z` when `R > 0`.
+They need only a norm homogeneous under real scalar multiplication; no additive structure
+or metric on the vector type is required.
+
+For `0 < ε`, the rescaling `z ↦ ε⁻¹ • (z - y)` pulls `closedBall 0 R` back to
+`closedBall y (ε * R)` (`RiemannMasullo.External.TauCeti.inv_smul_sub_mem_closedBall_zero_iff`), so composing it with a
+function supported in the closed unit ball gives a function supported in `closedBall y ε`
+(`RiemannMasullo.External.TauCeti.tsupport_comp_inv_smul_sub_subset_closedBall`).
+
+In a nontrivial real normed space, one ball lies in another exactly when its radius plus the
+distance between the centres is at most the radius of the other. The sufficiency holds in every
+pseudometric space (`Metric.closedBall_subset_closedBall'`, `Metric.ball_subset_ball'`); the
+necessity uses a point of the smaller ball on the far side of its centre. A concentric annulus
+`ball x R \ closedBall x r` in a seminormed real space with nontrivial topology is nonempty
+exactly when `r < R` and `0 < R` (`RiemannMasullo.External.TauCeti.ball_sdiff_closedBall_nonempty_iff`).
+
+In a seminormed real space, no point of an open ball disjoint from `ball c r`, `r ≠ 0`, lies on
+the sphere of radius `r` about `c` (`RiemannMasullo.External.TauCeti.norm_sub_ne_of_disjoint_ball`).
+
+For `t ≥ 0`, the outer parallel set `K + t • closedBall 0 1` of a compact set `K` is its closed
+`t`-thickening (`IsCompact.add_smul_closedBall_eq_cthickening`).
+
+A scalar of norm one maps the product of a set with a ball about zero to itself when it acts on the
+ball factor (`RiemannMasullo.External.TauCeti.mapsTo_prodMk_smul_ball`). A scalar `c` maps the ball of radius `R` about
+zero into the ball of radius `ρ` once `‖c‖ * R < ρ` (`RiemannMasullo.External.TauCeti.smul_mem_ball_zero_of_norm_mul_lt`).
+
+A closed ball of positive radius is homeomorphic to the closed unit ball by a rescaling that
+matches the boundary spheres (`RiemannMasullo.External.TauCeti.exists_homeomorph_closedBall_one_norm_eq`).
+
+Half the difference body of a bounded set lies in a ball of half its diameter. A bounded set
+centrally symmetric up to translation lies in a ball of half its diameter about its center.
+
+The balls of radius `‖v‖ / 2` about the points `x + j • v`, `j : ℕ`, are pairwise disjoint
+(`RiemannMasullo.External.TauCeti.pairwise_disjoint_ball_add_natCast_smul`).
+
+For `ρ ≤ ‖ξ‖ / 2`, the points of the dilate `t • ball ξ ρ` with `t > 0` have norms strictly between
+`t ‖ξ‖ / 2` and `3 t ‖ξ‖ / 2` (`RiemannMasullo.External.TauCeti.norm_bounds_of_mem_smul_ball`), so the dilates
+`c ^ k • ball ξ ρ` with `c ≥ 3` are pairwise disjoint (`RiemannMasullo.External.TauCeti.pairwise_disjoint_pow_smul_ball`).
+-/
+
+public section
+
+namespace RiemannMasullo.External.TauCeti
+
+section Preimage
+
+variable {𝕜 E P : Type*} [Norm 𝕜] [SeminormedAddCommGroup E]
+  [SMul 𝕜 E] [NormSMulClass 𝕜 E] [PseudoMetricSpace P] [NormedAddTorsor E P]
+
+/-- The affine normalization map `y ↦ c • y +ᵥ x` pulls the ball `Metric.ball x (‖c‖ * r)` back
+to `Metric.ball 0 r`, for a scale `c` of positive norm. -/
+@[simp]
+theorem preimage_smul_vadd_ball_norm (x : P) {c : 𝕜} (hc : 0 < ‖c‖) (r : ℝ) :
+    ((fun y : E ↦ c • y +ᵥ x) ⁻¹' Metric.ball x (‖c‖ * r)) = Metric.ball 0 r := by
+  ext y
+  simp only [Set.mem_preimage, Metric.mem_ball, dist_vadd_left, dist_zero_right, norm_smul]
+  exact mul_lt_mul_iff_right₀ hc
+
+/-- The affine map `y ↦ c • y +ᵥ x` pulls the closed ball of radius `‖c‖ * r` about `x`
+back to the closed ball of radius `r` about `0`. -/
+@[simp]
+theorem preimage_smul_vadd_closedBall (x : P) {c : 𝕜} (hc : 0 < ‖c‖) (r : ℝ) :
+    ((fun y : E ↦ c • y +ᵥ x) ⁻¹' Metric.closedBall x (‖c‖ * r)) =
+      Metric.closedBall 0 r := by
+  ext y
+  simp only [Set.mem_preimage, Metric.mem_closedBall, dist_vadd_left, dist_zero_right, norm_smul]
+  exact mul_le_mul_iff_right₀ hc
+
+/-- The affine map `y ↦ c • y +ᵥ x` pulls the sphere of radius `‖c‖ * r` about `x`
+back to the sphere of radius `r` about `0`, provided `‖c‖ ≠ 0`. -/
+@[simp]
+theorem preimage_smul_vadd_sphere (x : P) {c : 𝕜} (hc : ‖c‖ ≠ 0) (r : ℝ) :
+    ((fun y : E ↦ c • y +ᵥ x) ⁻¹' Metric.sphere x (‖c‖ * r)) = Metric.sphere 0 r := by
+  ext y
+  simp only [Set.mem_preimage, Metric.mem_sphere, dist_vadd_left, dist_zero_right, norm_smul]
+  exact mul_right_inj' hc
+
+end Preimage
+
+section PreimageSMul
+
+variable {𝕜 E : Type*} [Norm 𝕜] [SeminormedAddCommGroup E] [DistribSMul 𝕜 E]
+  [NormSMulClass 𝕜 E]
+
+/-- Scaling by `c` pulls the ball `Metric.ball (c • x) (‖c‖ * r)` back to `Metric.ball x r`, for a
+scale `c` of positive norm. -/
+@[simp]
+theorem preimage_smul_ball_smul_norm (x : E) {c : 𝕜} (hc : 0 < ‖c‖) (r : ℝ) :
+    ((fun y : E ↦ c • y) ⁻¹' Metric.ball (c • x) (‖c‖ * r)) = Metric.ball x r := by
+  ext y
+  simp only [Set.mem_preimage, Metric.mem_ball, dist_eq_norm, ← smul_sub, norm_smul]
+  exact mul_lt_mul_iff_right₀ hc
+
+end PreimageSMul
+
+section Locality
+
+open scoped symmDiff
+
+variable {E : Type*} [SeminormedAddCommGroup E] [NormedSpace ℝ E] {x : E} {r R : ℝ}
+
+/-- Sets that agree on `Metric.ball x (r * R)` have preimages under `y ↦ x + r • y`, `r > 0`, that
+agree on `Metric.ball 0 R`. -/
+theorem preimage_add_smul_inter_ball_eq {a b : Set E} (hr : 0 < r)
+    (h : a ∩ Metric.ball x (r * R) = b ∩ Metric.ball x (r * R)) :
+    (fun y ↦ x + r • y) ⁻¹' a ∩ Metric.ball 0 R = (fun y ↦ x + r • y) ⁻¹' b ∩ Metric.ball 0 R := by
+  have hball : (fun y ↦ x + r • y) ⁻¹' Metric.ball x (r * R) = Metric.ball 0 R := by
+    simpa [abs_of_pos hr, add_comm] using
+      preimage_smul_vadd_ball_norm x (c := r) (norm_pos_iff.2 hr.ne') R
+  rw [← hball, ← Set.preimage_inter, ← Set.preimage_inter, h]
+
+/-- Sets that agree on `Metric.ball x (r * R)` have preimages under `y ↦ x + r • y`, `r > 0`, with
+the same symmetric difference with `c` inside every `K ⊆ Metric.ball 0 R`. -/
+theorem preimage_add_smul_symmDiff_inter_eq {a b c K : Set E} (hr : 0 < r)
+    (h : a ∩ Metric.ball x (r * R) = b ∩ Metric.ball x (r * R)) (hK : K ⊆ Metric.ball 0 R) :
+    (((fun y ↦ x + r • y) ⁻¹' a) ∆ c) ∩ K = (((fun y ↦ x + r • y) ⁻¹' b) ∆ c) ∩ K := by
+  have hK' : (fun y ↦ x + r • y) ⁻¹' a ∩ K = (fun y ↦ x + r • y) ⁻¹' b ∩ K := by
+    rw [← Set.inter_eq_right.2 hK, ← Set.inter_assoc, preimage_add_smul_inter_ball_eq hr h,
+      Set.inter_assoc]
+  rw [Set.inter_symmDiff_distrib_right, Set.inter_symmDiff_distrib_right, hK']
+
+end Locality
+
+section ProdBall
+
+open Metric Set
+
+variable {α 𝕜 E : Type*} [Norm 𝕜] [SeminormedAddCommGroup E] [SMul 𝕜 E] [NormSMulClass 𝕜 E]
+
+/-- Acting on the second factor by a scalar of norm one maps the product of a set with a ball about
+zero to itself. -/
+theorem mapsTo_prodMk_smul_ball {U : Set α} {R : ℝ} {ζ : 𝕜} (hζ : ‖ζ‖ = 1) :
+    MapsTo (fun b : α × E ↦ (b.1, ζ • b.2)) (U ×ˢ ball 0 R) (U ×ˢ ball 0 R) := by
+  intro b hb
+  refine ⟨hb.1, ?_⟩
+  simpa only [mem_ball_zero_iff, norm_smul, hζ, one_mul] using hb.2
+
+end ProdBall
+
+section SMulBall
+
+open Metric
+
+variable {𝕜 E : Type*} [SeminormedAddGroup 𝕜] [SeminormedAddGroup E] [SMul 𝕜 E]
+  [NormSMulClass 𝕜 E]
+
+/-- Scaling by `c` maps the ball of radius `R` about zero into the ball of radius `ρ` once
+`‖c‖ * R < ρ`. -/
+theorem smul_mem_ball_zero_of_norm_mul_lt {c : 𝕜} {R ρ : ℝ} (hc : ‖c‖ * R < ρ) {z : E}
+    (hz : z ∈ ball (0 : E) R) : c • z ∈ ball (0 : E) ρ := by
+  rw [mem_ball_zero_iff] at hz ⊢
+  rw [norm_smul]
+  exact (mul_le_mul_of_nonneg_left hz.le (norm_nonneg c)).trans_lt hc
+
+end SMulBall
+
+section Sphere
+
+variable {E : Type*} [SeminormedAddCommGroup E] [NormedSpace ℝ E]
+
+/-- The image of the unit sphere under scaling by a positive real `c` is the sphere of radius
+`c`. -/
+@[simp]
+theorem range_smul_coe_sphere {c : ℝ} (hc : 0 < c) :
+    Set.range (fun u : Metric.sphere (0 : E) 1 ↦ c • (u : E)) = Metric.sphere 0 c := by
+  rw [Set.range_comp' (c • ·) Subtype.val, Subtype.range_coe, Set.image_smul,
+    smul_sphere' hc.ne', smul_zero, Real.norm_of_nonneg hc.le, mul_one]
+
+/-- Two points of a sphere of nonzero radius centered at zero in a real seminormed space
+lie on the same line exactly when they are equal or antipodal. -/
+@[simp]
+theorem coe_mem_span_singleton_iff {r : ℝ} (hr : r ≠ 0) {x p : Metric.sphere (0 : E) r} :
+    (x : E) ∈ ℝ ∙ (p : E) ↔ x = p ∨ x = -p := by
+  refine ⟨fun h => ?_, ?_⟩
+  · obtain ⟨a, ha⟩ := Submodule.mem_span_singleton.1 h
+    have habs : |a| = 1 := by
+      apply (mul_eq_right₀ hr).1
+      simpa [← ha, norm_smul] using norm_eq_of_mem_sphere x
+    rcases (abs_eq zero_le_one).1 habs with rfl | rfl
+    · exact Or.inl (Subtype.ext (by rw [← ha, one_smul]))
+    · exact Or.inr (Subtype.ext (by rw [← ha, coe_neg_sphere, neg_one_smul]))
+  · rintro (rfl | rfl)
+    · exact Submodule.mem_span_singleton_self _
+    · rw [coe_neg_sphere]
+      exact Submodule.neg_mem _ (Submodule.mem_span_singleton_self _)
+
+/-- The unit sphere minus `p` and `-p` is the set of its points off the line through `p`. -/
+theorem compl_singleton_inter_compl_singleton_neg_eq (p : Metric.sphere (0 : E) 1) :
+    ({p}ᶜ ∩ {-p}ᶜ : Set (Metric.sphere (0 : E) 1)) =
+      ({x | (x : E) ∉ ℝ ∙ (p : E)} : Set (Metric.sphere (0 : E) 1)) := by
+  ext x
+  simp [not_or]
+
+end Sphere
+
+section Normalization
+
+variable {E : Type*} [Norm E] [SMul ℝ E] [NormSMulClass ℝ E]
+
+/-- Scaling a vector by the inverse of a positive radius puts it inside the unit norm bound
+exactly when its original norm is less than that radius. -/
+@[simp]
+theorem norm_inv_smul_lt_one_iff {z : E} {R : ℝ} (hR : 0 < R) :
+    ‖R⁻¹ • z‖ < 1 ↔ ‖z‖ < R := by
+  simp [norm_smul, Real.norm_of_nonneg hR.le, inv_mul_lt_iff₀ hR]
+
+/-- Scaling a vector by the inverse of a positive radius gives unit norm exactly when its
+original norm equals that radius. -/
+@[simp]
+theorem norm_inv_smul_eq_one_iff {z : E} {R : ℝ} (hR : 0 < R) :
+    ‖R⁻¹ • z‖ = 1 ↔ ‖z‖ = R := by
+  simp [norm_smul, Real.norm_of_nonneg hR.le, inv_mul_eq_iff_eq_mul₀ hR.ne']
+
+/-- Scaling a vector by the inverse of a nonnegative real divides its norm by that real. -/
+theorem norm_inv_smul_of_nonneg {z : E} {R : ℝ} (hR : 0 ≤ R) : ‖R⁻¹ • z‖ = ‖z‖ / R := by
+  rw [norm_smul, norm_inv, Real.norm_of_nonneg hR, inv_mul_eq_div]
+
+end Normalization
+
+section Rescaling
+
+open Metric
+
+variable {E : Type*} [SeminormedAddCommGroup E] [NormedSpace ℝ E]
+
+/-- For `0 < ε`, the rescaled point `ε⁻¹ • (z - y)` lies in `closedBall 0 R` exactly when `z` lies
+in `closedBall y (ε * R)`. -/
+theorem inv_smul_sub_mem_closedBall_zero_iff {ε : ℝ} (hε : 0 < ε) {R : ℝ} {y z : E} :
+    ε⁻¹ • (z - y) ∈ closedBall (0 : E) R ↔ z ∈ closedBall y (ε * R) := by
+  simp [norm_smul, abs_of_pos hε, dist_eq_norm, inv_mul_le_iff₀ hε]
+
+/-- Rescaling a function supported in the closed unit ball to `z ↦ χ (ε⁻¹ • (z - y))` gives a
+function supported in `closedBall y ε`. -/
+theorem tsupport_comp_inv_smul_sub_subset_closedBall {α : Type*} [Zero α] {χ : E → α}
+    (hχs : tsupport χ ⊆ closedBall 0 1) {ε : ℝ} (hε : 0 < ε) (y : E) :
+    tsupport (fun z ↦ χ (ε⁻¹ • (z - y))) ⊆ closedBall y ε := by
+  intro z hz
+  have h := hχs (tsupport_comp_subset_preimage χ (f := fun z ↦ ε⁻¹ • (z - y)) (by fun_prop) hz)
+  rwa [inv_smul_sub_mem_closedBall_zero_iff hε, mul_one] at h
+
+end Rescaling
+
+section Subset
+
+variable {E : Type*} [NormedAddCommGroup E] [NormedSpace ℝ E] [Nontrivial E] {x y : E} {r s : ℝ}
+
+/-- In a nontrivial real normed space, the closed ball of nonnegative radius `r` about `x` lies in
+the closed ball of radius `s` about `y` exactly when `r + dist x y ≤ s`. -/
+theorem closedBall_subset_closedBall_iff (hr : 0 ≤ r) :
+    Metric.closedBall x r ⊆ Metric.closedBall y s ↔ r + dist x y ≤ s := by
+  refine ⟨fun h => ?_, Metric.closedBall_subset_closedBall'⟩
+  -- A vector `v` of norm `r` pointing away from `y`, so that `x + v` is as far from `y` as
+  -- the closed ball about `x` allows.
+  obtain ⟨v, hv, hxyv⟩ : ∃ v : E, ‖v‖ = r ∧ ‖x - y + v‖ = ‖x - y‖ + r := by
+    rcases eq_or_ne x y with rfl | hxy
+    · obtain ⟨v, hv⟩ := exists_norm_eq E hr
+      exact ⟨v, hv, by simp [hv]⟩
+    · have hpos : 0 < ‖x - y‖ := norm_pos_iff.2 (sub_ne_zero.2 hxy)
+      refine ⟨(r / ‖x - y‖) • (x - y), ?_, ?_⟩
+      · rw [norm_smul, Real.norm_of_nonneg (by positivity), div_mul_cancel₀ _ hpos.ne']
+      · nth_rw 1 [← one_smul ℝ (x - y)]
+        rw [← add_smul, norm_smul, Real.norm_of_nonneg (by positivity)]
+        field_simp
+  have hmem := h (Metric.mem_closedBall.2 (by rw [dist_eq_norm, add_sub_cancel_left, hv]))
+  rw [Metric.mem_closedBall, dist_eq_norm, add_sub_right_comm, hxyv] at hmem
+  rwa [dist_eq_norm, add_comm]
+
+/-- In a nontrivial real normed space, the ball of positive radius `r` about `x` lies in the ball
+of radius `s` about `y` exactly when `r + dist x y ≤ s`. -/
+theorem ball_subset_ball_iff (hr : 0 < r) :
+    Metric.ball x r ⊆ Metric.ball y s ↔ r + dist x y ≤ s := by
+  refine ⟨fun h => ?_, Metric.ball_subset_ball'⟩
+  -- Every closed ball of radius `t < r` about `x` lies in the closed ball of radius `s`.
+  suffices ∀ t < r, t ≤ s - dist x y by linarith [le_of_forall_lt_imp_le_of_dense this]
+  intro t ht
+  have hsub : Metric.closedBall x (max t 0) ⊆ Metric.closedBall y s :=
+    (Metric.closedBall_subset_ball (max_lt ht hr)).trans (h.trans Metric.ball_subset_closedBall)
+  linarith [le_max_left t 0, (closedBall_subset_closedBall_iff (le_max_right t 0)).1 hsub]
+
+end Subset
+
+section Annulus
+
+variable {E : Type*} [SeminormedAddCommGroup E] [NormedSpace ℝ E] [NontrivialTopology E]
+  {x : E} {r R : ℝ}
+
+/-- In a seminormed real vector space with nontrivial topology, the open-closed concentric annulus
+`Metric.ball x R \ Metric.closedBall x r` is nonempty if and only if `r < R` and `0 < R`. -/
+@[simp]
+theorem ball_sdiff_closedBall_nonempty_iff :
+    (Metric.ball x R \ Metric.closedBall x r).Nonempty ↔ r < R ∧ 0 < R := by
+  refine ⟨?_, fun ⟨hrR, hR⟩ ↦ ?_⟩
+  · rintro ⟨y, hyR, hyr⟩
+    rw [Metric.mem_ball] at hyR
+    rw [Metric.mem_closedBall, not_le] at hyr
+    exact ⟨hyr.trans hyR, dist_nonneg.trans_lt hyR⟩
+  · obtain ⟨y, hy⟩ :=
+      (NormedSpace.sphere_nonempty (x := x) (r := (max 0 r + R) / 2)).2
+        (by linarith [le_max_left 0 r])
+    refine ⟨y, Metric.mem_ball.2 ?_, fun h ↦ ?_⟩
+    · rw [Metric.mem_sphere.1 hy]
+      linarith [max_lt hR hrR]
+    · linarith [Metric.mem_closedBall.1 h, Metric.mem_sphere.1 hy, max_lt hR hrR, le_max_right 0 r]
+
+end Annulus
+
+section DisjointBall
+
+variable {E : Type*} [SeminormedAddCommGroup E] [NormedSpace ℝ E]
+
+/-- In a seminormed real vector space, a point of an open ball disjoint from `Metric.ball c r`,
+`r ≠ 0`, does not lie on the sphere of radius `r` about `c`: that sphere lies in the closure of
+`Metric.ball c r`, which the open ball still misses. -/
+theorem norm_sub_ne_of_disjoint_ball {x c c' : E} {r r' : ℝ} (hr : r ≠ 0)
+    (hd : Disjoint (Metric.ball c r) (Metric.ball c' r')) (hx : x ∈ Metric.ball c' r') :
+    ‖x - c‖ ≠ r := by
+  intro hxc
+  have hd' := hd.closure_left Metric.isOpen_ball
+  rw [closure_ball c hr] at hd'
+  exact Set.disjoint_left.1 hd' (mem_closedBall_iff_norm.2 hxc.le) hx
+
+end DisjointBall
+
+end RiemannMasullo.External.TauCeti
+
+section Parallel
+
+open scoped Pointwise
+
+variable {E : Type*} [NormedAddCommGroup E] [NormedSpace ℝ E]
+
+/-- For `t ≥ 0`, the outer parallel set `K + t • closedBall 0 1` of a compact set `K` is the closed
+`t`-thickening of `K`. -/
+theorem IsCompact.add_smul_closedBall_eq_cthickening {K : Set E} (hK : IsCompact K) {t : ℝ}
+    (ht : 0 ≤ t) : K + t • Metric.closedBall (0 : E) 1 = Metric.cthickening t K := by
+  rw [smul_unitClosedBall_of_nonneg ht, hK.add_closedBall_zero ht]
+
+end Parallel
+
+namespace RiemannMasullo.External.TauCeti
+
+open Metric Set
+open scoped Pointwise
+
+section Diameter
+
+variable {E : Type*} [SeminormedAddCommGroup E] [NormedSpace ℝ E]
+
+/-- Half the difference body `(1 / 2) • K + (-(1 / 2)) • K` of a bounded set `K` lies in the closed
+ball about `0` whose radius is half the diameter of `K`. -/
+theorem half_smul_add_neg_half_smul_subset_closedBall_diam_div_two {K : Set E}
+    (hK : Bornology.IsBounded K) :
+    (1 / 2 : ℝ) • K + (-(1 / 2) : ℝ) • K ⊆ closedBall 0 (diam K / 2) := by
+  rintro _ ⟨_, ⟨a, ha, rfl⟩, _, ⟨b, hb, rfl⟩, rfl⟩
+  dsimp only
+  rw [mem_closedBall_zero_iff, neg_smul, ← sub_eq_add_neg, ← smul_sub]
+  exact norm_half_smul_sub_le (dist_eq_norm a b ▸ dist_le_diam_of_mem hK ha hb)
+
+/-- A bounded set `H` with `-H = v +ᵥ H` is symmetric about `-(1 / 2) • v`, so it lies in the
+closed ball of radius `diam H / 2` about that point. -/
+theorem subset_closedBall_diam_div_two_of_neg_eq_vadd {H : Set E}
+    (hH : Bornology.IsBounded H) {v : E} (hv : -H = v +ᵥ H) :
+    H ⊆ closedBall (-((1 / 2 : ℝ) • v)) (diam H / 2) := by
+  intro y hy
+  have hy' : -v + -y ∈ H := (mem_vadd_set_iff_neg_vadd_mem).1 (hv ▸ Set.neg_mem_neg.2 hy)
+  have hcenter : y + (1 / 2 : ℝ) • v = (1 / 2 : ℝ) • (y - (-v + -y)) := by module
+  rw [mem_closedBall, dist_eq_norm, sub_neg_eq_add, hcenter]
+  exact norm_half_smul_sub_le (dist_eq_norm y _ ▸ dist_le_diam_of_mem hH hy hy')
+
+end Diameter
+
+section Dilate
+
+variable {E : Type*} [SeminormedAddCommGroup E] [NormedSpace ℝ E]
+
+/-- A point of the dilate `t • ball ξ ρ`, for `t > 0` and `ρ ≤ ‖ξ‖ / 2`, has norm between
+`t ‖ξ‖ / 2` and `3 t ‖ξ‖ / 2`. -/
+theorem norm_bounds_of_mem_smul_ball {ξ : E} {ρ t : ℝ} (hρ : ρ ≤ ‖ξ‖ / 2) (ht : 0 < t)
+    {x : E} (hx : x ∈ t • ball ξ ρ) : t * ‖ξ‖ / 2 < ‖x‖ ∧ ‖x‖ < 3 * t * ‖ξ‖ / 2 := by
+  obtain ⟨y, hy, rfl⟩ := mem_smul_set.1 hx
+  have hy' : ‖y - ξ‖ < ‖ξ‖ / 2 := (mem_ball_iff_norm.1 hy).trans_le hρ
+  have h₁ := norm_sub_norm_le y ξ
+  have h₂ := norm_sub_norm_le ξ y
+  rw [norm_sub_rev] at h₂
+  rw [norm_smul, Real.norm_of_nonneg ht.le]
+  constructor <;> nlinarith
+
+/-- For `ρ ≤ ‖ξ‖ / 2` and `c ≥ 3`, the dilates `c ^ k • ball ξ ρ` are pairwise disjoint: their
+norms lie in the disjoint intervals `(c ^ k ‖ξ‖ / 2, 3 c ^ k ‖ξ‖ / 2)`. -/
+theorem pairwise_disjoint_pow_smul_ball {c : ℝ} (hc : 3 ≤ c) {ξ : E} {ρ : ℝ}
+    (hρ : ρ ≤ ‖ξ‖ / 2) :
+    Pairwise (Function.onFun Disjoint fun k : ℕ ↦ (c ^ k) • ball ξ ρ) := by
+  have hc0 : 0 < c := by linarith
+  refine (pairwise_disjoint_on _).2 fun j k hjk ↦ Set.disjoint_left.2 fun x hxj hxk ↦ ?_
+  have h₁ := (norm_bounds_of_mem_smul_ball hρ (pow_pos hc0 j) hxj).2
+  have h₂ := (norm_bounds_of_mem_smul_ball hρ (pow_pos hc0 k) hxk).1
+  -- `3 c ^ j ≤ c ^ (j + 1) ≤ c ^ k`, so the two norm intervals cannot overlap.
+  have hpow : 3 * c ^ j ≤ c ^ k :=
+    calc 3 * c ^ j ≤ c * c ^ j := by gcongr
+      _ = c ^ (j + 1) := (pow_succ' c j).symm
+      _ ≤ c ^ k := pow_le_pow_right₀ (by linarith) hjk
+  nlinarith [norm_nonneg ξ]
+
+end Dilate
+
+section Rescaling
+
+/-- The closed ball of radius `r > 0` is homeomorphic to the unit closed ball by a rescaling that
+carries the boundary sphere onto the boundary sphere. -/
+theorem exists_homeomorph_closedBall_one_norm_eq {V : Type*} [NormedAddCommGroup V]
+    [NormedSpace ℝ V] {r : ℝ} (hr : 0 < r) :
+    ∃ S : Metric.closedBall (0 : V) r ≃ₜ Metric.closedBall (0 : V) 1,
+      ∀ v : Metric.closedBall (0 : V) r, ‖(S v : V)‖ = 1 ↔ ‖(v : V)‖ = r := by
+  refine ⟨(Homeomorph.smulOfNeZero r⁻¹ (inv_ne_zero hr.ne')).subtype fun v ↦ by
+    simp [norm_smul, abs_of_pos hr, inv_mul_le_iff₀ hr], fun v ↦ ?_⟩
+  simp [norm_smul, abs_of_pos hr, inv_mul_eq_one₀ hr.ne', eq_comm]
+
+end Rescaling
+
+section Disjoint
+
+variable {E : Type*} [SeminormedAddCommGroup E] [NormedSpace ℝ E]
+
+/-- The balls of radius `‖v‖ / 2` about the points `x + j • v`, `j : ℕ`, are pairwise disjoint. -/
+theorem pairwise_disjoint_ball_add_natCast_smul (x v : E) :
+    Pairwise (Function.onFun Disjoint fun j : ℕ => ball (x + (j : ℝ) • v) (‖v‖ / 2)) := by
+  intro i j hij
+  refine ball_disjoint_ball ?_
+  have h : (1 : ℝ) ≤ |(i : ℝ) - j| := by
+    simpa only [Nat.dist_eq] using Nat.pairwise_one_le_dist hij
+  have hdist : dist (x + (i : ℝ) • v) (x + (j : ℝ) • v) = |(i : ℝ) - j| * ‖v‖ := by
+    rw [dist_eq_norm, add_sub_add_left_eq_sub, ← sub_smul, norm_smul, Real.norm_eq_abs]
+  rw [hdist, add_halves]
+  nlinarith [norm_nonneg v]
+
+end Disjoint
+
+end RiemannMasullo.External.TauCeti

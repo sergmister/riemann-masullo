@@ -3,7 +3,7 @@ module
 public import RiemannMasullo.Ch07_SchauderBasesZeta.Sec2
 public import RiemannMasullo.Ch11_ShellStructure.Sec1b
 
-import all RiemannMasullo.AppA_AlgebraicNT.Sec3
+import RiemannMasullo.AppA_AlgebraicNT.Sec3
 
 /-!
 # Printed claims in §11.1.2

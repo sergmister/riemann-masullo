@@ -1,0 +1,128 @@
+/-
+Copyright (c) 2026 The Tau Ceti contributors. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: The Tau Ceti contributors
+-/
+/-
+Vendored from TauCetiProject/TauCeti at 8794ab329bb60340fa690a2902cf995f0571721b,
+file TauCeti/Analysis/Calculus/FDeriv/Norm.lean.
+Changes are listed in MODIFICATIONS.md in the vendoring directory.
+-/
+module
+
+public import Mathlib.Analysis.InnerProductSpace.Calculus
+public import Mathlib.Analysis.InnerProductSpace.PiL2
+public import Mathlib.Analysis.SpecialFunctions.Sqrt
+import Mathlib.Analysis.Calculus.FDeriv.Norm
+import Mathlib.Analysis.Calculus.LocalExtr.Basic
+import RiemannMasullo.External.TauCeti.Analysis.InnerProductSpace.Orthonormal.Multilinear
+
+/-!
+# Derivatives and norms
+
+At a local extremum of the norm of a map, its derivative is orthogonal to its value. In
+particular, the derivative of a map into a sphere is tangent to the sphere. Away from the origin,
+a vanishing derivative of a norm-composition forces the one-dimensional profile derivative to
+vanish. In any real normed space, a curve whose derivative is a multiple `c • f a` of its value
+has norm with derivative `c * ‖f a‖` (`HasDerivAt.norm_of_smul_self`).
+
+The squared norm of the derivative of a map from `ℂ` to a Euclidean space is at most twice the
+sum of the squared partial derivatives of its components along `1` and `I`
+(`RiemannMasullo.External.TauCeti.norm_fderiv_sq_le_two_mul_sum_sq`).
+
+The function `y ↦ √(a - ‖y‖²)`, whose graph over the ball of radius `√a` is a hemisphere, has
+derivative `-(√(a - ‖x‖²))⁻¹ ⟪x, ·⟫` wherever `a - ‖x‖² ≠ 0`; in particular it is flat at the
+origin.
+-/
+
+public section
+
+open scoped RealInnerProductSpace Topology
+
+namespace RiemannMasullo.External.TauCeti
+
+variable {E : Type*} [NormedAddCommGroup E] [NormedSpace ℝ E]
+variable {F : Type*} [NormedAddCommGroup F] [InnerProductSpace ℝ F]
+
+/-- Away from the origin, a vanishing totalized derivative of a radial function forces its
+one-dimensional profile derivative to vanish. The profile need not be differentiable. -/
+theorem deriv_eq_zero_of_fderiv_comp_norm_eq_zero {v : ℝ → E} {x : F} (hx : x ≠ 0)
+    (hcrit : fderiv ℝ (fun y : F ↦ v ‖y‖) x = 0) : deriv v ‖x‖ = 0 := by
+  by_contra hv
+  have hn : DifferentiableAt ℝ (‖·‖) x := differentiableAt_id.norm ℝ hx
+  -- The chain rule, evaluated at `x`: `‖x‖ • deriv v ‖x‖ = 0` since `fderiv ℝ (‖·‖) x x = ‖x‖`.
+  have h := congr($(((differentiableAt_of_deriv_ne_zero hv).hasDerivAt.hasFDerivAt.comp x
+    hn.hasFDerivAt).fderiv.symm.trans hcrit) x)
+  exact hv (by simpa [hn.fderiv_norm_self, hx] using h)
+
+/-- At a local extremum `w` of `‖ψ‖`, the Fréchet derivative of `ψ` is orthogonal to `ψ w`. This
+covers a map whose norm is constant near `w`: the derivative of a map into a sphere is tangent to
+the sphere. At nondifferentiable points, the Fréchet derivative is zero by definition. -/
+theorem _root_.IsLocalExtr.inner_fderiv_eq_zero {ψ : E → F} {w : E}
+    (hψ : IsLocalExtr (fun y ↦ ‖ψ y‖) w) (u : E) :
+    ⟪ψ w, fderiv ℝ ψ w u⟫ = 0 := by
+  by_cases hd : DifferentiableAt ℝ ψ w
+  · -- Squaring is monotone on `[0, ∞)`, so `‖ψ‖ ^ 2` also has a local extremum at `w`.
+    have hsq : IsLocalExtr (fun y ↦ ‖ψ y‖ ^ 2) w := hψ.elim
+      (fun h ↦ IsMinFilter.isExtrFilter <| h.mono fun _ hy ↦ pow_le_pow_left₀ (norm_nonneg _) hy 2)
+      (fun h ↦ IsMaxFilter.isExtrFilter <| h.mono fun _ hy ↦ pow_le_pow_left₀ (norm_nonneg _) hy 2)
+    -- Fermat's theorem: the derivative `2 ⟪ψ w, fderiv ℝ ψ w ·⟫` of `‖ψ‖ ^ 2` vanishes at `w`.
+    simpa using congr($(IsLocalExtr.hasFDerivAt_eq_zero hsq hd.hasFDerivAt.norm_sq) u)
+  · simp [fderiv_zero_of_not_differentiableAt hd]
+
+/-- If a curve `f` has derivative `c • f a` at `a`, so that it moves radially to first order, then
+its norm has derivative `c * ‖f a‖` at `a`. The norm need not come from an inner product. -/
+theorem _root_.HasDerivAt.norm_of_smul_self {f : ℝ → E} {a c : ℝ} (hf : HasDerivAt f (c • f a) a) :
+    HasDerivAt (fun t ↦ ‖f t‖) (c * ‖f a‖) a := by
+  rw [hasDerivAt_iff_isLittleO_nhds_zero] at hf ⊢
+  refine (Asymptotics.IsBigO.of_bound' ?_).trans_isLittleO hf
+  -- Near `0`, `1 + t * c > 0`, so `‖(1 + t * c) • f a‖ = (1 + t * c) * ‖f a‖`.
+  have hpos : ∀ᶠ t in 𝓝 (0 : ℝ), 0 < 1 + t * c :=
+    continuousAt_const.eventually_lt (by fun_prop) (by simp)
+  filter_upwards [hpos] with t ht
+  calc ‖‖f (a + t)‖ - ‖f a‖ - t • (c * ‖f a‖)‖ = |‖f (a + t)‖ - ‖(1 + t * c) • f a‖| := by
+        rw [norm_smul, Real.norm_of_nonneg ht.le, Real.norm_eq_abs]
+        ring_nf
+    _ ≤ ‖f (a + t) - (1 + t * c) • f a‖ := abs_norm_sub_norm_le _ _
+    _ = ‖f (a + t) - f a - t • c • f a‖ := by congr 1; module
+
+/-- The squared operator norm of the derivative of a map from `ℂ` to a Euclidean space is at most
+twice the sum, over the components, of the squared partial derivatives along `1` and `I`. -/
+theorem norm_fderiv_sq_le_two_mul_sum_sq {ι : Type*} [Fintype ι] (u : ℂ → EuclideanSpace ℝ ι)
+    (z : ℂ) :
+    ‖fderiv ℝ u z‖ ^ 2 ≤
+      2 * ∑ i, (fderiv ℝ (fun w ↦ u w i) z 1 ^ 2 + fderiv ℝ (fun w ↦ u w i) z Complex.I ^ 2) := by
+  by_cases hu : DifferentiableAt ℝ u z
+  swap
+  · rw [fderiv_zero_of_not_differentiableAt hu, norm_zero, zero_pow two_ne_zero]
+    positivity
+  have hD := (fderiv ℝ u z).opNorm_sq_le_card_mul_sum_norm_apply_sq_orthonormalBasis
+    Complex.orthonormalBasisOneI
+  simp only [Fintype.card_fin, Nat.cast_ofNat, Fin.sum_univ_two, Complex.coe_orthonormalBasisOneI,
+    Matrix.cons_val_zero, Matrix.cons_val_one] at hD
+  -- The squared norm of a directional derivative is the sum over the components.
+  have hcomp (v : ℂ) : ‖fderiv ℝ u z v‖ ^ 2 = ∑ i, fderiv ℝ (fun w ↦ u w i) z v ^ 2 := by
+    rw [EuclideanSpace.real_norm_sq_eq]
+    refine Finset.sum_congr rfl fun i _ ↦ ?_
+    have h : HasFDerivAt (fun w ↦ u w i) ((EuclideanSpace.proj i).comp (fderiv ℝ u z)) z :=
+      (EuclideanSpace.proj (𝕜 := ℝ) i).hasFDerivAt.comp z hu.hasFDerivAt
+    rw [h.fderiv]
+    rfl
+  rwa [hcomp, hcomp, ← Finset.sum_add_distrib] at hD
+
+/-- The hemisphere function `y ↦ √(a - ‖y‖²)` has derivative `-(√(a - ‖x‖²))⁻¹ ⟪x, ·⟫` at every
+point `x` with `a - ‖x‖² ≠ 0`. -/
+theorem hasFDerivAt_sqrt_sub_norm_sq {a : ℝ} {x : F} (hx : a - ‖x‖ ^ 2 ≠ 0) :
+    HasFDerivAt (fun y : F ↦ √(a - ‖y‖ ^ 2)) (-(√(a - ‖x‖ ^ 2))⁻¹ • innerSL ℝ x) x := by
+  refine ((((hasFDerivAt_id x).norm_sq).const_sub a).sqrt hx).congr_fderiv ?_
+  ext y
+  simp only [id_eq, one_div, mul_inv_rev, ContinuousLinearMap.comp_id, smul_neg, neg_apply,
+    smul_apply, coe_innerSL_apply, nsmul_eq_mul, Nat.cast_ofNat, smul_eq_mul, neg_smul, neg_inj]
+  ring
+
+/-- The Fréchet derivative of `y ↦ ‖y - x₀‖ ^ 2` at `x` is `2 • innerSL ℝ (x - x₀)`. -/
+theorem hasFDerivAt_norm_sq_sub (x₀ x : F) :
+    HasFDerivAt (fun y => ‖y - x₀‖ ^ 2) (2 • innerSL ℝ (x - x₀)) x := by
+  simpa using ((hasFDerivAt_id x).sub_const x₀).norm_sq
+
+end RiemannMasullo.External.TauCeti

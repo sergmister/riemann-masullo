@@ -26,6 +26,7 @@ import RiemannMasullo.ForMathlib.Geometry.Manifold.Instances.UnitsOfNormedAlgebr
 import RiemannMasullo.ForMathlib.MeasureTheory.Group.Arithmetic
 import RiemannMasullo.ForMathlib.MeasureTheory.Group.FundamentalDomain
 import RiemannMasullo.ForMathlib.NumberTheory.NumberField.Completion.FinitePlace
+import RiemannMasullo.ForMathlib.NumberTheory.NumberField.InfiniteAdeleRing
 import RiemannMasullo.ForMathlib.RingTheory.Trace.Defs
 import RiemannMasullo.ForMathlib.Topology.Algebra.Module.OpenMapping
 import RiemannMasullo.ForMathlib.Topology.Covering.AddCircle
@@ -248,19 +249,8 @@ private theorem mem_schwartzBruhatSubmodule_euclidean_iff
 
 omit [NumberField F] in
 /-- The mixed coordinate map on infinite adeles is continuous in both directions. -/
-private theorem continuous_mixedCoordinates : Continuous mixed ∧ Continuous (mixed).symm := by
-  classical
-  open InfinitePlace in
-  let h : InfiniteAdeleRing F ≃ₜ mixedEmbedding.mixedSpace F :=
-    (Homeomorph.piEquivPiSubtypeProd IsReal (fun v : InfinitePlace F ↦ v.Completion)).trans
-      ((Homeomorph.piCongrRight fun v ↦
-          (Completion.isometryEquivRealOfIsReal v.2).toHomeomorph).prodCongr
-        ((Homeomorph.piCongrRight fun v ↦
-          (Completion.isometryEquivComplexOfIsComplex
-            (not_isReal_iff_isComplex.mp v.2)).toHomeomorph).trans
-          (Homeomorph.piCongrLeft (Y := fun _ ↦ ℂ)
-            (Equiv.subtypeEquivRight fun _ ↦ not_isReal_iff_isComplex))))
-  exact ⟨h.continuous, h.symm.continuous⟩
+private theorem continuous_mixedCoordinates : Continuous mixed ∧ Continuous (mixed).symm :=
+  ⟨continuous_infiniteAdeleRingEquivMixedSpace F, continuous_infiniteAdeleRingEquivMixedSpace_symm F⟩
 
 /-- In mixed real and complex coordinates, the archimedean Schwartz–Bruhat functions
 are precisely the classical Schwartz functions on the underlying real vector space. -/
@@ -572,22 +562,7 @@ private theorem adeleSchwartz_infinite_differentiableAt (f : ℬ[F])
   classical
   let E := mixedEmbedding.mixedSpace F
   let eArch := InfiniteAdeleRing.ringEquiv_mixedSpace F
-  have hInv : Continuous eArch.symm := by
-    apply continuous_pi
-    intro v
-    rcases v.isReal_or_isComplex with hv | hv
-    · exact ((InfinitePlace.Completion.isometryEquivRealOfIsReal hv).symm.continuous.comp
-        ((continuous_apply ⟨v, hv⟩).comp continuous_fst)).congr fun y ↦ by
-          apply (InfinitePlace.Completion.isometryEquivRealOfIsReal hv).injective
-          exact ((InfinitePlace.Completion.isometryEquivRealOfIsReal hv).apply_symm_apply
-            (y.1 ⟨v, hv⟩)).trans
-              (congrFun (congrArg Prod.fst (eArch.apply_symm_apply y)).symm ⟨v, hv⟩)
-    · exact ((InfinitePlace.Completion.isometryEquivComplexOfIsComplex hv).symm.continuous.comp
-        ((continuous_apply ⟨v, hv⟩).comp continuous_snd)).congr fun y ↦ by
-          apply (InfinitePlace.Completion.isometryEquivComplexOfIsComplex hv).injective
-          exact ((InfinitePlace.Completion.isometryEquivComplexOfIsComplex hv).apply_symm_apply
-            (y.2 ⟨v, hv⟩)).trans
-              (congrFun (congrArg Prod.snd (eArch.apply_symm_apply y)).symm ⟨v, hv⟩)
+  have hInv : Continuous eArch.symm := continuous_infiniteAdeleRingEquivMixedSpace_symm F
   let i : E →+ 𝔸[F] := eArch.symm.toAddMonoidHom.prod (0 : E →+ _)
   have hi : Continuous i := hInv.prodMk continuous_const
   let j : Multiplicative E →ₜ* Multiplicative 𝔸[F] := ⟨i.toMultiplicative, hi⟩
@@ -705,36 +680,8 @@ private theorem archimedeanMixedSpace_equiv
   let B := (Fin 0 → AddCircle (1 : ℝ)) × (Fin 0 → ℤ) × PUnit.{1}
   let : Unique B := uniqueOfSubsingleton 0
   let M := InfiniteAdeleRing.ringEquiv_mixedSpace F
-  have hm : Continuous M := by
-    have h : ⇑M = fun x ↦
-        ((fun (v : {w : InfinitePlace F // InfinitePlace.IsReal w}) ↦
-          InfinitePlace.Completion.extensionEmbeddingOfIsReal v.2 (x v)),
-         (fun (v : {w : InfinitePlace F // InfinitePlace.IsComplex w}) ↦
-          InfinitePlace.Completion.extensionEmbedding v.1 (x v))) := by
-      funext x
-      exact InfiniteAdeleRing.ringEquiv_mixedSpace_apply F x
-    rw [h]
-    exact (continuous_pi fun v ↦
-      (InfinitePlace.Completion.isometry_extensionEmbeddingOfIsReal v.2).continuous.comp
-        (continuous_apply v.1)).prodMk (continuous_pi fun v ↦
-      (InfinitePlace.Completion.isometry_extensionEmbedding v.1).continuous.comp
-        (continuous_apply v.1))
-  have hMi : Continuous M.symm := by
-    apply continuous_pi
-    intro v
-    rcases v.isReal_or_isComplex with hv | hv
-    · exact ((InfinitePlace.Completion.isometryEquivRealOfIsReal hv).symm.continuous.comp
-        ((continuous_apply ⟨v, hv⟩).comp continuous_fst)).congr fun y ↦ by
-          apply (InfinitePlace.Completion.isometryEquivRealOfIsReal hv).injective
-          exact ((InfinitePlace.Completion.isometryEquivRealOfIsReal hv).apply_symm_apply
-            (y.1 ⟨v, hv⟩)).trans
-              (congrFun (congrArg Prod.fst (M.apply_symm_apply y)).symm ⟨v, hv⟩)
-    · exact ((InfinitePlace.Completion.isometryEquivComplexOfIsComplex hv).symm.continuous.comp
-        ((continuous_apply ⟨v, hv⟩).comp continuous_snd)).congr fun y ↦ by
-          apply (InfinitePlace.Completion.isometryEquivComplexOfIsComplex hv).injective
-          exact ((InfinitePlace.Completion.isometryEquivComplexOfIsComplex hv).apply_symm_apply
-            (y.2 ⟨v, hv⟩)).trans
-              (congrFun (congrArg Prod.snd (M.apply_symm_apply y)).symm ⟨v, hv⟩)
+  have hm := continuous_infiniteAdeleRingEquivMixedSpace F
+  have hMi := continuous_infiniteAdeleRingEquivMixedSpace_symm F
   let w : G ≃* Multiplicative P :=
     AddEquiv.toMultiplicative
       (M.toAddEquiv.trans (L.toLinearEquiv.toAddEquiv.trans

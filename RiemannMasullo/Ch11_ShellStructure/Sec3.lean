@@ -3,8 +3,11 @@ module
 public import Mathlib.NumberTheory.PrimeCounting
 public import RiemannMasullo.Ch11_ShellStructure.Sec2b
 
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
-import all RiemannMasullo.Ch11_ShellStructure.Sec1a
+import all RiemannMasullo.AppA_AlgebraicNT.Sec2
+import RiemannMasullo.Ch10_TraceSpectral.Sec1
+import RiemannMasullo.Ch11_ShellStructure.Sec1a
+
+import all RiemannMasullo.Ch07_SchauderBasesZeta.Sec5
 
 /-!
 # Orbital kernels and orbital traces
@@ -48,7 +51,24 @@ theorem exists_divisorialThetaRepresentative (S : Finset V)
     (_hPic : Subsingleton (CommRing.Pic ((S : Set V).integer F))) (ω : PontryaginDual C₁)
     (_hω : NormOneCharacterUnramifiedOutside ω S) (f : adelePolarSubspace F) :
     ∃ fS : ℬₛ(S), homogeneousAdelicTheta ω (sAdeleSchwartzToGlobal F S fS) =
-      homogeneousAdelicTheta ω f.val := by sorry
+      homogeneousAdelicTheta ω f.val := by
+  obtain ⟨e, he⟩ :=
+    sLocalHomogeneousThetaToGlobal_equiv_of_unramified (F := F) (S := S) _hPic (ω := ω) _hω
+  have hsurj : Function.Surjective (sLocalHomogeneousThetaToGlobal (F := F) (ω := ω) _hω) := by
+    rw [← he]
+    exact e.surjective
+  obtain ⟨y, hy⟩ := hsurj ((LinearMap.ker (homogeneousAdelicThetaLinearMap F ω)).mkQ f.val)
+  obtain ⟨fS, hfS⟩ := Submodule.mkQ_surjective
+    (LinearMap.ker (sLocalHomogeneousAdelicThetaLinearMap F S
+      (sLocalNormOneCharacter (F := F) S ω _hω))) y
+  rw [← hfS] at hy
+  refine ⟨fS, ?_⟩
+  refine (globalHomogeneousThetaSpace_mk_eq_iff (F := F) ω _ _).mp ?_
+  have h1 : (homogeneousAdelicThetaLinearMap F ω).ker.mkQ ((sAdeleSchwartzToGlobal F S) fS)
+      = (homogeneousAdelicThetaLinearMap F ω).ker.mkQ (f.val) := by
+    rw [← sLocalHomogeneousThetaToGlobal_mk (F := F) (S := S) _hω fS]
+    exact hy
+  simpa only [Submodule.mkQ_apply] using h1
 
 /-- Paper: §11.3.1.1, p. 492, before (11.3.1.2). The local factor is the
 indicator of ideles whose component at the chosen finite place is a unit.
@@ -222,7 +242,22 @@ a split prime. -/
 theorem relativeIdeleNormRat_mem_divisorialStratum
     (T : Finset Vℚ) :
     divisorialStratum F (T.biUnion (fun p ↦ above(p))) ⊆
-      (relativeIdeleNormRat F) ⁻¹' divisorialStratum ℚ T := by sorry
+      (relativeIdeleNormRat F) ⁻¹' divisorialStratum ℚ T := by
+  have hQ (v : Vℚ) (x : v.adicCompletion ℚ) : ‖x‖ = 1 ↔ Valued.v x = 1 := by
+    rw [FinitePlace.norm_def, NNReal.coe_eq_one,
+      WithZeroMulInt.toNNReal_eq_one_iff _ _ (HeightOneSpectrum.one_lt_absNorm_nnreal v).ne']
+  have hF (v : V) (x : v.adicCompletion F) : ‖x‖ = 1 ↔ Valued.v x = 1 := by
+    rw [FinitePlace.norm_def, NNReal.coe_eq_one,
+      WithZeroMulInt.toNNReal_eq_one_iff _ _ (HeightOneSpectrum.one_lt_absNorm_nnreal v).ne']
+  intro g hg p hp
+  refine (hQ p _).1 ?_
+  refine (rationalAdeleNorm_finitePlace F p g.val).trans ?_
+  refine finprod_eq_one_of_forall_eq_one fun w ↦ ?_
+  rw [finprod_eq_if]
+  split_ifs with hw
+  · exact (hF w _).2 (hg w (Finset.mem_biUnion.2
+      ⟨p, hp, (finite_nuclearityPlacesAbove p).mem_toFinset.2 hw⟩))
+  · rfl
 
 /-- Paper: §11.3.1.1, p. 493. The product of the unit indicators on a finite set
 outside S converts the integer-extended test to its principal value at those places.
@@ -258,7 +293,21 @@ theorem primaryDivisorialZeta_succ_of_polar (S : Finset V) (k : ℕ) (χ : Pontr
     let Z := fun j ↦ globalIdelicZFunction
       (adelePrincipalValue F (primaryDivisorialPlaces F S j) (sAdeleSchwartzToGlobal F S f)) c
     Z (k + 1) = reciprocalPartialHeckeEulerProduct χ above(primaryDivisorialPrime S k) z * Z k :=
-  by sorry
+  by
+  let f₀ : adelePolarSubspace F := ⟨sAdeleSchwartzToGlobal F S f, _hf⟩
+  let Z (j : ℕ) (w : ℂ) := globalIdelicZFunction
+    (adelePrincipalValue F (primaryDivisorialPlaces F S j) f₀.val) (ideleClassNormTwist χ w)
+  have ha (j : ℕ) : AnalyticOnNhd ℂ (Z j) univ := fun z _ ↦
+    (globalIdelicZFunction_entire_of_vanishing _
+      (adelePrincipalValue_mem_polarSubspace (primaryDivisorialPlaces F S j) f₀) χ).analyticAt z
+  let Q := reciprocalPartialHeckeEulerProduct χ above(primaryDivisorialPrime S k)
+  have hQ : AnalyticOnNhd ℂ Q univ := fun w _ ↦
+    (strongCoprimalityJetMatrix_det_ne_zero_euler χ above(primaryDivisorialPrime S k)).1 w
+  have he : Z (k + 1) =ᶠ[nhds (2 : ℂ)] Q * Z k := by
+    filter_upwards [Complex.continuous_re.continuousAt.eventually
+      (eventually_gt_nhds (show (1 : ℝ) < (2 : ℂ).re by norm_num))] with w hw
+    exact primaryDivisorialZeta_succ S k χ _hχ f w hw
+  exact congrFun ((ha _).eq_of_eventuallyEq (hQ.mul (ha k)) he) z
 
 -- TODO(paper-gap): The local "Weil's Identity" on p. 492 has an extra factor
 -- μᵥ(𝒪ᵥˣ) on the left. With the Tamagawa measure of (A.3.2.2) both
@@ -355,10 +404,99 @@ theorem divisorialThetaStage_empty (ω : PontryaginDual C₁) :
     Subtype.ext (LinearMap.ext_iff.mp divisorialThetaStage_empty_PV p.val)
   exact congrArg (fun y : P ↦ (Submodule.Quotient.mk y : Θ(ω))) e
 
+/-- Two linear maps agree once they agree on the pure tensors of an
+inductive tensor product with a finite tensor product. -/
+private theorem divisorialThetaStage_antitone_extPi {ι : Type*} [Fintype ι] {E N : Type*}
+    {M : ι → Type*} [∀ i, AddCommGroup (M i)] [∀ i, Module ℂ (M i)]
+    [AddCommGroup E] [Module ℂ E] [TopologicalSpace E]
+    [AddCommGroup N] [Module ℂ N] [TopologicalSpace N]
+    (e : InductiveTensor E (FinestLocallyConvex (PiTensorProduct ℂ M)) ≃L[ℂ] N)
+    (L₁ L₂ : N →ₗ[ℂ] N)
+    (h : ∀ (a : E) (g : ∀ i, M i),
+      L₁ (e (TensorProduct.tmul ℂ a (PiTensorProduct.tprod ℂ g))) =
+        L₂ (e (TensorProduct.tmul ℂ a (PiTensorProduct.tprod ℂ g)))) :
+    L₁ = L₂ := by
+  apply (LinearMap.cancel_right (g := e.toLinearMap) e.surjective).mp
+  apply TensorProduct.ext
+  exact LinearMap.ext fun a ↦ LinearMap.ext_on_range PiTensorProduct.span_tprod_eq_top (h a)
+
+/-- The S-local principal values compose over disjoint sets of selected places. -/
+private theorem divisorialThetaStage_antitone_sPV {T T' : Finset (HeightOneSpectrum (𝓞 F))} (hT : T ⊆ T') :
+    sAdelePrincipalValue F (Finset.Subset.refl T') =
+      (sAdelePrincipalValue F hT).comp (sAdelePrincipalValue F (Finset.sdiff_subset (s := T') (t := T))) := by
+  refine divisorialThetaStage_antitone_extPi (sAdeleSchwartz_inductiveTensor_equiv F T').choose _ _ fun a g ↦ ?_
+  have h1 := sAdelePrincipalValue_tmul (F := F) (Finset.Subset.refl T') a g
+  have h2 := sAdelePrincipalValue_tmul (F := F) (Finset.sdiff_subset (s := T') (t := T)) a g
+  have h3 := sAdelePrincipalValue_tmul (F := F) hT a
+    (fun w : T' ↦ if (w : HeightOneSpectrum (𝓞 F)) ∈ T' \ T then
+      finitePlacePrincipalValue (F := F) w.val (g w) else g w)
+  refine h1.trans ?_
+  refine Eq.trans ?_ (LinearMap.comp_apply _ _ _).symm
+  refine Eq.trans ?_ (congrArg (sAdelePrincipalValue F hT) h2.symm)
+  refine Eq.trans ?_ h3.symm
+  apply congrArg
+  apply congrArg
+  apply congrArg
+  funext w
+  by_cases hw : (w : HeightOneSpectrum (𝓞 F)) ∈ T
+  · simp [hw, w.2, Finset.mem_sdiff]
+  · simp [hw, w.2, Finset.mem_sdiff]
+
+/-- Two linear maps agree once they agree on the pure tensors of an inductive tensor product. -/
+private theorem divisorialThetaStage_antitone_extTail {E G N : Type*}
+    [AddCommGroup E] [Module ℂ E] [TopologicalSpace E]
+    [AddCommGroup G] [Module ℂ G] [TopologicalSpace G]
+    [AddCommGroup N] [Module ℂ N] [TopologicalSpace N]
+    (e : InductiveTensor E G ≃L[ℂ] N) (L₁ L₂ : N →ₗ[ℂ] N)
+    (h : ∀ (a : E) (b : G), L₁ (e (TensorProduct.tmul ℂ a b)) = L₂ (e (TensorProduct.tmul ℂ a b))) :
+    L₁ = L₂ := by
+  apply (LinearMap.cancel_right (g := e.toLinearMap) e.surjective).mp
+  apply TensorProduct.ext
+  exact LinearMap.ext fun a ↦ LinearMap.ext (h a)
+
+/-- The global principal value at a larger set is the one at the smaller set after the one
+at the difference. -/
+private theorem divisorialThetaStage_antitone_PV {T T' : Finset (HeightOneSpectrum (𝓞 F))} (hT : T ⊆ T') :
+    adelePrincipalValue F T' =
+      (adelePrincipalValue F T).comp (adelePrincipalValue F (T' \ T)) := by
+  refine divisorialThetaStage_antitone_extTail (sAdeleTailSchwartz_inductiveTensor_equiv F T').choose _ _ fun a b ↦ ?_
+  have h1 := adelePrincipalValue_tmul (F := F) (Finset.Subset.refl T') a b
+  have h2 := adelePrincipalValue_tmul (F := F) (Finset.sdiff_subset (s := T') (t := T)) a b
+  have h3 := adelePrincipalValue_tmul (F := F) hT
+    (sAdelePrincipalValue F (Finset.sdiff_subset (s := T') (t := T)) a) b
+  refine h1.trans ?_
+  refine Eq.trans ?_ (LinearMap.comp_apply _ _ _).symm
+  refine Eq.trans ?_ (congrArg (adelePrincipalValue F T) h2.symm)
+  refine Eq.trans ?_ h3.symm
+  apply congrArg
+  apply congrArg₂ _ _ rfl
+  exact (LinearMap.ext_iff.mp (divisorialThetaStage_antitone_sPV hT) a).trans (LinearMap.comp_apply _ _ _)
+
+/-- A factorization through a map preserving the submodule gives inclusion of images
+after applying the quotient map. -/
+private theorem divisorialThetaStage_antitone_range {A β : Type*} [AddCommMonoid A] [Module ℂ A]
+    (B : Submodule ℂ A) (Φ : B → β) (L L' R : A → A)
+    (h : ∀ f : B, L f.val ∈ B) (h' : ∀ f : B, L' f.val ∈ B) (hR : ∀ f : B, R f.val ∈ B)
+    (hc : ∀ f : B, L (R f.val) = L' f.val) :
+    Set.range (fun f : B ↦ Φ ⟨L' f.val, h' f⟩) ⊆ Set.range (fun f : B ↦ Φ ⟨L f.val, h f⟩) := by
+  rintro _ ⟨f, rfl⟩
+  exact ⟨⟨R f.val, hR f⟩, congrArg Φ (Subtype.ext (hc f))⟩
+
 /-- Paper: (11.3.1.3), p. 494. Adding places decreases the principal-value image
 of the polar theta space. -/
 theorem divisorialThetaStage_antitone (ω : PontryaginDual C₁) :
-    Antitone (divisorialThetaStage ω) := by sorry
+    Antitone (divisorialThetaStage ω) := by
+  intro T T' hTT'
+  have hP : ∀ f : P, adelePrincipalValue F T (adelePrincipalValue F (T' \ T) f.val) =
+      adelePrincipalValue F T' f.val := fun f ↦
+    ((LinearMap.ext_iff.mp (divisorialThetaStage_antitone_PV hTT') f.val).trans
+      (LinearMap.comp_apply _ _ _)).symm
+  unfold divisorialThetaStage
+  exact Submodule.span_mono (divisorialThetaStage_antitone_range P
+    (fun f : P ↦ (Submodule.Quotient.mk f : Θ(ω)))
+    (adelePrincipalValue F T) (adelePrincipalValue F T') (adelePrincipalValue F (T' \ T))
+    (adelePrincipalValue_mem_polarSubspace T) (adelePrincipalValue_mem_polarSubspace T')
+    (adelePrincipalValue_mem_polarSubspace (T' \ T)) hP)
 
 /-- Paper: (11.3.1.3), p. 494, and (7.4.0.2), p. 366. At the fibre over one
 rational prime the stage is the finite-place denominator of §7.4, so the first
@@ -370,11 +508,53 @@ theorem divisorialThetaStage_above (χ : PontryaginDual C𝔽) (p : Vℚ) :
   with_reducible rfl
 
 /-- Paper: (11.3.1.3), p. 494. Divide the kth principal-value theta image
-by the next image, viewed inside the kth stage. -/
-abbrev PrimaryDivisorialThetaSubquotient (S : Finset V) (ω : PontryaginDual C₁) (k : ℕ) :=
+by the next image, viewed inside the kth stage.
+
+This is a `def` with its own instances, not an `abbrev`, so that instance terms over it do
+not spell out its definition (#5398). -/
+def PrimaryDivisorialThetaSubquotient (S : Finset V) (ω : PontryaginDual C₁) (k : ℕ) :=
   ↥(divisorialThetaStage ω (primaryDivisorialPlaces F S k)) ⧸
     (divisorialThetaStage ω (primaryDivisorialPlaces F S (k + 1))).comap
       (divisorialThetaStage ω (primaryDivisorialPlaces F S k)).subtype
+
+namespace PrimaryDivisorialThetaSubquotient
+
+instance instAddCommGroup (S : Finset V) (ω : PontryaginDual C₁) (k : ℕ) :
+    AddCommGroup (PrimaryDivisorialThetaSubquotient S ω k) :=
+  inferInstanceAs (AddCommGroup
+    (↥(divisorialThetaStage ω (primaryDivisorialPlaces F S k)) ⧸
+    (divisorialThetaStage ω (primaryDivisorialPlaces F S (k + 1))).comap
+    (divisorialThetaStage ω (primaryDivisorialPlaces F S k)).subtype))
+
+instance instModule (S : Finset V) (ω : PontryaginDual C₁) (k : ℕ) :
+    Module ℂ (PrimaryDivisorialThetaSubquotient S ω k) :=
+  inferInstanceAs (Module ℂ
+    (↥(divisorialThetaStage ω (primaryDivisorialPlaces F S k)) ⧸
+    (divisorialThetaStage ω (primaryDivisorialPlaces F S (k + 1))).comap
+    (divisorialThetaStage ω (primaryDivisorialPlaces F S k)).subtype))
+
+instance instTopologicalSpace (S : Finset V) (ω : PontryaginDual C₁) (k : ℕ) :
+    TopologicalSpace (PrimaryDivisorialThetaSubquotient S ω k) :=
+  inferInstanceAs (TopologicalSpace
+    (↥(divisorialThetaStage ω (primaryDivisorialPlaces F S k)) ⧸
+    (divisorialThetaStage ω (primaryDivisorialPlaces F S (k + 1))).comap
+    (divisorialThetaStage ω (primaryDivisorialPlaces F S k)).subtype))
+
+instance instIsTopologicalAddGroup (S : Finset V) (ω : PontryaginDual C₁) (k : ℕ) :
+    IsTopologicalAddGroup (PrimaryDivisorialThetaSubquotient S ω k) :=
+  inferInstanceAs (IsTopologicalAddGroup
+    (↥(divisorialThetaStage ω (primaryDivisorialPlaces F S k)) ⧸
+    (divisorialThetaStage ω (primaryDivisorialPlaces F S (k + 1))).comap
+    (divisorialThetaStage ω (primaryDivisorialPlaces F S k)).subtype))
+
+instance instContinuousSMul (S : Finset V) (ω : PontryaginDual C₁) (k : ℕ) :
+    ContinuousSMul ℂ (PrimaryDivisorialThetaSubquotient S ω k) :=
+  inferInstanceAs (ContinuousSMul ℂ
+    (↥(divisorialThetaStage ω (primaryDivisorialPlaces F S k)) ⧸
+    (divisorialThetaStage ω (primaryDivisorialPlaces F S (k + 1))).comap
+    (divisorialThetaStage ω (primaryDivisorialPlaces F S k)).subtype))
+
+end PrimaryDivisorialThetaSubquotient
 
 /-- Paper: (11.3.1.3), p. 494. A representative in the kth stage has zero
 class precisely when it belongs to the next stage. -/
@@ -419,12 +599,77 @@ region in the definition of β consists of ideles that are units outside S. -/
 def sLocalDivisorialStratum (S : Finset V) : Set I𝔽 :=
   {g | ∀ v ∉ S, Valued.v (g.val.2 v) = 1}
 
+/-- the finite components of an idele and its inverse multiply to one. -/
+private theorem mem_sLocalDivisorialStratum_iff_inv_mul {F : Type*} [Field F] [NumberField F]
+    (g : IdeleGroup (𝓞 F) F) (v : HeightOneSpectrum (𝓞 F)) :
+    (g⁻¹).val.2 v * g.val.2 v = 1 := by
+  change ((g⁻¹ * g : IdeleGroup (𝓞 F) F).val).2 v = 1
+  rw [inv_mul_cancel]
+  rfl
+
+/-- an idele component has valuation one exactly when it and the inverse component are
+integral. -/
+private theorem mem_sLocalDivisorialStratum_iff_valued_eq_one {F : Type*} [Field F]
+    [NumberField F] (g : IdeleGroup (𝓞 F) F) (v : HeightOneSpectrum (𝓞 F)) :
+    Valued.v (g.val.2 v) = 1 ↔
+      g.val.2 v ∈ v.adicCompletionIntegers F ∧ (g⁻¹).val.2 v ∈ v.adicCompletionIntegers F := by
+  have h := congrArg Valued.v (mem_sLocalDivisorialStratum_iff_inv_mul g v)
+  rw [map_mul, map_one] at h
+  simp only [HeightOneSpectrum.mem_adicCompletionIntegers]
+  constructor
+  · intro h1
+    rw [h1, mul_one] at h
+    exact ⟨h1.le, h.le⟩
+  · rintro ⟨h1, h2⟩
+    refine le_antisymm h1 ?_
+    calc (1 : _) = Valued.v ((g⁻¹).val.2 v) * Valued.v (g.val.2 v) := h.symm
+      _ ≤ 1 * Valued.v (g.val.2 v) := mul_le_mul_left h2 _
+      _ = Valued.v (g.val.2 v) := one_mul _
+
 /-- Paper: §11.3.2, p. 495. The region of β is the product of the inserted
 S-ideles and the outside integer unit group. -/
 theorem mem_sLocalDivisorialStratum_iff (S : Finset V) (g : I𝔽) :
     g ∈ sLocalDivisorialStratum F S ↔
       ∃ (a : (SAdeleRing F S)ˣ) (u : outsideIntegralIdeleUnits F S),
-        g = sIdeleInsertion F S a * u.val := by sorry
+        g = sIdeleInsertion F S a * u.val := by
+  constructor
+  · intro hg
+    set b := sIdeleInsertion F S (Units.map (adeleProjection F S).toMonoidHom g)
+    obtain ⟨hb1, hbS, hbout⟩ :=
+      sIdeleInsertion_apply F S (Units.map (adeleProjection F S).toMonoidHom g)
+    have hinv1 : (b⁻¹).val.1 * b.val.1 = 1 := by
+      change ((b⁻¹ * b : I𝔽).val).1 = 1
+      rw [inv_mul_cancel]
+      rfl
+    refine ⟨_, ⟨b⁻¹ * g, ?_⟩, (mul_inv_cancel_left b g).symm⟩
+    rw [mem_outsideIntegralIdeleUnits_iff]
+    refine ⟨?_, fun w hw ↦ ?_, fun w hw ↦ ?_⟩
+    · change (b⁻¹).val.1 * g.val.1 = 1
+      rw [← hinv1, hb1]
+      rfl
+    · change (b⁻¹).val.2 w * g.val.2 w = 1
+      rw [← mem_sLocalDivisorialStratum_iff_inv_mul b w, hbS ⟨w, hw⟩]
+      rfl
+    · have hbw : (b⁻¹).val.2 w = 1 := by
+        have h := mem_sLocalDivisorialStratum_iff_inv_mul b w
+        rwa [hbout w hw, mul_one] at h
+      have h1 : (b⁻¹ * g).val.2 w = g.val.2 w := by
+        change (b⁻¹).val.2 w * g.val.2 w = _
+        rw [hbw, one_mul]
+      have h2 : ((b⁻¹ * g)⁻¹).val.2 w = (g⁻¹).val.2 w := by
+        rw [mul_inv_rev, inv_inv]
+        change (g⁻¹).val.2 w * b.val.2 w = _
+        rw [hbout w hw, mul_one]
+      rw [h1, h2]
+      exact (mem_sLocalDivisorialStratum_iff_valued_eq_one g w).1 (hg w hw)
+  · rintro ⟨a, ⟨u, hu⟩, rfl⟩ v hv
+    obtain ⟨-, -, hu⟩ := (mem_outsideIntegralIdeleUnits_iff u).1 hu
+    have hb := (sIdeleInsertion_apply F S a).2.2 v hv
+    have hval : (sIdeleInsertion F S a * u).val.2 v = u.val.2 v := by
+      change (sIdeleInsertion F S a).val.2 v * u.val.2 v = _
+      rw [hb, one_mul]
+    rw [hval]
+    exact (mem_sLocalDivisorialStratum_iff_valued_eq_one u v).2 (hu v hv)
 
 /-- Paper: §11.3.2, p. 495, and (D.1.10.1), p. 783. The region of β is the range
 of the insertion of the ideles integral outside S. -/
@@ -538,6 +783,65 @@ theorem orbitalPlacePoissonTerm_trivial_zero (φ : 𝒟) (v : V) (π : (v.adicCo
   simp [orbitalPlacePoissonTerm]
 
 /-- Paper: §11.3.1.1(2), p. 494, and (11.3.2.5), p. 496.
+For one unramified place, the half-shifted Mellin values at the zeros of its
+reciprocal Euler factor sum to its norm-one coset contributions.
+Deviation: Uses the angular integral and half-shift weight of the repaired formula.
+This is the analytic part of the split: decompose the Mellin integral along the
+norm fibres and apply Poisson summation in the logarithmic norm coordinate. -/
+private theorem orbitalEulerSum_eq_poisson_local (F : Type*) [Field F] [NumberField F]
+    (χ : PontryaginDual (IdeleClassGroup (𝓞 F) F))
+    (φ : BruhatCompactSupport (IdeleClassGroup (𝓞 F) F))
+    (v : HeightOneSpectrum (𝓞 F))
+    (hχ : (ideleClassNormTwist χ 0).IsUnramifiedAt v)
+    (π : (v.adicCompletion F)ˣ)
+    (hπ : Valued.v.IsUniformizer (π : v.adicCompletion F)) :
+    HasSum (fun z : {z : ℂ // (finiteHeckeEulerFactor χ v z)⁻¹ = 0} ↦
+      nuclearityTestMellin χ φ (z.val - 1 / 2))
+      (∑' n : ℤ, orbitalPlacePoissonTerm χ φ v π n) := by
+  sorry
+
+/-- Paper: §11.3.1.1(2), p. 494.
+Adding the local zero sums counts a shared zero once for each vanishing factor,
+which is exactly its multiplicity in the reciprocal Euler product. -/
+private theorem orbitalEulerSum_eq_poisson_assemble (F : Type*) [Field F] [NumberField F]
+    (χ : PontryaginDual (IdeleClassGroup (𝓞 F) F))
+    (φ : BruhatCompactSupport (IdeleClassGroup (𝓞 F) F))
+    (S : Finset (HeightOneSpectrum (𝓞 F)))
+    (a : HeightOneSpectrum (𝓞 F) → ℂ)
+    (hs : ∀ v ∈ S, HasSum
+      (fun z : {z : ℂ // (finiteHeckeEulerFactor χ v z)⁻¹ = 0} ↦
+        nuclearityTestMellin χ φ (z.val - 1 / 2)) (a v)) :
+    HasSum (fun z : {z : ℂ // reciprocalPartialHeckeEulerProduct χ S z = 0} ↦
+      (orbitalEulerMultiplicity χ S z.val : ℂ) *
+        nuclearityTestMellin χ φ (z.val - 1 / 2)) (∑ v ∈ S, a v) := by
+  classical
+  let f : ℂ → ℂ := fun z ↦ nuclearityTestMellin χ φ (z - 1 / 2)
+  have hv (v) (hv : v ∈ S) :
+      HasSum ({z : ℂ | (finiteHeckeEulerFactor χ v z)⁻¹ = 0}.indicator f) (a v) :=
+    hasSum_subtype_iff_indicator.mp (hs v hv)
+  have h := hasSum_sum hv
+  have he (z : ℂ) :
+      (∑ v ∈ S, {z : ℂ | (finiteHeckeEulerFactor χ v z)⁻¹ = 0}.indicator f z) =
+        (orbitalEulerMultiplicity χ S z : ℂ) * f z := by
+    rw [orbitalEulerMultiplicity_eq_card]
+    simp only [Set.indicator_apply, Set.mem_ofPred_eq]
+    rw [← Finset.sum_filter]
+    simp
+  have hglobal : HasSum (fun z : ℂ ↦ (orbitalEulerMultiplicity χ S z : ℂ) * f z)
+      (∑ v ∈ S, a v) := h.congr_fun (fun z ↦ (he z).symm)
+  apply (hasSum_subtype_iff_of_support_subset (s :=
+    {z : ℂ | reciprocalPartialHeckeEulerProduct χ S z = 0}) ?_).mpr hglobal
+  intro z hz
+  by_contra hn
+  have hnone : ∀ v ∈ S, (finiteHeckeEulerFactor χ v z)⁻¹ ≠ 0 := by
+    intro v hv hzv
+    exact hn (Finset.prod_eq_zero hv hzv)
+  have hzero : orbitalEulerMultiplicity χ S z = 0 := by
+    rw [orbitalEulerMultiplicity_eq_card, Finset.filter_eq_empty_iff.mpr hnone]
+    rfl
+  exact hz (by simp [hzero])
+
+/-- Paper: §11.3.1.1(2), p. 494, and (11.3.2.5), p. 496.
 The half-shifted Mellin values at the zeros of the reciprocal Euler product sum,
 with multiplicity, to the Poisson contributions of the places over the prime.
 Deviation: This is the Poisson evaluation of the spectral expression. A layer
@@ -549,7 +853,10 @@ theorem orbitalEulerSum_eq_poisson (χ : PontryaginDual C𝔽) (φ : 𝒟) (p : 
     let zeros := {z : ℂ // reciprocalPartialHeckeEulerProduct χ above(p) z = 0}
     HasSum (fun z : zeros ↦ (orbitalEulerMultiplicity χ above(p) z.val : ℂ) *
       nuclearityTestMellin χ φ (z.val - 1 / 2))
-      (∑ v ∈ above(p), ∑' n : ℤ, orbitalPlacePoissonTerm χ φ v (π v) n) := by sorry
+      (∑ v ∈ above(p), ∑' n : ℤ, orbitalPlacePoissonTerm χ φ v (π v) n) := by
+  exact orbitalEulerSum_eq_poisson_assemble F χ φ above(p)
+    (fun v ↦ ∑' n : ℤ, orbitalPlacePoissonTerm χ φ v (π v) n)
+    (fun v hv ↦ orbitalEulerSum_eq_poisson_local F χ φ v (_hχ v hv) (π v) (_hπ v hv))
 
 /-- Paper: §11.3.1.1(2), pp. 494–495. If the test is supported at norms
 strictly between one and the residue size, every summand at that place vanishes. -/
@@ -624,13 +931,188 @@ def orbitalSectionWeight (E : Set N𝔽) (τ : ℝ≥0ˣ →* I𝔽) (xy : I𝔽
       (Set.range τ).indicator (fun _ ↦ (1 : ℝ)) (principal ξ * g.val * xy.2)
       ∂normOneIdeleTamagawaMeasure F
 
+private theorem local_principalUnits {L : Type*} [NontriviallyNormedField L] [IsUltrametricDist L] :
+    ∃ u : ℕ → Lˣ, Filter.Tendsto u Filter.atTop (nhds 1) ∧ (∀ n, ‖(u n : L)‖ = 1) ∧ ∀ n, u n ≠ 1 := by
+  obtain ⟨π, hpos, hlt⟩ := NormedField.exists_norm_lt_one L
+  let a (n : ℕ) := π ^ (n + 1)
+  have ha (n : ℕ) : ‖a n‖ < 1 := by
+    change ‖π ^ (n + 1)‖ < 1
+    rw [norm_pow]
+    exact pow_lt_one₀ hpos.le hlt n.succ_ne_zero
+  have hne (n : ℕ) : 1 + a n ≠ 0 := by
+    intro he
+    have h := ha n
+    rw [show a n = -1 by linear_combination he, norm_neg, norm_one] at h
+    exact lt_irrefl _ h
+  let u (n : ℕ) := Units.mk0 (1 + a n) (hne n)
+  refine ⟨u, ?_, ?_, ?_⟩
+  · rw [Units.isEmbedding_val₀.isInducing.tendsto_nhds_iff]
+    have hlim : Filter.Tendsto a Filter.atTop (nhds (0 : L)) :=
+      (tendsto_pow_atTop_nhds_zero_of_norm_lt_one hlt).comp (Filter.tendsto_add_atTop_nat 1)
+    have h1 : Filter.Tendsto (fun n : ℕ ↦ (1 : L) + a n) Filter.atTop (nhds (1 + 0)) := tendsto_const_nhds.add hlim
+    rw [add_zero] at h1
+    simpa only [Function.comp_def, u, Units.val_mk0, Units.val_one] using h1
+  · intro n
+    change ‖1 + a n‖ = 1
+    have hlow : (1 : ℝ) ≤ max ‖1 + a n‖ ‖a n‖ := by
+      have h := IsUltrametricDist.norm_add_le_max (1 + a n) (-(a n))
+      simpa using h
+    have hge : (1 : ℝ) ≤ ‖1 + a n‖ := by
+      by_contra h
+      rw [not_le] at h
+      exact absurd (max_lt h (ha n)) (not_lt.mpr hlow)
+    have hle : ‖1 + a n‖ ≤ 1 :=
+      (IsUltrametricDist.norm_add_le_max (1 : L) (a n)).trans (max_le norm_one.le (ha n).le)
+    linarith
+  · intro n h
+    exact pow_ne_zero _ (norm_pos_iff.mp hpos) (add_eq_left.mp (congrArg Units.val h))
+
+
+/-- The idele with a unit of norm one at one finite place and 1 elsewhere has idele norm one. -/
+private theorem ideleNorm_ofAdicCompletion_of_norm_one (v : V) (u : (v.adicCompletion F)ˣ)
+    (hu : ‖(u : v.adicCompletion F)‖ = 1) :
+    ideleNorm F (IdeleGroup.ofAdicCompletion (𝓞 F) F v u) = 1 := by
+  classical
+  let g := IdeleGroup.ofAdicCompletion (𝓞 F) F v u
+  apply Units.ext
+  apply NNReal.coe_injective
+  change ((ideleNorm F g : ℝ≥0) : ℝ) = 1
+  rw [((ideleNorm_spec F).1 g).2]
+  change (∏ w : InfinitePlace F, ‖(1 : w.Completion)‖ ^ w.mult) *
+    ∏ᶠ w, ‖RestrictedProduct.mulSingle (fun w : V ↦ w.adicCompletionIntegers F) v u.val w‖ =
+    ((1 : ℝ≥0ˣ) : ℝ)
+  simp only [norm_one, one_pow, Finset.prod_const_one, one_mul, Units.val_one, NNReal.coe_one]
+  rw [finprod_eq_single _ v]
+  · rw [RestrictedProduct.mulSingle_eq_same]
+    exact hu
+  · intro w hw
+    rw [RestrictedProduct.mulSingle_eq_of_ne _ _ hw, norm_one]
+
+/-- Inserting a finite completion into the idele group is continuous. -/
+private theorem continuous_ideleGroup_ofAdicCompletion (v : V) :
+    Continuous (IdeleGroup.ofAdicCompletion (𝓞 F) F v) := by
+  classical
+  apply Continuous.units_map
+  apply continuous_const.prodMk
+  apply continuous_restrictedProduct_of_uniform
+  · intro w
+    exact (continuous_apply w).comp (continuous_mulSingle (A := fun u : V ↦ u.adicCompletion F) v)
+  · filter_upwards [Filter.eventually_cofinite_ne v] with w hw x
+    change Pi.mulSingle v x w ∈ w.adicCompletionIntegers F
+    rw [Pi.mulSingle_eq_of_ne hw]
+    exact (w.adicCompletionIntegers F).one_mem
+
+/-- The single-place insertion is injective. -/
+private theorem ofAdicCompletion_injective (v : V) {x : (v.adicCompletion F)ˣ}
+    (hx : IdeleGroup.ofAdicCompletion (𝓞 F) F v x = 1) : x = 1 := by
+  have hv := congrArg (fun d : I𝔽 ↦ d.val.2 v) hx
+  have hcoord : (IdeleGroup.ofAdicCompletion (𝓞 F) F v x).val.2 v = x.val := by
+    change RestrictedProduct.mulSingle (fun w : V ↦ w.adicCompletionIntegers F) v x.val v = x.val
+    exact RestrictedProduct.mulSingle_eq_same ..
+  rw [hcoord] at hv
+  simp at hv
+  exact Units.val_eq_one.mp hv
+
+
+open scoped Valued in
+/-- The norm-one ideles have no isolated point: a sequence of principal units at one
+finite place gives ideles of norm one tending to one but never equal to it. -/
+private theorem nhdsNE_neBot_normOne (v : V) : Filter.NeBot (nhdsWithin (1 : N𝔽) {1}ᶜ) := by
+  classical
+  obtain ⟨u, hu_tend, hu_norm, hu_ne⟩ := local_principalUnits (L := v.adicCompletion F)
+  have hcont : Continuous (IdeleGroup.ofAdicCompletion (𝓞 F) F v) :=
+    continuous_ideleGroup_ofAdicCompletion v
+  let φ (n : ℕ) : N𝔽 :=
+    ⟨IdeleGroup.ofAdicCompletion (𝓞 F) F v (u n), by
+      rw [MonoidHom.mem_ker]
+      exact ideleNorm_ofAdicCompletion_of_norm_one v (u n) (hu_norm n)⟩
+  rw [← mem_closure_iff_nhdsWithin_neBot, mem_closure_iff_frequently, Filter.frequently_iff]
+  intro U hU
+  rw [show nhds (1 : N𝔽) = (nhds (1 : I𝔽)).comap (Subtype.val : N𝔽 → I𝔽) from nhds_induced _ _] at hU
+  obtain ⟨W, hW, hWU⟩ := Filter.mem_comap.mp hU
+  have hpre : (IdeleGroup.ofAdicCompletion (𝓞 F) F v) ⁻¹' W ∈ nhds (1 : (v.adicCompletion F)ˣ) :=
+    hcont.continuousAt.preimage_mem_nhds (by rw [map_one]; exact hW)
+  obtain ⟨n, hn⟩ := (hu_tend.eventually hpre).exists
+  refine ⟨φ n, hWU hn, ?_⟩
+  intro hEq
+  have h1 : u n = 1 := by
+    apply ofAdicCompletion_injective v
+    exact congrArg Subtype.val hEq
+  exact hu_ne n h1
+
+
+/-- The norm-one Tamagawa measure gives measure zero to singletons. -/
+private theorem normOneIdeleTamagawaMeasure_nullSingleton (v : V) :
+    NullSingletonClass (normOneIdeleTamagawaMeasure F) := by
+  have htop : IsTopologicalGroup I𝔽 := (ideleGroup_topology F).2.2.1
+  have hcl : IsClosed ((ideleNorm F).ker : Set I𝔽) := (ideleGroup_topology F).2.2.2.2.2
+  let : IsTopologicalGroup I𝔽 := htop
+  let : LocallyCompactSpace I𝔽 := (ideleGroup_topology F).2.1
+  let : T2Space I𝔽 := (ideleGroup_topology F).1
+  let : LocallyCompactSpace N𝔽 := hcl.locallyCompactSpace
+  let : BorelSpace I𝔽 := ⟨rfl⟩
+  let : BorelSpace N𝔽 := ⟨by rw [borel_comap]; rfl⟩
+  let : (normOneIdeleTamagawaMeasure F).IsHaarMeasure :=
+    (normOneIdeleTamagawaMeasure_existsUnique F).exists.choose_spec.1
+  have hbot : Filter.NeBot (nhdsWithin (1 : N𝔽) {1}ᶜ) := nhdsNE_neBot_normOne v
+  exact MeasureTheory.Measure.IsHaarMeasure.nullSingletonClass _
+
+
+/-- A number field has a finite place. -/
+private theorem finitePlace_nonempty (F : Type*) [Field F] [NumberField F] :
+    Nonempty (HeightOneSpectrum (𝓞 F)) := by
+  obtain ⟨m, hm⟩ := Ideal.exists_maximal (𝓞 F)
+  exact ⟨⟨m, hm.isPrime, NeZero.ne m⟩⟩
+
 /-- Paper: (11.3.2.2), p. 495. The displayed weight vanishes everywhere.
 For each principal multiplier, the first translated section condition forces
 the integration variable into a single Haar-null point.
 Deviation: The printed weight cannot implement a normalized indentation. -/
 theorem orbitalSectionWeight_eq_zero (E : Set N𝔽) (τ : ℝ≥0ˣ →* I𝔽)
     (_hτ : RightInverse τ (ideleNorm F)) (xy : I𝔽 × I𝔽) :
-    orbitalSectionWeight E τ xy = 0 := by sorry
+    orbitalSectionWeight E τ xy = 0 := by
+  classical
+  have hτ : RightInverse τ (ideleNorm F) := _hτ
+  obtain ⟨v⟩ := finitePlace_nonempty F
+  haveI hns : NullSingletonClass (normOneIdeleTamagawaMeasure F) :=
+    normOneIdeleTamagawaMeasure_nullSingleton v
+  have hprincipal (ξ : Fˣ) : ideleNorm F (principal ξ) = 1 := by
+    have h : principal ξ ∈ (ideleNorm F).ker := (ideleNorm_spec F).2 ⟨ξ, rfl⟩
+    simpa using h
+  have hterm : ∀ ξ : Fˣ, ∫ g in E,
+      (Set.range τ).indicator (fun _ ↦ (1 : ℝ)) (principal ξ * g.val * xy.1) *
+        (Set.range τ).indicator (fun _ ↦ (1 : ℝ)) (principal ξ * g.val * xy.2)
+        ∂normOneIdeleTamagawaMeasure F = 0 := by
+    intro ξ
+    let g₀ : N𝔽 := ⟨(principal ξ)⁻¹ * τ (ideleNorm F xy.1) * (xy.1)⁻¹, by
+      rw [MonoidHom.mem_ker]
+      have hτ' : ∀ t : ℝ≥0ˣ, ideleNorm F (τ t) = t := hτ
+      simp only [map_mul, map_inv, hprincipal, hτ', inv_one, one_mul]
+      simp⟩
+    have hsupp : ∀ᵐ g ∂(normOneIdeleTamagawaMeasure F |>.restrict E),
+        (Set.range τ).indicator (fun _ ↦ (1 : ℝ)) (principal ξ * g.val * xy.1) *
+          (Set.range τ).indicator (fun _ ↦ (1 : ℝ)) (principal ξ * g.val * xy.2) = 0 := by
+      filter_upwards [Measure.ae_ne (normOneIdeleTamagawaMeasure F |>.restrict E) g₀]
+        with g hg
+      by_cases h1 : principal ξ * g.val * xy.1 ∈ Set.range τ
+      · exfalso
+        apply hg
+        obtain ⟨t, ht⟩ := h1
+        have hg1 : ideleNorm F (g : I𝔽) = 1 := MonoidHom.mem_ker.mp g.property
+        have hnorm : t = ideleNorm F xy.1 := by
+          have h := congrArg (ideleNorm F) ht
+          rw [hτ] at h
+          simp only [map_mul, hprincipal, hg1, one_mul] at h
+          exact h
+        have hg' : g.val = (principal ξ)⁻¹ * τ t * (xy.1)⁻¹ := by
+          rw [ht]
+          group
+        apply Subtype.ext
+        rw [hg', hnorm]
+      · rw [Set.indicator_of_notMem h1, zero_mul]
+    rw [integral_eq_zero_of_ae hsupp]
+  unfold orbitalSectionWeight
+  simp [hterm]
 
 /-- Paper: (11.3.2.1) and (11.3.2.3)–(11.3.2.4), pp. 495–496.
 The printed weight gives a zero skew-diagonal integral for any kernel,

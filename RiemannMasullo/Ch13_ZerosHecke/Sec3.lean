@@ -1,8 +1,8 @@
 module
 
 public import RiemannMasullo.Ch12_TraceGeometric.Sec5
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
-import all RiemannMasullo.AppB_AnalyticNT.Sec4b
+import RiemannMasullo.Ch10_TraceSpectral.Sec1
+import RiemannMasullo.AppB_AnalyticNT.Sec4b
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec2b
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec3b
 
@@ -145,7 +145,85 @@ theorem criticalTraceSpectral_converges (τ : ℝ≥0ˣ →ₜ* C𝔽)
     (_hτ : RightInverse τ (ideleClassNorm F)) :
     ∃ L : criticalTraceTestSubmodule τ →L[ℂ] ℂ,
       ∀ φ : criticalTraceTestSubmodule τ,
-        HasSum (fun z : lineZeros(τ) ↦ zeroTerm(φ.val, z)) (L φ) := by sorry
+        HasSum (fun z : lineZeros(τ) ↦ zeroTerm(φ.val, z)) (L φ) := by
+  classical
+  let n : C𝔽 →ₜ* ℝ≥0ˣ := ⟨ideleClassNorm F, (isProperMap_ideleClassNorm F).continuous⟩
+  let ι : C₁ →ₜ* C𝔽 := ⟨(ideleClassNorm F).ker.subtype, continuous_subtype_val⟩
+  let p : C𝔽 →ₜ* C𝔽 := ContinuousMonoidHom.id C𝔽 / τ.comp n
+  have hp (x : C𝔽) : p x ∈ (ideleClassNorm F).ker := by
+    change ideleClassNorm F (x / τ (ideleClassNorm F x)) = 1
+    rw [map_div, _hτ, div_self']
+  let r : C𝔽 →ₜ* C₁ := ⟨p.toMonoidHom.codRestrict _ hp, p.continuous.subtype_mk _⟩
+  let χ (ω : PontryaginDual C₁) : U𝔽 := ω.comp r
+  have hχ : IsSpectralBasepointChoice χ := by
+    intro ω
+    ext g : 1
+    change ω (r g.val) = ω g
+    apply congrArg ω
+    apply Subtype.ext
+    change g.val / τ (ideleClassNorm F g.val) = g.val
+    rw [show ideleClassNorm F g.val = 1 from g.property, map_one, div_one]
+  have hnorm (ω) (t : ℝ≥0ˣ) : χ ω (τ t) = 1 := by
+    change ω (r (τ t)) = 1
+    rw [show r (τ t) = 1 from Subtype.ext (by change τ t / τ (ideleClassNorm F (τ t)) = 1; rw [_hτ, div_self']), map_one]
+  let E : PontryaginDual C₁ ≃ sectionCharacters(τ) :=
+    { toFun := fun ω ↦ ⟨χ ω, hnorm ω⟩
+      invFun := fun η ↦ η.val.comp ι
+      left_inv := hχ
+      right_inv := fun η ↦ by
+        apply Subtype.ext
+        ext x : 1
+        change η.val (x / τ (ideleClassNorm F x)) = η.val x
+        rw [map_div, η.property, div_one] }
+  let point (t : ℝ) : ℂ := ((1 / 2 : ℝ) : ℂ) + (t : ℂ) * Complex.I
+  have hpoint (w : ℂ) (hw : w.re = 1 / 2) : point w.im = w := by
+    apply Complex.ext <;> simp [point, hw]
+  have hdiv (η : U𝔽) (w : ℂ) := MeromorphicOn.divisor_apply
+    (continuedCompletedHeckeL_spec η).1.meromorphicOn (mem_univ w)
+  have ordpos (η : U𝔽) (w : ℂ) :
+      0 < ord(η, w) ↔ 0 < meromorphicOrderAt (continuedCompletedHeckeL η) w := by
+    obtain ⟨hL, heq⟩ := continuedCompletedHeckeL_spec η
+    have htwo : meromorphicOrderAt (continuedCompletedHeckeL η) 2 ≠ ⊤ := by
+      intro h
+      have hp' : 0 < meromorphicOrderAt (continuedCompletedHeckeL η) 2 := by
+        rw [h]; exact WithTop.coe_lt_top (0 : ℤ)
+      have hb := completedHeckeL_continuation_zeros η _ hL heq (by norm_num : 0 < (2 : ℂ).re) hp'
+      norm_num at hb
+    have ht := hL.meromorphicOn.meromorphicOrderAt_ne_top_of_isPreconnected
+      isPreconnected_univ (mem_univ _) (mem_univ w) htwo
+    obtain ⟨k, hk⟩ := WithTop.ne_top_iff_exists.mp ht
+    rw [hdiv, ← hk, WithTop.untop₀_coe]
+    exact WithTop.coe_lt_coe.symm
+  let J := {z : PontryaginDual C₁ × ℝ //
+    0 < meromorphicOrderAt (continuedCompletedHeckeL (χ z.1)) (point z.2)}
+  let e : J ≃ lineZeros(τ) :=
+    { toFun := fun z ↦ ⟨(E z.val.1, point z.val.2),
+          (ordpos _ _).mpr z.property, by simp [point]⟩
+      invFun := fun z ↦ ⟨(E.symm z.val.1, z.val.2.im), by
+          have h := (ordpos _ _).mp z.property.1
+          have he : χ (E.symm z.val.1) = z.val.1.val := congrArg Subtype.val (E.apply_symm_apply z.val.1)
+          rwa [he, hpoint _ z.property.2]⟩
+      left_inv := fun z ↦ Subtype.ext (Prod.ext (E.symm_apply_apply _) (by simp [point]))
+      right_inv := fun z ↦ Subtype.ext (Prod.ext (E.apply_symm_apply _) (hpoint _ z.property.2)) }
+  let s : ℝ := 2 * (Module.finrank ℚ F : ℝ) + 1
+  have hs : 1 < s := by
+    have hd : (0 : ℝ) < Module.finrank ℚ F := by exact_mod_cast (Module.finrank_pos (R := ℚ) (M := F))
+    dsimp only [s]; linarith
+  have hc : ⌈(s - 1) / 2⌉₊ = Module.finrank ℚ F := by simp [s]
+  obtain ⟨D, hD⟩ := spectralLineConvolution_trace_distribution (F := F) (1 / 2) hs
+  refine ⟨D.comp (criticalTraceTestSubmodule τ).subtypeL, fun φ ↦ ?_⟩
+  obtain ⟨T, hT, -⟩ := spectralLineConvolution_traceNorm_continuous (F := F) (1 / 2) hs
+  change HasSum _ (D φ.val)
+  rw [hD φ.val (T φ.val) (hT φ.val)]
+  apply e.hasSum_iff.mp
+  apply ((spectralLineConvolution_trace (F := F) (1 / 2) χ hχ hs φ.val (T φ.val) (hT φ.val)).2).congr_fun
+  intro z
+  simp only [Function.comp_apply, e, Equiv.coe_fn_mk, E, criticalTraceMultiplicity, hdiv,
+    spectralBoundaryMultiplicity, hc]
+  have hshift : point z.val.2 - 1 / 2 = ((0 : ℝ) : ℂ) + (z.val.2 : ℂ) * Complex.I := by
+    push_cast [point]; ring
+  rw [hshift, (spectralConvolution_mellin_integrable (F := F) φ.val (χ z.val.1) _).2]
+  rfl
 
 local notation "finiteTerm(" v ", " b ")" =>
   ((Real.log ((v : V).asIdeal.absNorm : ℝ) : ℂ) * finiteConnesWeilPrincipalValue v 1 b)

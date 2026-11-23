@@ -7,7 +7,7 @@ import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.WithSeminorms
 import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.Barrelled
 import RiemannMasullo.ForMathlib.MeasureTheory.Integral.Bochner.Regular
 import all RiemannMasullo.Ch03_IdelicZeta.Sec3b
-import all RiemannMasullo.AppA_AlgebraicNT.Sec3
+import RiemannMasullo.AppA_AlgebraicNT.Sec3
 import all RiemannMasullo.Ch02_AdelicTheta.Sec3
 import Mathlib.NumberTheory.Harmonic.GammaDeriv
 
@@ -704,7 +704,11 @@ variable (F S) in
 The space of S-local adelic theta functions is the quotient by the S-local theta kernel,
 with the quotient topology.
 Deviation: We take the kernel on S-ideles. The descended theta map has the same
-kernel because the map from S-ideles to S-idele classes is surjective. -/
+kernel because the map from S-ideles to S-idele classes is surjective.
+
+Kept as an `abbrev` for now (#5398): as a `def` with its own instances it breaks proofs and
+statements that use it, see the issue. Do not copy this pattern: a new type synonym with
+structure is a `def` with its own instances (`AGENTS.md`). -/
 abbrev SLocalAdelicThetaSpace := ℬₛ ⧸ LinearMap.ker thetaₛ
 
 /-- Paper: Definition 5.1.1.1(3), p. 223.

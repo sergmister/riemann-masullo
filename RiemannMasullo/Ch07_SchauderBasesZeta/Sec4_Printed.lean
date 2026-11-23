@@ -1,6 +1,7 @@
 module
 
 public import RiemannMasullo.Ch07_SchauderBasesZeta.Sec4
+import RiemannMasullo.ForMathlib.NumberTheory.NumberField.InfiniteAdeleRing
 
 /-! # False claims printed in §7.4 -/
 
@@ -102,6 +103,325 @@ def Printed.archNuclearityDenominator_nonzero_closed : Prop :=
     D ≠ ⊥ ∧ IsClosed (D : Set (GlobalHomogeneousThetaSpace F (ω[F, χ]))) ∧
       D ≤ globalPolarFreeThetaSubmodule (ω[F, χ])
 
+open MeasureTheory Filter in
+open scoped RestrictedProduct ContDiff TensorProduct in
+/-- The indicator of a compact open subgroup is a Schwartz–Bruhat function. -/
+private theorem archNuclearityDenominator_indicator_mem {G : Type*} [CommGroup G]
+    [TopologicalSpace G] [IsTopologicalGroup G] [T2Space G] [LocallyCompactSpace G]
+    (H : Subgroup G) (hO : IsOpen (H : Set G)) (hK : IsCompact (H : Set G)) :
+    (fun x : G ↦ if x ∈ H then (1 : ℂ) else 0) ∈ schwartzBruhatSubmodule G := by
+  let : CompactSpace H := isCompact_iff_compactSpace.mp hK
+  let : CompactSpace (lcaAnnihilator H) :=
+    isCompact_iff_compactSpace.1 (isCompact_lcaAnnihilator H hO)
+  let a : BruhatStructuralPair G :=
+    ⟨⟨H, OrderDual.toDual H⟩, hO, isCompactlyGeneratedGroup_of_compact,
+      ⟨H.isClosed_of_isOpen hO, isOpen_lcaAnnihilator H hK,
+        (show IsCompactlyGeneratedGroup (lcaAnnihilator H) from
+          isCompactlyGeneratedGroup_of_compact)⟩, le_rfl⟩
+  have hsub : Subsingleton a.quotient := by
+    refine ⟨fun x y ↦ ?_⟩
+    induction x using QuotientGroup.induction_on with | H x => ?_
+    induction y using QuotientGroup.induction_on with | H y => ?_
+    exact QuotientGroup.eq.mpr (by
+      change ((x⁻¹ * y : H) : G) ∈ H
+      exact (x⁻¹ * y).property)
+  let Z := ElementaryLieGroup 0 0 0 (Fin 1)
+  have hZ : Subsingleton Z := by
+    change Subsingleton (EuclideanSpace ℝ (Fin 0) × (Fin 0 → AddCircle (1 : ℝ)) ×
+      (Fin 0 → ℤ) × Fin 1)
+    infer_instance
+  let j : a.quotient ≃* Multiplicative Z :=
+    { toFun := fun _ ↦ 1
+      invFun := fun _ ↦ 1
+      left_inv := fun _ ↦ Subsingleton.elim _ _
+      right_inv := fun _ ↦ @Subsingleton.elim _ hZ _ _
+      map_mul' := fun _ _ ↦ (mul_one 1).symm }
+  let e : ElementaryLCAPresentation a.quotient :=
+    { realDim := 0, torusDim := 0, latticeRank := 0, finiteFactor := Fin 1
+      equiv := j.toContinuousMulEquiv (fun S ↦ by
+        rcases S.eq_empty_or_nonempty with h | h
+        · subst h; simp
+        · have : S = univ := by
+            obtain ⟨z, hz⟩ := h
+            exact eq_univ_of_forall fun w ↦ (@Subsingleton.elim _ hZ w z) ▸ hz
+          subst this; simp) }
+  let g : Z → ℂ := fun _ ↦ 1
+  have hg : g ∈ elementarySchwartzSubmodule 0 0 0 (Fin 1) := by
+    refine ⟨fun z b ↦ contDiff_const, fun i ↦ ?_⟩
+    rw [Subsingleton.elim i (0, 0, 0, 0), elementarySchwartzBound_zero]
+    simp [g]
+  let s : SchwartzBruhatStage e := ⟨g, hg⟩
+  apply Submodule.mem_iSup_of_mem a
+  apply Submodule.mem_iSup_of_mem e
+  refine ⟨s, funext fun x ↦ ?_⟩
+  rw [schwartzBruhatStageRealization_apply]
+  by_cases hx : x ∈ H
+  · have hx' : x ∈ a.val.1 := hx
+    simp [hx, hx', s, g]
+  · have hx' : x ∉ a.val.1 := hx
+    simp [hx, hx']
+
+
+
+open MeasureTheory Filter in
+open scoped RestrictedProduct ContDiff TensorProduct in
+/-- The integral finite adeles form a compact open additive subgroup. -/
+private def archNuclearityDenominator_integralSubgroup (F : Type) [Field F] [NumberField F] :
+    Subgroup (Multiplicative (FiniteAdeleRing (𝓞 F) F)) where
+  carrier := {x | ∀ v : HeightOneSpectrum (𝓞 F),
+    (Multiplicative.toAdd x) v ∈ v.adicCompletionIntegers F}
+  mul_mem' {a b} ha hb v := by
+    change (Multiplicative.toAdd a + Multiplicative.toAdd b) v ∈ _
+    exact add_mem (ha v) (hb v)
+  one_mem' v := by
+    change (0 : FiniteAdeleRing (𝓞 F) F) v ∈ _
+    exact zero_mem _
+  inv_mem' {a} ha v := by
+    change (- Multiplicative.toAdd a) v ∈ _
+    exact neg_mem (ha v)
+
+open MeasureTheory Filter in
+open scoped RestrictedProduct ContDiff TensorProduct in
+/-- The integral finite adeles are open. -/
+private theorem archNuclearityDenominator_integralSubgroup_isOpen (F : Type) [Field F]
+    [NumberField F] :
+    IsOpen (archNuclearityDenominator_integralSubgroup F : Set (Multiplicative (FiniteAdeleRing (𝓞 F) F))) := by
+  let : Fact (∀ v : HeightOneSpectrum (𝓞 F),
+      IsOpen (v.adicCompletionIntegers F : Set (v.adicCompletion F))) :=
+    ⟨fun v ↦ Valued.isOpen_valuationSubring _⟩
+  exact RestrictedProduct.isOpen_forall_mem Fact.out
+
+open MeasureTheory Filter in
+open scoped RestrictedProduct ContDiff TensorProduct in
+/-- The integral finite adeles are compact. -/
+private theorem archNuclearityDenominator_integralSubgroup_isCompact (F : Type) [Field F]
+    [NumberField F] :
+    IsCompact (archNuclearityDenominator_integralSubgroup F : Set (Multiplicative (FiniteAdeleRing (𝓞 F) F))) := by
+  let (v : HeightOneSpectrum (𝓞 F)) : CompactSpace (v.adicCompletionIntegers F) :=
+    compactSpace_adicCompletionIntegers v
+  let : Fact (∀ v : HeightOneSpectrum (𝓞 F),
+      IsOpen (v.adicCompletionIntegers F : Set (v.adicCompletion F))) :=
+    ⟨fun v ↦ Valued.isOpen_valuationSubring _⟩
+  have h := isCompact_range (RestrictedProduct.isEmbedding_structureMap
+    (R := fun v : HeightOneSpectrum (𝓞 F) ↦ v.adicCompletion F)
+    (A := fun v ↦ (v.adicCompletionIntegers F : Set (v.adicCompletion F)))
+    (𝓕 := Filter.cofinite)).continuous
+  rw [RestrictedProduct.range_structureMap] at h
+  exact h
+
+open MeasureTheory Filter in
+open scoped RestrictedProduct ContDiff TensorProduct in
+/-- The indicator of the integral finite adeles is a Schwartz–Bruhat function. -/
+private theorem archNuclearityDenominator_finiteIndicator_mem (F : Type) [Field F]
+    [NumberField F] :
+    (fun x : Multiplicative (FiniteAdeleRing (𝓞 F) F) ↦
+      if x ∈ archNuclearityDenominator_integralSubgroup F then (1 : ℂ) else 0) ∈
+      schwartzBruhatSubmodule (Multiplicative (FiniteAdeleRing (𝓞 F) F)) := by
+  let : Fact (∀ v : HeightOneSpectrum (𝓞 F),
+      IsOpen (v.adicCompletionIntegers F : Set (v.adicCompletion F))) :=
+    ⟨fun v ↦ Valued.isOpen_valuationSubring _⟩
+  let (v : HeightOneSpectrum (𝓞 F)) : CompactSpace (v.adicCompletionIntegers F) :=
+    compactSpace_adicCompletionIntegers v
+  let : LocallyCompactSpace (Multiplicative (FiniteAdeleRing (𝓞 F) F)) := by
+    change LocallyCompactSpace (Πʳ v : HeightOneSpectrum (𝓞 F),
+      [v.adicCompletion F, v.adicCompletionIntegers F])
+    infer_instance
+  let : IsTopologicalGroup (Multiplicative (FiniteAdeleRing (𝓞 F) F)) := inferInstance
+  let : T2Space (Multiplicative (FiniteAdeleRing (𝓞 F) F)) := by
+    change T2Space (Πʳ v : HeightOneSpectrum (𝓞 F),
+      [v.adicCompletion F, v.adicCompletionIntegers F])
+    infer_instance
+  exact archNuclearityDenominator_indicator_mem _
+    (archNuclearityDenominator_integralSubgroup_isOpen F)
+    (archNuclearityDenominator_integralSubgroup_isCompact F)
+
+
+
+open MeasureTheory Filter in
+open scoped RestrictedProduct ContDiff TensorProduct in
+/-- Over any number field there is an archimedean-flat adelic tensor whose Fourier value at
+the origin is nonzero: a nonnegative bump away from the coordinate walls times the indicator
+of the integral finite adeles. -/
+private theorem archNuclearityDenominator_flat_fourier_ne_zero (F : Type) [Field F]
+    [NumberField F] :
+    ∃ f ∈ globalArchimedeanFlatTests F,
+      adeleSchwartzFourier (F := F) f (Multiplicative.ofAdd 0) ≠ 0 := by
+  let Coord := ({v : InfinitePlace F // v.IsReal} → ℝ) × ({v : InfinitePlace F // v.IsComplex} → ℂ)
+  let c : Coord := (fun _ ↦ 1, fun _ ↦ 1)
+  let b : ContDiffBump c := ⟨1 / 4, 1 / 2, by norm_num, by norm_num⟩
+  let bc : Coord → ℂ := fun u ↦ ((b u : ℝ) : ℂ)
+  have hbc : ContDiff ℝ (⊤ : ℕ∞) bc := Complex.ofRealCLM.contDiff.comp b.contDiff
+  have hbs : HasCompactSupport bc := b.hasCompactSupport.comp_left Complex.ofReal_zero
+  let h₀ : SchwartzMap Coord ℂ := hbs.toSchwartzMap hbc
+  have hflat : h₀ ∈ archimedeanFlatSchwartz (ι := {v : InfinitePlace F // v.IsReal})
+      (κ := {v : InfinitePlace F // v.IsComplex}) := by
+    apply mem_archimedeanFlatSchwartz_of_tsupport
+    rw [Set.disjoint_left]
+    intro u hu hw
+    have hu' : u ∈ Metric.closedBall c (1 / 2) := by
+      have : tsupport (h₀ : Coord → ℂ) ⊆ tsupport (b : Coord → ℝ) :=
+        tsupport_comp_subset Complex.ofReal_zero _
+      rw [b.tsupport_eq] at this
+      exact this hu
+    rw [Metric.mem_closedBall, dist_eq_norm] at hu'
+    rcases hw with ⟨i, hi⟩ | ⟨j, hj⟩
+    · have h1 : ‖(u - c).1 i‖ ≤ ‖u - c‖ := (norm_le_pi_norm _ i).trans (norm_fst_le _)
+      have h2 : (u - c).1 i = -1 := by
+        change u.1 i - 1 = -1
+        rw [hi]; ring
+      rw [h2] at h1
+      norm_num at h1
+      linarith
+    · have h1 : ‖(u - c).2 j‖ ≤ ‖u - c‖ := (norm_le_pi_norm _ j).trans (norm_snd_le _)
+      have h2 : (u - c).2 j = -1 := by
+        change u.2 j - 1 = -1
+        rw [hj]; ring
+      rw [h2] at h1
+      norm_num at h1
+      linarith
+  have hinf := (mem_archimedeanSchwartzBruhat_iff (F := F)
+    (fun x ↦ h₀ (InfiniteAdeleRing.ringEquiv_mixedSpace F x))).mpr ⟨h₀, fun _ ↦ rfl⟩
+  let fI : SchwartzBruhat (Multiplicative (InfiniteAdeleRing F)) := ⟨_, hinf⟩
+  let H := archNuclearityDenominator_integralSubgroup F
+  let g : SchwartzBruhat (Multiplicative (FiniteAdeleRing (𝓞 F) F)) :=
+    ⟨_, archNuclearityDenominator_finiteIndicator_mem F⟩
+  let tensor := (adeleSchwartz_inductiveTensor_equiv F).choose
+  let test := tensor (fI ⊗ₜ[ℂ] g)
+  refine ⟨test, Submodule.subset_span ⟨fI, g, ⟨h₀, hflat⟩, fun _ ↦ rfl, fun h ↦ h.elim, rfl⟩, ?_⟩
+  let R : 𝔸[F] → ℝ := fun x ↦ b (InfiniteAdeleRing.ringEquiv_mixedSpace F x.1) *
+    (if Multiplicative.ofAdd x.2 ∈ H then 1 else 0)
+  have hR : ∀ x : 𝔸[F], test (Multiplicative.ofAdd x) = (R x : ℂ) := by
+    intro x
+    rw [(adeleSchwartz_inductiveTensor_equiv F).choose_spec fI g x]
+    change bc _ * (if Multiplicative.ofAdd x.2 ∈ H then (1 : ℂ) else 0) = _
+    simp only [R, bc]
+    split_ifs <;> simp
+  let : MeasurableSpace 𝔸[F] := borel _
+  obtain ⟨hint, hval⟩ := adeleSchwartzFourier_apply_zero test
+  rw [hval]
+  have hfun : (fun x : 𝔸[F] ↦ test (Multiplicative.ofAdd x)) = fun x ↦ (R x : ℂ) := funext hR
+  rw [hfun] at hint ⊢
+  rw [integral_complex_ofReal, Complex.ofReal_ne_zero]
+  have hRint : Integrable R (additiveTamagawaMeasure F) := by
+    simpa using hint.re
+  have hR0 : 0 ≤ R := fun x ↦ mul_nonneg b.nonneg (by split_ifs <;> norm_num)
+  refine ne_of_gt ((integral_pos_iff_support_of_nonneg hR0 hRint).mpr ?_)
+  let U : Set 𝔸[F] := (fun x : 𝔸[F] ↦ InfiniteAdeleRing.ringEquiv_mixedSpace F x.1) ⁻¹'
+      Metric.ball c (1 / 2) ∩ (fun x : 𝔸[F] ↦ Multiplicative.ofAdd x.2) ⁻¹' (H : Set _)
+  have hU : IsOpen U := by
+    refine IsOpen.inter (Metric.isOpen_ball.preimage ?_)
+      ((archNuclearityDenominator_integralSubgroup_isOpen F).preimage ?_)
+    · exact (continuous_infiniteAdeleRingEquivMixedSpace F).comp continuous_fst
+    · exact continuous_ofAdd.comp continuous_snd
+  have hUne : U.Nonempty := by
+    refine ⟨((InfiniteAdeleRing.ringEquiv_mixedSpace F).symm c, 0), ?_, ?_⟩
+    · change InfiniteAdeleRing.ringEquiv_mixedSpace F
+        ((InfiniteAdeleRing.ringEquiv_mixedSpace F).symm c) ∈ Metric.ball c (1 / 2)
+      rw [RingEquiv.apply_symm_apply]
+      exact Metric.mem_ball_self (by norm_num)
+    · exact H.one_mem
+  have hUsupp : U ⊆ Function.support R := by
+    intro x hx
+    have h1 : 0 < b (InfiniteAdeleRing.ringEquiv_mixedSpace F x.1) := b.pos_of_mem_ball hx.1
+    have h2 : Multiplicative.ofAdd x.2 ∈ H := hx.2
+    simp only [Function.mem_support, R, h2, ↓reduceIte, mul_one]
+    exact h1.ne'
+  have hμ : (additiveTamagawaMeasure F).IsAddHaarMeasure :=
+    (additiveTamagawaMeasure_existsUnique F).exists.choose_spec.1
+  have hpos := hU.measure_pos (additiveTamagawaMeasure F) hUne
+  exact hpos.trans_le (measure_mono hUsupp)
+
+
+open MeasureTheory Filter in
+open scoped RestrictedProduct ContDiff TensorProduct in
+/-- The norm-one idele classes have positive Tamagawa mass. -/
+private theorem archNuclearityDenominator_volume_pos (F : Type) [Field F] [NumberField F] :
+    0 < (normOneIdeleClassTamagawaMeasure F univ).toReal := by
+  rw [normOneIdeleClassTamagawaMeasure_volume]
+  have := NumberField.classNumber_pos F
+  have := NumberField.Units.regulator_pos F
+  have := NumberField.Units.torsionOrder_pos F
+  have := Int.natAbs_pos.mpr (NumberField.discr_ne_zero F)
+  exact ENNReal.toReal_pos (ENNReal.ofReal_pos.mpr (by positivity)).ne' ENNReal.ofReal_ne_top
+
+
+open MeasureTheory Filter in
+open scoped RestrictedProduct ContDiff TensorProduct in
+/-- For the trivial norm-one character, equal homogeneous theta functions force equal Fourier
+values at the origin, once both tests vanish at the origin and the second Fourier value is zero.
+The polar term `|x|⁻¹ f̂(0)` blows up at small norm while the theta difference decays. -/
+private theorem archNuclearityDenominator_fourier_eq_zero (F : Type) [Field F] [NumberField F]
+    (ω₁ : PontryaginDual (ideleClassNorm F).ker) (hω : ω₁ = 1)
+    (f g : SchwartzBruhat (Multiplicative 𝔸[F]))
+    (hθ : homogeneousAdelicThetaLinearMap F ω₁ f = homogeneousAdelicThetaLinearMap F ω₁ g)
+    (hf0 : f (Multiplicative.ofAdd 0) = 0) (hg0 : g (Multiplicative.ofAdd 0) = 0)
+    (hgF : adeleSchwartzFourier (F := F) g (Multiplicative.ofAdd 0) = 0) :
+    adeleSchwartzFourier (F := F) f (Multiplicative.ofAdd 0) = 0 := by
+  subst hω
+  dsimp only at hf0 hg0 hgF ⊢
+  simp only [ofAdd_zero] at hf0 hg0 hgF ⊢
+  obtain ⟨C₁, T₁, hC₁, hT₁, h₁⟩ := homogeneousAdelicTheta_decay_small 1 f 1
+  obtain ⟨C₂, T₂, hC₂, hT₂, h₂⟩ := homogeneousAdelicTheta_decay_small 1 g 1
+  beta_reduce at h₁ h₂
+  set a := adeleSchwartzFourier (F := F) f 1
+  set vol := (normOneIdeleClassTamagawaMeasure F univ).toReal
+  have hvol : 0 < vol := archNuclearityDenominator_volume_pos F
+  have hPf (x : IdeleClassGroup (𝓞 F) F) : homogeneousAdelicTheta_polarTerm 1 f x =
+      vol • ((((ideleClassNorm F x : ℝ≥0) : ℝ))⁻¹ • a) := by
+    simp [homogeneousAdelicTheta_polarTerm, hf0, vol, a]
+  have hPg (x : IdeleClassGroup (𝓞 F) F) : homogeneousAdelicTheta_polarTerm 1 g x = 0 := by
+    simp [homogeneousAdelicTheta_polarTerm, hg0, hgF]
+  let T := min T₁ T₂
+  have key (t : ℝ) (ht : 0 < t) (htT : t < T) : ‖a‖ ≤ (C₁ + C₂) / vol * t ^ 2 := by
+    obtain ⟨x, hx⟩ := (ideleGroup_quotient.{_, 0} F).2.2.2.2.2.2.2.2.2.1
+      (Units.mk0 (⟨t, ht.le⟩ : ℝ≥0) (fun h ↦ ht.ne' (congrArg Subtype.val h)))
+    have hxt : (((ideleClassNorm F x : ℝ≥0) : ℝ)) = t := by rw [hx]; rfl
+    have e1 := h₁ x (by rw [hxt]; exact htT.trans_le (min_le_left _ _))
+    have e2 := h₂ x (by rw [hxt]; exact htT.trans_le (min_le_right _ _))
+    rw [hxt, pow_one] at e1 e2
+    rw [hPf, hxt] at e1
+    rw [hPg, sub_zero] at e2
+    have hθx : homogeneousAdelicTheta 1 f x = homogeneousAdelicTheta 1 g x :=
+      DFunLike.congr_fun hθ x
+    have hsplit : vol • (t⁻¹ • a) = homogeneousAdelicTheta 1 g x -
+        (homogeneousAdelicTheta 1 f x - vol • (t⁻¹ • a)) := by
+      rw [hθx]; ring
+    have hn : ‖vol • (t⁻¹ • a)‖ ≤ C₁ * t + C₂ * t := by
+      rw [hsplit]
+      exact (norm_sub_le _ _).trans (by linarith)
+    rw [norm_smul, norm_smul, Real.norm_of_nonneg hvol.le,
+      Real.norm_of_nonneg (inv_nonneg.mpr ht.le)] at hn
+    rw [div_mul_eq_mul_div, le_div_iff₀ hvol]
+    have : vol * (t⁻¹ * ‖a‖) * t = ‖a‖ * vol := by field_simp
+    nlinarith
+  have hT : 0 < T := lt_min hT₁ hT₂
+  have hlim : Tendsto (fun t : ℝ ↦ (C₁ + C₂) / vol * t ^ 2) (𝓝[>] 0) (𝓝 0) := by
+    have : Tendsto (fun t : ℝ ↦ (C₁ + C₂) / vol * t ^ 2) (𝓝 0) (𝓝 ((C₁ + C₂) / vol * 0 ^ 2)) :=
+      (continuous_const.mul (continuous_pow 2)).tendsto 0
+    simpa using this.mono_left nhdsWithin_le_nhds
+  have hev : ∀ᶠ t in 𝓝[>] (0 : ℝ), ‖a‖ ≤ (C₁ + C₂) / vol * t ^ 2 := by
+    filter_upwards [Ioo_mem_nhdsGT hT] with t ht using key t ht.1 ht.2
+  exact norm_le_zero_iff.mp (ge_of_tendsto hlim hev)
+
+open MeasureTheory Filter in
+/-- A flat test whose theta class is pole-free for the trivial norm-one character has
+Fourier value zero at the origin. -/
+private theorem archNuclearityDenominator_flat_fourier_eq_zero (F : Type) [Field F] [NumberField F]
+    (ω₁ : PontryaginDual (ideleClassNorm F).ker) (hω : ω₁ = 1)
+    (f : SchwartzBruhat (Multiplicative 𝔸[F])) (hf : f ∈ globalArchimedeanFlatTests F)
+    (hle : (globalArchimedeanFlatTests F).map
+      (LinearMap.ker (homogeneousAdelicThetaLinearMap F ω₁)).mkQ ≤
+      globalPolarFreeThetaSubmodule ω₁) :
+    adeleSchwartzFourier (F := F) f (Multiplicative.ofAdd 0) = 0 := by
+  have hm := hle (Submodule.mem_map_of_mem hf)
+  obtain ⟨g, hg0, hgF, hgq⟩ := (mem_globalPolarFreeThetaSubmodule ω₁ _).mp hm
+  have hθ : homogeneousAdelicThetaLinearMap F ω₁ f = homogeneousAdelicThetaLinearMap F ω₁ g := by
+    rw [Submodule.mkQ_apply, Submodule.mkQ_apply, Submodule.Quotient.eq, LinearMap.mem_ker,
+      map_sub, sub_eq_zero] at hgq
+    exact hgq.symm
+  exact archNuclearityDenominator_fourier_eq_zero F ω₁ hω f g hθ
+    (globalArchimedeanFlatTests_zero_moments f hf).1 hg0 hgF
+
 /-- Paper: Theorem 7.4.3.1(1), p. 368.
 Over ℚ with the trivial character, tensor a nonnegative nonzero smooth bump
 supported in (2,3) with the indicator of the finite integral adeles. The test is
@@ -109,7 +429,12 @@ archimedean-flat and its Fourier value at zero is its strictly positive integral
 That value survives on the trivial homogeneous theta quotient, so no zero-moment
 test represents the same class. -/
 theorem Printed.archNuclearityDenominator_nonzero_closed_false :
-    ¬ Printed.archNuclearityDenominator_nonzero_closed := by sorry
+    ¬ Printed.archNuclearityDenominator_nonzero_closed := by
+  intro h
+  have hle := (h ℚ 1).2.2
+  obtain ⟨f, hf, hF⟩ := archNuclearityDenominator_flat_fourier_ne_zero ℚ
+  exact hF (archNuclearityDenominator_flat_fourier_eq_zero ℚ _
+    (ContinuousMonoidHom.ext fun _ ↦ rfl) f hf hle)
 
 local notation "Θ₀[" F ", " χ "]" => ↥(adelePolarSubspace F) ⧸
   LinearMap.ker ((homogeneousAdelicThetaLinearMap F (ω[F, χ])).domRestrict (adelePolarSubspace F))

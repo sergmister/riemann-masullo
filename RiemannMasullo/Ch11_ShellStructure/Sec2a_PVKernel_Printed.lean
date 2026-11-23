@@ -2,7 +2,7 @@ module
 
 public import RiemannMasullo.Ch11_ShellStructure.Sec2a
 public import Mathlib.MeasureTheory.Integral.Bochner.Basic
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
+import RiemannMasullo.Ch10_TraceSpectral.Sec1
 
 /-! # §11.2: the printed intersection of principal-value kernels -/
 

@@ -11,7 +11,8 @@ The verdict is the one scripts/triage_prs.sh computes on the merger's machine:
             and add lemmas in existing files of the library
     read    it passes, but a person should look first: a new `sorry` (a split or new
             statements), a new file or definition, an attribute, anything outside the library
-    fail    it does not merge into main, build, pass the lint, or keep existing statements
+    fail    it does not merge into main, build, pass the lint, or keep existing statements,
+            or it makes a type synonym exponentially large (see LARGE_SYNONYM)
     error   the check itself could not be carried out (main does not build, say); this says
             nothing about the pull request
 
@@ -28,7 +29,8 @@ Order of work, and why:
   2. Whether the change is plain proof text is decided from the text (plain_proof.py, and
      main's scripts/proof_review.sh), before any of it is built. Nothing found later can turn
      `read` back into `merge`.
-  3. Main is built and its signatures taken, unless `--base-signatures` supplies them. This is
+  3. Main is built, its type synonyms measured (scripts/AbbrevSizes.lean) and its signatures
+     taken, unless `--base-signatures` supplies the signatures. This is
      main's own code and runs as any build of main does.
   4. The pull request is merged into the tree and the result is linted, built and dumped,
      each step in its own sandbox (sandbox.sh): no network, a read-only file system apart from
@@ -54,6 +56,15 @@ SORRY_WARNING = re.compile(r"^warning: (RiemannMasullo/\S+\.lean):\d+:\d+: decla
 SIGNATURE_LINE = re.compile(
     r"(theorem|def|opaque|axiom|inductive|constructor|recursor|quot) (\S+) \d+( \d+)?( SORRY)?")
 BUILD_MINUTES = 45
+# A type synonym whose body is this many nodes as a tree spells out other synonyms again and again
+# in its instance terms; parts of Lean walk those terms as trees and stop finishing (#5398, #5716).
+# A pull request fails if it adds such a synonym or makes one larger than on main.
+LARGE_SYNONYM = 10 ** 8
+
+
+# Remarks for the summary that do not change the verdict: a measurement that could not run
+# must not stop the automatic merge of every pull request at once.
+NOTES = []
 
 
 class Stop(Exception):
@@ -212,6 +223,16 @@ class Check:
                                 "--all", *self.modules(), timeout=1200, quiet=True)
         return (out if status == 0 else None), out
 
+    def synonym_sizes(self):
+        """Tree sizes of the type synonyms of at least LARGE_SYNONYM nodes, or None if the
+        measurement did not run (scripts/AbbrevSizes.lean)."""
+        script = TOOLS / "scripts/AbbrevSizes.lean"
+        if not script.is_file():
+            return None
+        status, out = self.lake("lake", "env", "lean", "--run", str(script), "--min", str(LARGE_SYNONYM),
+                                *self.modules(), timeout=300, quiet=True)
+        return parse_sizes(out) if status == 0 else None
+
     def keywords_current(self):
         """Whether the checked-in list of command keywords matches main as just built."""
         status, out = self.lake("lake", "env", "lean", "--run", str(TOOLS / "scripts/ci/CommandKeywords.lean"),
@@ -237,6 +258,9 @@ class Check:
             raise Stop("error", ["main sets the option doc.verso, which makes Lean elaborate code inside doc "
                                  "comments; scripts/ci/plain_proof.py ignores comments and has to be revised first"])
         status, log = self.build(sandboxed=False)
+        if status is None:
+            raise Stop("error", [f"building main did not finish in {BUILD_MINUTES} minutes, so the pull "
+                                 "request could not be checked; this is not a fault of the pull request"], log)
         if status != 0:
             raise Stop("error", ["main itself does not build at this commit, so the pull request "
                                  "could not be checked"], log)
@@ -244,12 +268,13 @@ class Check:
         if not current:
             raise Stop("error", ["scripts/ci/command_keywords.txt is out of date on main, so pull requests "
                                  "cannot be judged from their text: run scripts/ci/keywords.sh --write on main"], out)
+        sizes = self.synonym_sizes()
         if supplied:
-            return supplied, log
+            return supplied, log, sizes
         dump, out = self.signatures()
         if dump is None:
             raise Stop("error", ["the signature dump of main failed"], out)
-        return dump, log
+        return dump, log, sizes
 
     def merge(self, entries):
         merged = self.git("merge", "--no-commit", "--no-ff", self.head, check=False)
@@ -283,6 +308,21 @@ class Check:
             reasons += [f"{e['path']} (merged with main): {detail}"
                         for _kind, detail in plain_proof.classify(old, new, scanner)]
         return reasons
+
+
+def parse_sizes(text):
+    """{synonym: tree size} from the output of scripts/AbbrevSizes.lean."""
+    sizes = {}
+    for line in text.split("\n"):
+        fields = line.split("\t")
+        if len(fields) >= 3 and fields[2].isdigit():
+            sizes[fields[0]] = int(fields[2])
+    return sizes
+
+
+def grown_synonyms(base, head):
+    """The synonyms of `head` (all at least LARGE_SYNONYM) that are new or larger than in `base`."""
+    return sorted(n for n, size in head.items() if size >= LARGE_SYNONYM and size > base.get(n, 0))
 
 
 def compare(base, head):
@@ -330,7 +370,19 @@ def decide(check, supplied_base):
     if probe.returncode == 1:
         raise Stop("fail", ["it does not merge cleanly into main: merge main into the branch and "
                             "resolve the conflicts"])
-    base_dump, base_log = check.base_state(supplied_base)
+    candidate = probe.stdout.strip()
+    if probe.returncode or not SHA.fullmatch(candidate):
+        raise Stop("error", ["could not compute the candidate merge tree"], probe.stderr)
+    imports = run(["lean", "--run", str(TOOLS / "scripts/CheckImportAll.lean"),
+                   check.base, candidate], cwd=check.work, timeout=60)
+    if imports.returncode == 3:
+        raise Stop("fail", ["it adds `import all`: use ordinary imports and expose the required lemmas "
+                             "(see AGENTS.md)"], imports.stdout)
+    if imports.returncode == 4:
+        raise Stop("fail", ["it has an invalid Lean import header"], imports.stdout)
+    if imports.returncode:
+        raise Stop("error", ["the import policy check could not be carried out"], imports.stdout)
+    base_dump, base_log, base_sizes = check.base_state(supplied_base)
     check.merge(entries)
     held += [r for r in check.held_back_after_merge(entries) if r not in held]
     result = run([str(TOOLS / "scripts/lint.sh"), str(check.work)])
@@ -344,6 +396,7 @@ def decide(check, supplied_base):
     head_dump, out = check.signatures()
     if head_dump is None:
         raise Stop("fail", ["the signature dump failed after the build"], out)
+    head_sizes = check.synonym_sizes()
 
     changed, removed, added, bad = compare(base_dump, head_dump)
     # A private definition cannot be mentioned by a public statement of a `module` file, so
@@ -361,6 +414,14 @@ def decide(check, supplied_base):
     if sorry_defs:
         failures.append("definitions contain `sorry`, or declarations have one in their statement: "
                         + names(sorry_defs))
+    if base_sizes is not None and head_sizes is not None:
+        grown = grown_synonyms(base_sizes, head_sizes)
+        if grown:
+            failures.append("type synonyms of over 10^8 nodes as a tree, new or larger than on main: "
+                            + names(grown) + ". Make them defs with their own instances (AGENTS.md, #5398)")
+    else:
+        NOTES.append("the size of type synonyms could not be measured (scripts/AbbrevSizes.lean), "
+                     "so new or grown synonyms were not checked")
     if failures:
         raise Stop("fail", failures, log)
 
@@ -401,13 +462,16 @@ def report(args, verdict, reasons, log):
     out.mkdir(parents=True, exist_ok=True)
     reasons = [clean(r, 600).replace("\n", " ") for r in reasons[:40]] + (
         ["(more reasons not shown)"] if len(reasons) > 40 else [])
-    data = dict(schema=1, verdict=verdict, pr=args.pr, head_sha=args.head, base_sha=args.base, reasons=reasons)
+    data = dict(schema=1, verdict=verdict, pr=args.pr, head_sha=args.head, base_sha=args.base, reasons=reasons,
+                notes=list(NOTES))
     (out / "verdict.json").write_text(json.dumps(data, indent=1) + "\n")
     lines = [f"## Verdict: `{verdict}`", "", NEXT[verdict], "",
              f"Checked commit `{args.head[:12]}` against `main` at `{args.base[:12]}`, "
              "with the checker, lakefile and toolchain of `main`.", ""]
     if reasons:
         lines += ["```", *reasons, "```", ""]
+    if NOTES:
+        lines += ["Notes (they do not change the verdict):", "", *[f"- {clean(n, 600)}" for n in NOTES], ""]
     if log and verdict in ("fail", "error"):
         tail = "\n".join(clean(log, 6000).split("\n")[-60:])
         lines += ["<details><summary>Last lines of the output</summary>", "", "```", tail, "```", "", "</details>", ""]

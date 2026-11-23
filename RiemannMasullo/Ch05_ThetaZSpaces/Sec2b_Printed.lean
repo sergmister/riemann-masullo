@@ -2,6 +2,7 @@ module
 
 public import RiemannMasullo.Ch05_ThetaZSpaces.Sec2b
 import RiemannMasullo.ForMathlib.Topology.Algebra.PontryaginDual.Separation
+import RiemannMasullo.ForMathlib.NumberTheory.NumberField.Completion.FinitePlace
 
 /-!
 # Chapter 5.2.3–5.2.4: statements that are false as printed
@@ -103,6 +104,45 @@ def Printed.thetaInducedTopology_t2 : Prop :=
     @T2Space (GlobalTest(F)) (TopologicalSpace.induced q inferInstance) ∧
     @T2Space (Test(F, S)) (TopologicalSpace.induced qS inferInstance)
 
+/-- In the topology induced by a map, a Hausdorff space identifies points with equal images. -/
+private theorem thetaInducedTopology_t2_false_eq {X Y : Type*} [t : TopologicalSpace Y]
+    (q : X → Y) (h : @T2Space X (TopologicalSpace.induced q t)) {a b : X} (hab : q a = q b) :
+    a = b := by
+  let : TopologicalSpace X := TopologicalSpace.induced q t
+  exact Inseparable.eq (show nhds a = nhds b by rw [nhds_induced, nhds_induced, hab])
+
+open scoped RestrictedProduct in
+/-- The rational adeles are a nontrivial Hausdorff locally compact group. -/
+private theorem thetaInducedTopology_t2_false_adeles :
+    Nontrivial 𝔸[ℚ] ∧ T2Space (Multiplicative 𝔸[ℚ]) ∧
+      LocallyCompactSpace (Multiplicative 𝔸[ℚ]) := by
+  let (v : Places(ℚ)) : CompactSpace (v.adicCompletionIntegers ℚ) :=
+    compactSpace_adicCompletionIntegers v
+  let : Fact (∀ v : Places(ℚ), IsOpen (v.adicCompletionIntegers ℚ : Set (v.adicCompletion ℚ))) :=
+    ⟨fun v ↦ Valued.isOpen_valuationSubring _⟩
+  refine ⟨?_, ?_, ?_⟩
+  · change Nontrivial (InfiniteAdeleRing ℚ ×
+      (Πʳ v : Places(ℚ), [v.adicCompletion ℚ, v.adicCompletionIntegers ℚ]))
+    infer_instance
+  · change T2Space (((v : InfinitePlace ℚ) → v.Completion) ×
+      (Πʳ v : Places(ℚ), [v.adicCompletion ℚ, v.adicCompletionIntegers ℚ]))
+    infer_instance
+  · change LocallyCompactSpace (InfiniteAdeleRing ℚ ×
+      (Πʳ v : Places(ℚ), [v.adicCompletion ℚ, v.adicCompletionIntegers ℚ]))
+    infer_instance
+
+/-- The global theta function of a test does not change under pullback by negation:
+the principal multiples are reindexed by `ξ ↦ -ξ`. -/
+private theorem thetaInducedTopology_t2_false_neg (f : GlobalTest(ℚ)) :
+    adelicTheta (schwartzBruhatUnitTranslate (-1) f) = adelicTheta f := by
+  ext c
+  obtain ⟨g, rfl⟩ := QuotientGroup.mk_surjective c
+  rw [adelicTheta_mk, adelicTheta_mk]
+  refine (tsum_congr fun ξ ↦ ?_).trans ((Equiv.neg ℚˣ).tsum_eq
+    (fun ξ : ℚˣ ↦ f (Multiplicative.ofAdd (algebraMap ℚ 𝔸[ℚ] (ξ : ℚ) * g.val))))
+  rw [schwartzBruhatUnitTranslate_apply]
+  simp [Units.val_neg, map_neg]
+
 /-- Paper: Remark 5.2.3.4(1)–(2), p. 237.
 For F = ℚ use the odd real test x ↦ x exp(−πx²), at S consisting of the real place
 and globally tensored with the indicator of the finite integer adeles. Each test is nonzero,
@@ -111,7 +151,48 @@ The real-stage sum pairs the terms at the two units ±1. Each theta map sends it
 and zero to the same point, so the pullback topology cannot separate them.
 -/
 theorem Printed.thetaInducedTopology_t2_false : ¬ Printed.thetaInducedTopology_t2 := by
-  sorry
+  classical
+  intro h
+  have hG := (h ℚ ∅).1
+  obtain ⟨_, _, _⟩ := thetaInducedTopology_t2_false_adeles
+  let x : Multiplicative 𝔸[ℚ] := Multiplicative.ofAdd 1
+  let y : Multiplicative 𝔸[ℚ] := Multiplicative.ofAdd (-1)
+  have hxy : x ≠ y := by
+    intro hxy
+    have h1 : (1 : 𝔸[ℚ]) = -1 := congrArg Multiplicative.toAdd hxy
+    have h2 : algebraMap ℚ 𝔸[ℚ] 1 = algebraMap ℚ 𝔸[ℚ] (-1) := by simpa using h1
+    have := (algebraMap ℚ 𝔸[ℚ]).injective h2
+    norm_num at this
+  obtain ⟨δ, hδ, hvan, -⟩ := schwartzBruhat_dirac_support x
+  have hex : ∃ f : GlobalTest(ℚ), tsupport (f : Multiplicative 𝔸[ℚ] → ℂ) ⊆ {y}ᶜ ∧ f x ≠ 0 := by
+    by_contra! hc
+    have hmem : x ∈ schwartzBruhatVanishingLocus δ :=
+      ⟨{y}ᶜ, ⟨isOpen_compl_singleton, fun f hf ↦ (hδ f).trans (hc f hf)⟩, hxy⟩
+    rw [hvan] at hmem
+    exact hmem rfl
+  obtain ⟨f, hfs, hfx⟩ := hex
+  have hfy : f y = 0 := image_eq_zero_of_notMem_tsupport (fun hy ↦ hfs hy rfl)
+  let d : GlobalTest(ℚ) := f - schwartzBruhatUnitTranslate (-1) f
+  have hdx : d x = f x := by
+    have e : schwartzBruhatUnitTranslate (-1) f x = f y := by
+      change schwartzBruhatUnitTranslate (-1) f (Multiplicative.ofAdd 1) = _
+      rw [schwartzBruhatUnitTranslate_apply]
+      simp [y]
+    change f x - schwartzBruhatUnitTranslate (-1) f x = f x
+    rw [e, hfy, sub_zero]
+  have hd0 : d ≠ 0 := by
+    intro hd
+    apply hfx
+    rw [← hdx, hd]
+    rfl
+  have hker : d ∈ LinearMap.ker (adelicThetaLinearMap ℚ) := by
+    rw [LinearMap.mem_ker, map_sub, adelicThetaLinearMap_apply, adelicThetaLinearMap_apply,
+      thetaInducedTopology_t2_false_neg, sub_self]
+  have hq : (LinearMap.ker (adelicThetaLinearMap ℚ)).mkQ d =
+      (LinearMap.ker (adelicThetaLinearMap ℚ)).mkQ 0 := by
+    rw [map_zero]
+    exact (Submodule.Quotient.mk_eq_zero _).2 hker
+  exact hd0 (thetaInducedTopology_t2_false_eq _ hG hq)
 
 /-- Paper: §5.2.4, introduction to Theorem 5.2.4.1, p. 238.
 The introduction says that the local Fourier maps tend to “the inversion automorphism”

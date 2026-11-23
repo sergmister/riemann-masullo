@@ -124,7 +124,7 @@ private theorem modulatedExponentialDecayStage_twists_isInducing (k : GoodCompac
     (fun _ : I ↦ PolynormableSpace.withSeminorms ℂ (SchwartzBruhat (G ⧸ k.val)))
   have hInduced := WithSeminorms.topologicalSpace_eq_iInf (t := induced T inferInstance)
     (T.withSeminorms_induced hPi)
-  refine ⟨(withGeneratingSeminorms_spec _ _).topologicalSpace_eq_iInf.trans
+  refine ⟨(ModulatedExponentialDecayStage.withSeminorms m I k).topologicalSpace_eq_iInf.trans
     (Eq.trans ?_ hInduced.symm)⟩
   exact (Equiv.sigmaEquivProd I _).symm.iInf_congr (fun _ ↦ rfl)
 
