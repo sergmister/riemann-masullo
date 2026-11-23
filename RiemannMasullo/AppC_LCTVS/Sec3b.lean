@@ -291,7 +291,7 @@ private theorem ae_memLp_integralKernel_column (b : Lp ℂ 2 (μ.prod μ)) :
     ((Lp.stronglyMeasurable b).comp_measurable (measurable_id.prodMk measurable_const)).aestronglyMeasurable).mpr hy
 
 /-- The kernel-to-operator correspondence in target-first coordinates is bijective. -/
-private theorem bijective_integralKernelOperator : Function.Bijective (integralKernelOperator μ) := by
+theorem bijective_integralKernelOperator : Function.Bijective (integralKernelOperator μ) := by
   let hswap := Measure.measurePreserving_swap (μ := μ) (ν := μ)
   let swap := Lp.compMeasurePreserving (E := ℂ) (p := 2) Prod.swap hswap
   have hswap_inv : Function.Involutive swap := by
@@ -400,7 +400,7 @@ private theorem integrable_integralKernel_mul_swap (a b : Lp ℂ 2 (μ.prod μ))
 
 /-- A nuclear endomorphism of a complex Hilbert space factors into two Hilbert-Schmidt
 endomorphisms by taking a fourth root of its Gram operator. -/
-private theorem exists_hilbertSchmidt_factorization
+theorem exists_hilbertSchmidt_factorization
     {H : Type*} [NormedAddCommGroup H] [InnerProductSpace ℂ H] [CompleteSpace H]
     (T : H →L[ℂ] H) (hT : IsNuclearOperator T) :
     ∃ A B : hilbertSchmidtOperators H H, T = A.val.comp B.val := by

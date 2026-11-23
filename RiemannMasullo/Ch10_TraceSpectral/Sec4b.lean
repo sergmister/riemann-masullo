@@ -534,6 +534,148 @@ local notation "integrates(" μ ", " B ", " k ")" =>
     Integrable (fun y ↦ k (x, y) * u y) μ ∧
     (B u : C𝔽 → ℂ) x = ∫ y, k (x, y) * u y ∂μ)
 
+section MixedProjectiveKernel
+
+open scoped ENNReal NNReal
+
+/-- Dividing a mixed-weight kernel by its input weight changes square integrability
+from the reciprocal input measure to the positive input measure. -/
+private theorem spectralStripKernel_hilbertSchmidt_memLp {X : Type*} [MeasurableSpace X]
+    (μ ν : Measure X) [SFinite μ]
+    (w : X → ℝ≥0) (hw : Measurable w) (hp : ∀ x, 0 < w x)
+    {k : X × X → ℂ} (hm : StronglyMeasurable k)
+    (hk : MemLp k 2 (ν.prod (μ.withDensity fun y ↦ ↑((w y)⁻¹)))) :
+    MemLp (fun p : X × X ↦ ((w p.2 : ℝ)⁻¹) • k p) 2
+      (ν.prod (μ.withDensity fun y ↦ ↑(w y))) := by
+  have hmeas : Measurable fun p : X × X ↦ (w p.2 : ℝ)⁻¹ :=
+    (NNReal.continuous_coe.measurable.comp (hw.comp measurable_snd)).inv
+  have hw' : Measurable (fun y ↦ (w y : ℝ≥0∞)) := ENNReal.continuous_coe.measurable.comp hw
+  have hwi : Measurable (fun y ↦ (((w y)⁻¹ : ℝ≥0) : ℝ≥0∞)) := by fun_prop
+  have hw2 : Measurable (fun p : X × X ↦ w p.2) := hw.comp measurable_snd
+  have him : Measurable (fun p : X × X ↦ (w p.2)⁻¹) := by fun_prop
+  have hsq := (memLp_two_iff_integrable_sq_norm hm.aestronglyMeasurable).mp hk
+  rw [prod_withDensity_right (μ := ν) (ν := μ) hwi,
+    integrable_withDensity_iff_integrable_smul him] at hsq
+  apply (memLp_two_iff_integrable_sq_norm (f := fun p : X × X ↦ (w p.2 : ℝ)⁻¹ • k p)
+    (hmeas.stronglyMeasurable.smul hm).aestronglyMeasurable).mpr
+  rw [prod_withDensity_right (μ := ν) (ν := μ) hw',
+    integrable_withDensity_iff_integrable_smul hw2]
+  apply hsq.congr
+  refine Filter.Eventually.of_forall fun p ↦ ?_
+  change ((w p.2)⁻¹ : ℝ≥0) * (‖k p‖ ^ 2 : ℝ) = (w p.2 : ℝ) * ‖(w p.2 : ℝ)⁻¹ • k p‖ ^ 2
+  rw [norm_smul, Real.norm_of_nonneg (inv_nonneg.mpr (w p.2).coe_nonneg), NNReal.coe_inv]
+  field_simp [(NNReal.coe_pos.mpr (hp p.2)).ne']
+
+/-- Integration against the normalized kernel with the weighted measure realizes
+the operator given by integration against the original kernel with Haar measure. -/
+private theorem spectralStripKernel_hilbertSchmidt_operator {X : Type*} [TopologicalSpace X] [T2Space X]
+    [LocallyCompactSpace X] [SecondCountableTopology X] [MeasurableSpace X] [BorelSpace X]
+    (μ ν : Measure X) [SFinite μ] [IsFiniteMeasureOnCompacts ν] [ν.InnerRegular] [SFinite ν]
+    (w : X → ℝ≥0) (hw : Measurable w) (hp : ∀ x, 0 < w x)
+    (hν : ν = μ.withDensity fun y ↦ ↑(w y))
+    (op : Lp ℂ 2 ν →L[ℂ] Lp ℂ 2 ν) (k : X × X → ℂ) (hm : StronglyMeasurable k)
+    (hk : MemLp k 2 (ν.prod (μ.withDensity fun y ↦ ↑((w y)⁻¹))))
+    (hrow : ∀ u : Lp ℂ 2 ν, ∀ᵐ x ∂μ, op u x = ∫ y, k (x, y) * u y ∂μ) :
+    let K (p : X × X) := ((w p.2 : ℝ)⁻¹) • k p
+    ∃ h : MemLp K 2 (ν.prod ν), (integralKernelOperator ν (h.toLp K)).val = op := by
+  intro K
+  have hK : MemLp K 2 (ν.prod ν) := by
+    simpa only [← hν] using spectralStripKernel_hilbertSchmidt_memLp μ ν w hw hp hm hk
+  have integral_weighted (g : X → ℂ) : (∫ y, g y ∂ν) = ∫ y, w y • g y ∂μ := by
+    rw [hν, integral_withDensity_eq_integral_smul hw]
+  refine ⟨hK, ?_⟩
+  ext u
+  have hμν : ν ≪ μ := hν ▸ withDensity_absolutelyContinuous _ _
+  filter_upwards [integralKernelOperator_apply ν (hK.toLp K) u,
+    Measure.ae_ae_of_ae_prod hK.coeFn_toLp, hμν.ae_le (hrow u)] with x hx hrep hB
+  rw [hx.2, hB]
+  calc
+    _ = ∫ y, K (x, y) * u y ∂ν :=
+      integral_congr_ae (hrep.mono fun y hy ↦ congrArg (· * u y) hy)
+    _ = ∫ y, k (x, y) * u y ∂μ := by
+      rw [integral_weighted]
+      refine integral_congr_ae (Filter.Eventually.of_forall fun y ↦ ?_)
+      change (w y : ℝ) • (((w y : ℝ)⁻¹ • k (x, y)) * u y) = _
+      rw [← smul_mul_assoc, smul_smul, mul_inv_cancel₀ (NNReal.coe_pos.mpr (hp y)).ne', one_smul]
+
+/-- Every nuclear Hilbert endomorphism is Hilbert–Schmidt. -/
+private theorem sobolevProjectiveKernel_mem_hilbertSchmidt {H : Type*} [NormedAddCommGroup H] [InnerProductSpace ℂ H]
+    [CompleteSpace H] (T : H →L[ℂ] H) (hT : IsNuclearOperator T) : T ∈ hilbertSchmidtOperators H H := by
+  obtain ⟨A, B, rfl⟩ := exists_hilbertSchmidt_factorization T hT
+  let b := (exists_hilbertBasis (𝕜 := ℂ) (E := H)).choose_spec.choose
+  apply (mem_hilbertSchmidtOperators_iff_summable_basis b _).2
+  have hs := (mem_hilbertSchmidtOperators_iff_summable_basis b B.val).1 B.property
+  apply (hs.mul_left (‖A.val‖ ^ 2)).of_nonneg_of_le (fun i ↦ sq_nonneg _)
+  intro i
+  simpa only [ContinuousLinearMap.comp_apply, mul_pow] using
+    (sq_le_sq₀ (norm_nonneg _) (mul_nonneg (norm_nonneg _) (norm_nonneg _))).2 (A.val.le_opNorm (B.val (b i)))
+
+/-- A nuclear operator on a weighted L² space has a unique mixed-weight kernel
+that realizes it by integration against the underlying measure. -/
+private theorem sobolevProjectiveKernel_mixed_existsUnique {X : Type*} [TopologicalSpace X] [T2Space X]
+    [LocallyCompactSpace X] [SecondCountableTopology X] [MeasurableSpace X] [BorelSpace X]
+    (μ ν : Measure X) [SFinite μ] [IsFiniteMeasureOnCompacts ν] [ν.InnerRegular] [SFinite ν]
+    (w : X → ℝ≥0) (hw : Measurable w) (hp : ∀ x, 0 < w x)
+    (hν : ν = μ.withDensity fun y ↦ ↑(w y))
+    (T : Lp ℂ 2 ν →L[ℂ] Lp ℂ 2 ν) (hT : IsNuclearOperator T) :
+    let ν' := μ.withDensity fun y ↦ ↑((w y)⁻¹)
+    ∃! k : Lp ℂ 2 (ν.prod ν'), ∀ u : Lp ℂ 2 ν, ∀ᵐ x ∂μ,
+      Integrable (fun y ↦ k (x, y) * u y) μ ∧ T u x = ∫ y, k (x, y) * u y ∂μ := by
+  intro ν'
+  let S : hilbertSchmidtOperators (Lp ℂ 2 ν) (Lp ℂ 2 ν) := ⟨T, sobolevProjectiveKernel_mem_hilbertSchmidt T hT⟩
+  obtain ⟨K, hK⟩ := (bijective_integralKernelOperator ν).surjective S
+  let raw (p : X × X) : ℂ := (w p.2 : ℝ) • K p
+  have hraw : MemLp raw 2 (ν.prod ν') := by
+    let v : X → ℝ≥0 := fun y ↦ (w y)⁻¹
+    have hv : Measurable v := hw.inv
+    have hKmem : MemLp (K : X × X → ℂ) 2 (ν.prod (μ.withDensity fun y ↦ ↑((v y)⁻¹))) := by
+      simpa only [v, inv_inv, ← hν] using Lp.memLp K
+    have h := spectralStripKernel_hilbertSchmidt_memLp μ ν v hv (fun y ↦ inv_pos.mpr (hp y))
+      (Lp.stronglyMeasurable K) hKmem
+    simpa only [v, NNReal.coe_inv, inv_inv, raw, ν'] using h
+  let k := hraw.toLp raw
+  have hrep : (k : X × X → ℂ) =ᵐ[ν.prod ν'] raw := hraw.coeFn_toLp
+  have hμν : μ ≪ ν := by
+    rw [hν]
+    exact withDensity_absolutelyContinuous' (ENNReal.continuous_coe.measurable.comp hw).aemeasurable
+      (.of_forall fun y ↦ ENNReal.coe_ne_zero.mpr (hp y).ne')
+  have hμν' : μ ≪ ν' :=
+    withDensity_absolutelyContinuous'
+      (show Measurable (fun y ↦ (((w y)⁻¹ : ℝ≥0) : ℝ≥0∞)) by fun_prop).aemeasurable
+      (.of_forall fun y ↦ ENNReal.coe_ne_zero.mpr (inv_pos.mpr (hp y)).ne')
+  have hi (g : X → ℂ) : Integrable g ν ↔ Integrable (fun y ↦ w y • g y) μ := by
+    rw [hν, integrable_withDensity_iff_integrable_smul hw]
+  have hInt (g : X → ℂ) : (∫ y, g y ∂ν) = ∫ y, w y • g y ∂μ := by
+    rw [hν, integral_withDensity_eq_integral_smul hw]
+  refine ⟨k, ?_, ?_⟩
+  · intro u
+    have rows := integralKernelOperator_apply ν K u
+    rw [hK] at rows
+    filter_upwards [hμν.ae_le rows, hμν.ae_le (Measure.ae_ae_of_ae_prod hrep)] with x hx hxr
+    have hrow : (fun y ↦ w y • (K (x, y) * u y)) =ᵐ[μ] fun y ↦ k (x, y) * u y := by
+      filter_upwards [hμν'.ae_le hxr] with y hy
+      rw [hy]
+      change (w y : ℝ) • (K (x, y) * u y) = ((w y : ℝ) • K (x, y)) * u y
+      rw [smul_mul_assoc]
+    exact ⟨((hi _).1 hx.1).congr hrow, hx.2.trans ((hInt _).trans (integral_congr_ae hrow))⟩
+  · intro b hb
+    obtain ⟨h, he⟩ := spectralStripKernel_hilbertSchmidt_operator μ ν w hw hp hν T b
+      (Lp.stronglyMeasurable b) (Lp.memLp b) (fun u ↦ (hb u).mono fun _ hu ↦ hu.2)
+    have hequal : h.toLp _ = K := (bijective_integralKernelOperator ν).injective
+      (Subtype.ext (he.trans (congrArg Subtype.val hK).symm))
+    have hae : (fun p : X × X ↦ (w p.2 : ℝ)⁻¹ • b p) =ᵐ[ν.prod ν] K :=
+      h.coeFn_toLp.symm.trans (by rw [hequal])
+    have hac : ν.prod ν' ≪ ν.prod ν :=
+      Measure.AbsolutelyContinuous.rfl.prod ((withDensity_absolutelyContinuous μ _).trans hμν)
+    apply Lp.ext
+    filter_upwards [hac.ae_le hae, hrep] with p hp' hk'
+    rw [hk']
+    change b p = (w p.2 : ℝ) • K p
+    rw [← hp']
+    rw [smul_smul, mul_inv_cancel₀ (NNReal.coe_pos.mpr (hp p.2)).ne', one_smul]
+
+end MixedProjectiveKernel
+
 /-- Paper: (10.4.3.23)–(10.4.3.25), p. 470. A projective kernel has a unique
 square-integrable mixed-weight kernel whose unweighted integral realizes its operator.
 Deviation: The product has positive weight in the output coordinate and reciprocal
@@ -543,7 +685,28 @@ is used on compact symmetric intervals. -/
 theorem sobolevProjectiveKernel_existsUnique_l2 (hα : 0 ≤ α) (hs : 0 ≤ s)
     (K : Π(W'(α, s), W(α, s))) :
     ∃! k : L²mixed, integrates(μ𝔽, sobolevProjectiveKernelOperator (F := F) hα hs K, k) :=
-  by sorry
+  by
+    let ν := ν(α, s)
+    let wi (y : C𝔽) := w(α, s) y
+    have hp (y : C𝔽) : 0 < wi y := intervalSobolevDensity_pos' _ _ _ _
+    let wNN (y : C𝔽) : ℝ≥0 := ⟨wi y, (hp y).le⟩
+    have hw : Continuous wi :=
+      (continuous_intervalSobolevDensity (-α) α s).comp (continuous_logModule' m𝔽)
+    have hwNN : Continuous wNN := hw.subtype_mk _
+    have hν : ν = (μ𝔽).withDensity (fun y ↦ (wNN y : ENNReal)) :=
+      congrArg (μ𝔽).withDensity (funext fun y ↦ ENNReal.ofReal_eq_coe_nnreal (hp y).le)
+    have hν' : ν'(α, s) = (μ𝔽).withDensity (fun y ↦ (((wNN y)⁻¹ : ℝ≥0) : ENNReal)) := by
+      apply congrArg (μ𝔽).withDensity
+      funext y
+      exact ENNReal.ofReal_eq_coe_nnreal (inv_nonneg.mpr (hp y).le)
+    let : IsLocallyFiniteMeasure ν := IsLocallyFiniteMeasure.withDensity_ofReal hw
+    let op := sobolevProjectiveKernelOperator (F := F) hα hs K
+    have hn : IsNuclearOperator op := (isNuclearOperator_iff_isBanachNuclear _).2
+      ((isBanachNuclear_iff_mem_range _).2 ⟨_, rfl⟩)
+    let pred (η : Measure C𝔽) := ∃! k : Lp ℂ 2 (ν.prod η), integrates(μ𝔽, op, k)
+    change pred (ν'(α, s))
+    rw [hν']
+    exact sobolevProjectiveKernel_mixed_existsUnique μ𝔽 ν wNN hwNN.measurable hp hν op hn
 
 /-- Paper: (10.4.3.23)–(10.4.3.25), p. 470.
 The product of two weighted square-integrable functions lies in the mixed product space. -/
@@ -1230,13 +1393,47 @@ theorem geometricStripKernel_apply (_ha : 0 < a)
       B u x = ((B).comp Pg) u x ∧
       B u x = ∫ y, geomStrip(hK) (x, y) * u y ∂μ𝔽 := by sorry
 
+section MixedWeightKernel
+
+open scoped ENNReal NNReal
+
+/-- Normalize the mixed Sobolev kernel which realizes an operator by Haar integration. -/
+private theorem spectralStripKernel_hilbertSchmidt_of_rows {α s : ℝ}
+    (op : W(α, s) →L[ℂ] W(α, s))
+    (k : Lp ℂ 2 ((ν(α, s)).prod (ν'(α, s))))
+    (hrow : ∀ u : W(α, s), ∀ᵐ x ∂μ𝔽, op u x = ∫ y, k (x, y) * u y ∂μ𝔽) :
+    IsSobolevHilbertSchmidtKernel (F := F) op
+      (fun p : C𝔽 × C𝔽 ↦ ((w(α, s) p.2)⁻¹ : ℝ) • k p) := by
+  let ν := ν(α, s)
+  let wi (y : C𝔽) := w(α, s) y
+  have hp (y : C𝔽) : 0 < wi y := intervalSobolevDensity_pos' _ _ _ _
+  let wNN (y : C𝔽) : ℝ≥0 := ⟨wi y, (hp y).le⟩
+  have hcont : Continuous wi :=
+    (continuous_intervalSobolevDensity (-α) α s).comp (continuous_logModule' m𝔽)
+  have hw : Continuous wNN := hcont.subtype_mk _
+  have hν : ν = (μ𝔽).withDensity (fun y ↦ (wNN y : ENNReal)) :=
+    congrArg (μ𝔽).withDensity (funext fun y ↦ ENNReal.ofReal_eq_coe_nnreal (hp y).le)
+  have hν' : ν'(α, s) = (μ𝔽).withDensity (fun y ↦ (((wNN y)⁻¹ : ℝ≥0) : ENNReal)) := by
+    apply congrArg (μ𝔽).withDensity
+    funext y
+    exact ENNReal.ofReal_eq_coe_nnreal (inv_nonneg.mpr (hp y).le)
+  have hk : MemLp (k : C𝔽 × C𝔽 → ℂ) 2 (ν.prod ((μ𝔽).withDensity fun y ↦ ↑((wNN y)⁻¹))) :=
+    (congrArg (fun η : Measure C𝔽 ↦ MemLp (k : C𝔽 × C𝔽 → ℂ) 2 (ν.prod η)) hν').mp (Lp.memLp k)
+  exact spectralStripKernel_hilbertSchmidt_operator μ𝔽 ν wNN hw.measurable hp hν op k
+    (Lp.stronglyMeasurable k) hk hrow
+
+end MixedWeightKernel
+
 /-- Paper: Theorem 10.4.3.6(2), p. 473, first formula. Dividing the global spectral
 kernel by the input weight gives the Hilbert-Schmidt representative of convolution
 after spectral projection.
 Deviation: The exponent endpoints are −α and α, as in §9.2. -/
 theorem spectralStripKernel_hilbertSchmidt (_ha : 0 < a)
     (hK : stripTensorExists) :
-    IsSobolevHilbertSchmidtKernel (F := F) Bpre (weighted(kStrip(hK))) := by sorry
+    IsSobolevHilbertSchmidtKernel (F := F) Bpre (weighted(kStrip(hK))) := by
+  have hrow := spectralStripKernel_apply (F := F) a hα hs φ hK
+  exact spectralStripKernel_hilbertSchmidt_of_rows (F := F) Bpre (kStrip(hK))
+    (fun u ↦ (hrow u).mono fun _ hx ↦ hx.2)
 
 /-- Paper: Theorem 10.4.3.6(2), p. 473, second formula. Output multiplication
 gives the Hilbert-Schmidt representative of the strip spectral restriction.
