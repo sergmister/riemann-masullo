@@ -395,6 +395,7 @@ class Library:
             tok = re.match(r"[^\s:({\[]+", L[sl - 1][sc:])
             tok = tok.group(0) if tok else ""        # as scripts/issues.py reads the name
             plain = tok.rstrip(".").replace("«", "").replace("»", "")   # `foo.{u}` leaves `foo.`
+            plain = plain.removeprefix("_root_.")   # `theorem _root_.Foo.bar` declares `Foo.bar`
             if not plain or not private_stripped(name).replace("«", "").replace("»", "").endswith(plain):
                 note(self.notes, f"{self.files[r['m']]}:{sl} should name `{display_name(name)}` but "
                                  f"reads `{tok}`; its source link may be off.")
@@ -956,11 +957,14 @@ def build_model(repo, section_issues, proof_issues, rows, files, warnings, head)
         out_waves.append(dict(name=w["name"], text=w["text"], status=w["status"], chapters=todo,
                               partial=sum(c["sections"] for c in todo) != whole))
 
-    thms = [d for d in decls if d["kind"] == "theorem"]
+    # Vendored third-party Lean (External/) is shown on the map but is not the project's work, so
+    # the totals leave it out.
+    own = [d for d in decls if d["group"] != "external"]
+    thms = [d for d in own if d["kind"] == "theorem"]
     st = collections.Counter(d["state"] for d in thms)
     sec_states = collections.Counter(s["state"] for s in sections)
     totals = dict(
-        defs=len(decls) - len(thms), thms=len(thms), proved=st["proved"],
+        defs=len(own) - len(thms), thms=len(thms), proved=st["proved"],
         solid=sum(1 for d in thms if d["state"] == "proved" and not d["open_below"]
                   and not d["hidden_sorry"]),
         open=st["open"] + st["claimed"] + st["unfiled"], claimed=st["claimed"], unfiled=st["unfiled"],
@@ -1074,12 +1078,13 @@ def validate(model):
     """Refuse to publish a page whose numbers do not add up."""
     decls, groups, t = model["decls"], model["groups"], model["totals"]
     seen = [i for g in groups for it in g["items"] for i in it["decls"]]
+    counted = [g for g in groups if g["key"] != "external"]       # the totals leave External out
     checks = [
         (sorted(seen) == list(range(len(decls))), "every declaration sits in exactly one item"),
         (t["proved"] + t["open"] == t["thms"], "proved + open = theorems"),
-        (sum(g["thms"] for g in groups) == t["thms"], "section theorem counts add up"),
-        (sum(g["proved"] for g in groups) == t["proved"], "section proved counts add up"),
-        (sum(g["defs"] for g in groups) == t["defs"], "section definition counts add up"),
+        (sum(g["thms"] for g in counted) == t["thms"], "section theorem counts add up"),
+        (sum(g["proved"] for g in counted) == t["proved"], "section proved counts add up"),
+        (sum(g["defs"] for g in counted) == t["defs"], "section definition counts add up"),
         (all(0 <= j < len(decls) and j != i for i, d in enumerate(decls) for j in d[12] + d[13]),
          "dependencies point at declarations"),
         (all(0 <= a < len(g["items"]) and 0 <= b < len(g["items"]) for g in groups for a, b, _ in g["edges"]),

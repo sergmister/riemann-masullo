@@ -7877,7 +7877,9 @@ private theorem schwartzBruhat_compactMultiplier (u : SchwartzBruhat G) (hu : Ha
       congrArg p.val (Subtype.ext (funext (hA a e s)))
   exact ⟨⟨M,hM⟩,fun _ _ ↦ rfl⟩
 
-private theorem compact_schwartzBruhat_comp {f : SchwartzBruhat G} (hc : HasCompactSupport f.val)
+/-- Smooth postcomposition by a function vanishing at zero preserves the Schwartz–Bruhat
+property of a compactly supported test function. -/
+theorem compact_schwartzBruhat_comp {f : SchwartzBruhat G} (hc : HasCompactSupport f.val)
     {φ : ℂ → ℂ} (hφ : ContDiff ℝ ∞ φ) (h0 : φ 0 = 0) :
     ∃ u : SchwartzBruhat G, u.val = φ ∘ f.val := by
   obtain ⟨a,e,s,hs⟩ := (mem_schwartzBruhatSubmodule_iff f.val).mp f.property
@@ -7891,8 +7893,9 @@ private theorem compact_schwartzBruhat_comp {f : SchwartzBruhat G} (hc : HasComp
   · rfl
   · exact h0.symm
 
-/-- A compactly supported Schwartz test can be chosen equal to one on a neighborhood. -/
-private theorem schwartzBruhat_exists_local_unit {x : G} {U : Set G} (hU : IsOpen U) (hx : x ∈ U) :
+/-- Every open neighborhood contains the support of a compactly supported Schwartz–Bruhat
+test function equal to one near the given point. -/
+theorem schwartzBruhat_exists_local_unit {x : G} {U : Set G} (hU : IsOpen U) (hx : x ∈ U) :
     ∃ u : SchwartzBruhat G, HasCompactSupport u.val ∧ tsupport u.val ⊆ U ∧ u.val =ᶠ[𝓝 x] 1 := by
   obtain ⟨K,hK,hxK⟩ := exists_compact_mem_nhds x
   obtain ⟨f,hf,hfx⟩ := schwartzBruhat_exists_test (hU.inter isOpen_interior) ⟨hx,mem_interior_iff_mem_nhds.mpr hxK⟩

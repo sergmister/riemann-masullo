@@ -2,8 +2,11 @@ module
 
 public import RiemannMasullo.Ch11_ShellStructure.Sec2a
 public import RiemannMasullo.Ch07_SchauderBasesZeta.Sec3a
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
+import RiemannMasullo.Ch10_TraceSpectral.Sec1
 import all RiemannMasullo.Ch11_ShellStructure.Sec2a
+import RiemannMasullo.External.AlgebraicNumberTheoryLean.Chebotarev.DirichletHecke
+import Mathlib.NumberTheory.MulChar.Duality
+import Mathlib.NumberTheory.DirichletCharacter.Bounds
 
 /-! # §11.2.0 assertions that are false as printed -/
 
@@ -286,13 +289,223 @@ def Printed.orbitalJets_basis_fullAnnihilator : Prop :=
           (∀ j, ((u j).val : C𝔽(F) → ℂ) =ᵐ[μ(F)] jet(χ, j.val.1, j.val.2)) ∧
           IsSpectralMarkushevichBasis u Λ
 
+/-- The idelic character of a Dirichlet character modulo 3, at the idele with `2` at the place
+over 3 and `1` elsewhere, is the inverse of the character value at `2`. -/
+private theorem Printed.orbitalJets_basis_fullAnnihilator_false_two
+    (χ : DirichletCharacter ℂ 3) (v : NumberFieldKB.Chebotarev.RatIdele.Pl) (hv : NumberFieldKB.Chebotarev.RatIdele.pr v = 3) (u : (v.adicCompletion ℚ)ˣ)
+    (hu : (u : v.adicCompletion ℚ) = ((2 : ℕ) : v.adicCompletion ℚ)) :
+    ((NumberFieldKB.Chebotarev.RatIdele.ideleChar 3 χ (IdeleGroup.ofAdicCompletion (𝓞 ℚ) ℚ v u) : ℂˣ) : ℂ) =
+      (χ (2 : ZMod 3))⁻¹ := by
+  have hval : Valued.v (u : v.adicCompletion ℚ) = WithZero.exp (-(0 : ℤ)) := by
+    rw [neg_zero, WithZero.exp_zero, hu, ← Rat.cast_natCast, NumberFieldKB.Chebotarev.RatIdele.valued_ratCast,
+      ← map_natCast (algebraMap (𝓞 ℚ) ℚ) 2,
+      IsDedekindDomain.HeightOneSpectrum.valuation_eq_one_iff_notMem, NumberFieldKB.Chebotarev.RatIdele.natCast_mem_asIdeal_iff, hv]
+    norm_num
+  have hq : NumberFieldKB.Chebotarev.RatIdele.ratPart (IdeleGroup.ofAdicCompletion (𝓞 ℚ) ℚ v u) = 1 := by
+    rw [NumberFieldKB.Chebotarev.RatIdele.ratPart_ofAdicCompletion v u 0 hval, zpow_zero]
+  have hU : NumberFieldKB.Chebotarev.RatIdele.unitPart (IdeleGroup.ofAdicCompletion (𝓞 ℚ) ℚ v u) =
+      IdeleGroup.ofAdicCompletion (𝓞 ℚ) ℚ v u := by
+    rw [NumberFieldKB.Chebotarev.RatIdele.unitPart_apply, hq, map_one, inv_one, mul_one]
+  have hr : NumberFieldKB.Chebotarev.RatIdele.resMod 3 (IdeleGroup.ofAdicCompletion (𝓞 ℚ) ℚ v u) = (2 : ZMod 3) := by
+    rw [NumberFieldKB.Chebotarev.RatIdele.resMod_apply, NumberFieldKB.Chebotarev.RatIdele.resModFun, hU]
+    refine (ZMod.equivPi 3 (NeZero.ne 3)).symm_apply_eq.mpr (funext fun q ↦ ?_)
+    have hq3 : (q : ℕ) = 3 :=
+      (Nat.prime_dvd_prime_iff_eq (Nat.prime_of_mem_primeFactors q.2) Nat.prime_three).mp
+        (Nat.dvd_of_mem_primeFactors q.2)
+    have hqN : (q : ℕ) ^ (3 : ℕ).factorization q ∣ 3 := Nat.ordProj_dvd 3 q
+    have hcomp : ZMod.equivPi 3 (NeZero.ne 3) (2 : ZMod 3) q =
+        ZMod.castHom hqN (ZMod ((q : ℕ) ^ (3 : ℕ).factorization q)) (2 : ZMod 3) :=
+      RingHom.congr_fun (Subsingleton.elim ((Pi.evalRingHom _ q).comp
+        (ZMod.equivPi 3 (NeZero.ne 3)).toRingHom) (ZMod.castHom hqN _)) (2 : ZMod 3)
+    rw [hcomp, map_ofNat]
+    have hqv : NumberFieldKB.Chebotarev.RatIdele.placeP 3 q = v := NumberFieldKB.Chebotarev.RatIdele.pr_injective (by rw [NumberFieldKB.Chebotarev.RatIdele.placeP, NumberFieldKB.Chebotarev.RatIdele.pr_placeOf, hq3, hv])
+    subst hqv
+    rw [NumberFieldKB.Chebotarev.RatIdele.compV_ofAdicCompletion_self]
+    erw [hu, NumberFieldKB.Chebotarev.RatIdele.redP_natCast]
+    rfl
+  rw [NumberFieldKB.Chebotarev.RatIdele.coe_ideleChar, MulChar.coe_toUnitHom, MonoidHom.coe_toHomUnits, hr]
+
 /-- Paper: Theorem 11.2.0.2, p. 485. Over ℚ take the trivial character,
 S₀ = {2}, and degree 2. Every jet is constant on the compact norm-one factor
 Ẑ×. The nontrivial quadratic character modulo 3 on that factor defines a
 nonzero negative-space vector annihilating the whole trivial isotype. It lies
 outside its closed trivial isotype and hence outside the closed jet span. -/
 theorem Printed.orbitalJets_basis_fullAnnihilator_false :
-    ¬ Printed.orbitalJets_basis_fullAnnihilator := by sorry
+    ¬ Printed.orbitalJets_basis_fullAnnihilator := by
+  classical
+  intro h
+  -- Data: ℚ, the trivial character, no places, degree zero.
+  obtain ⟨A, hA, u, Λ, -, hM⟩ := h ℚ 1 ∅ (by simp) 0 le_rfl (by simp)
+  -- The index set of jets is empty, so the annihilator is zero.
+  have hJ (j : ℝ × ℕ) : ¬ j.2 < min (orbitalEulerMultiplicity (1 : PontryaginDual C𝔽(ℚ)) ∅
+      (frequency(j.1))) (Nat.floor (((0 : ℝ) - 1) / 2 + 1)) := by
+    rw [orbitalEulerMultiplicity_eq_card, Finset.filter_empty, Finset.card_empty]
+    simp
+  have hA0 (x : A) : x = 0 := by
+    have hd := hM.2.2.1
+    have hr : Set.range u = ∅ := Set.range_eq_empty_iff.mpr ⟨fun j ↦ hJ j.val j.property⟩
+    rw [hr, Submodule.span_empty, Submodule.bot_coe] at hd
+    have hx : x ∈ closure ({0} : Set A) := hd x
+    rwa [isClosed_singleton.closure_eq] at hx
+  -- A character modulo 3 with value different from one at 2.
+  obtain ⟨χ, hχ2⟩ := MulChar.exists_apply_ne_one_of_hasEnoughRootsOfUnity (ZMod 3) ℂ
+    (a := (2 : ZMod 3)) (by decide)
+  let H₃ : C𝔽(ℚ) → ℂ := fun x ↦
+    ((NumberFieldKB.Chebotarev.RatIdele.ratDirichletChar 3 χ x : ℂˣ) : ℂ)
+  have hH₃c : Continuous H₃ :=
+    Units.continuous_val.comp (NumberFieldKB.Chebotarev.RatIdele.ratDirichletChar 3 χ).continuous
+  have hH₃mul (x y : C𝔽(ℚ)) : H₃ (x * y) = H₃ x * H₃ y := by
+    simp only [H₃, map_mul, Units.val_mul]
+  have hH₃inv (x : C𝔽(ℚ)) : H₃ x⁻¹ = (H₃ x)⁻¹ := by
+    simp only [H₃, map_inv, Units.val_inv_eq_inv_val]
+  have hH₃n (x : C𝔽(ℚ)) : ‖H₃ x‖ = 1 := by
+    obtain ⟨y, rfl⟩ := QuotientGroup.mk_surjective x
+    change ‖((NumberFieldKB.Chebotarev.RatIdele.ideleChar 3 χ y : ℂˣ) : ℂ)‖ = 1
+    rw [NumberFieldKB.Chebotarev.RatIdele.coe_ideleChar, norm_inv, MulChar.coe_toUnitHom,
+      DirichletCharacter.unit_norm_eq_one χ, inv_one]
+  -- A norm-one idele class on which `H₃` is not one.
+  let v3 : V(ℚ) := NumberFieldKB.Chebotarev.RatIdele.placeOf 3 Nat.prime_three
+  have hv3 : NumberFieldKB.Chebotarev.RatIdele.pr v3 = 3 :=
+    NumberFieldKB.Chebotarev.RatIdele.pr_placeOf 3 Nat.prime_three
+  have hval2 : Valued.v ((2 : ℕ) : v3.adicCompletion ℚ) = 1 := by
+    rw [← Rat.cast_natCast, NumberFieldKB.Chebotarev.RatIdele.valued_ratCast,
+      ← map_natCast (algebraMap (𝓞 ℚ) ℚ) 2,
+      IsDedekindDomain.HeightOneSpectrum.valuation_eq_one_iff_notMem,
+      NumberFieldKB.Chebotarev.RatIdele.natCast_mem_asIdeal_iff, hv3]
+    norm_num
+  have h2ne : ((2 : ℕ) : v3.adicCompletion ℚ) ≠ 0 := fun e ↦ by
+    rw [e, map_zero] at hval2
+    exact zero_ne_one hval2
+  let u2 : (v3.adicCompletion ℚ)ˣ := Units.mk0 _ h2ne
+  let kk : C𝔽(ℚ) := IdeleClassGroup.ofAdicCompletion (𝓞 ℚ) ℚ v3 u2
+  have hkk : kk ∈ C₁(ℚ) := by
+    rw [MonoidHom.mem_ker, ideleClassNorm_ofAdicCompletion]
+    have hn : ‖(u2 : v3.adicCompletion ℚ)‖ = 1 := Valued.toNormedField.norm_eq_one_iff.mpr hval2
+    ext
+    simpa using hn
+  have hHk : H₃ kk ≠ 1 := by
+    change ((NumberFieldKB.Chebotarev.RatIdele.ideleChar 3 χ
+      (IdeleGroup.ofAdicCompletion (𝓞 ℚ) ℚ v3 u2) : ℂˣ) : ℂ) ≠ 1
+    rw [Printed.orbitalJets_basis_fullAnnihilator_false_two χ v3 hv3 u2 rfl]
+    exact fun e ↦ hχ2 (inv_eq_one.mp e)
+  -- A compact shell `E` around norm one.
+  let ex : ℝ → ℝ≥0ˣ := fun t ↦
+    ⟨⟨Real.exp t, (Real.exp_pos t).le⟩, ⟨Real.exp (-t), (Real.exp_pos _).le⟩,
+      NNReal.eq (show Real.exp t * Real.exp (-t) = 1 by
+        rw [← Real.exp_add, add_neg_cancel, Real.exp_zero]),
+      NNReal.eq (show Real.exp (-t) * Real.exp t = 1 by
+        rw [← Real.exp_add, neg_add_cancel, Real.exp_zero])⟩
+  have hex : Continuous ex := Units.continuous_iff.mpr
+    ⟨(Real.continuous_exp).subtype_mk _, (Real.continuous_exp.comp continuous_neg).subtype_mk _⟩
+  let K : Set ℝ≥0ˣ := ex '' Set.Icc (-1) 1
+  have hK : IsCompact K := isCompact_Icc.image hex
+  let E : Set C𝔽(ℚ) := ideleClassNorm ℚ ⁻¹' K
+  have hEc : IsCompact E := (isProperMap_ideleClassNorm ℚ).isCompact_preimage hK
+  have hEm : MeasurableSet E :=
+    (hK.isClosed.preimage (isProperMap_ideleClassNorm ℚ).continuous).measurableSet
+  have : (μ(ℚ)).IsHaarMeasure := (ideleClassTamagawaMeasure_isWeil ℚ).1
+  have hEfin : μ(ℚ) E < ⊤ := hEc.measure_lt_top
+  have hEpos : 0 < μ(ℚ) E := by
+    let U : Set C𝔽(ℚ) := (fun x ↦ (((ideleClassNorm ℚ x : ℝ≥0ˣ) : ℝ≥0) : ℝ)) ⁻¹'
+      Set.Ioo (Real.exp (-1)) (Real.exp 1)
+    have hUo : IsOpen U := isOpen_Ioo.preimage
+      (NNReal.continuous_coe.comp (Units.continuous_val.comp
+        (isProperMap_ideleClassNorm ℚ).continuous))
+    have h1U : (1 : C𝔽(ℚ)) ∈ U := by
+      simp only [U, Set.mem_preimage, map_one, Units.val_one, NNReal.coe_one, Set.mem_Ioo]
+      exact ⟨by simpa using Real.exp_lt_exp.mpr (show (-1 : ℝ) < 0 by norm_num),
+        by simpa using Real.exp_lt_exp.mpr (show (0 : ℝ) < 1 by norm_num)⟩
+    have hUE : U ⊆ E := fun x hx ↦ by
+      obtain ⟨h1, h2⟩ := hx
+      have hpos : 0 < (((ideleClassNorm ℚ x : ℝ≥0ˣ) : ℝ≥0) : ℝ) := (Real.exp_pos _).trans h1
+      refine ⟨Real.log (((ideleClassNorm ℚ x : ℝ≥0ˣ) : ℝ≥0) : ℝ), ⟨?_, ?_⟩, ?_⟩
+      · rw [Real.le_log_iff_exp_le hpos]; exact h1.le
+      · rw [Real.log_le_iff_le_exp hpos]; exact h2.le
+      · exact Units.ext (NNReal.eq (by simp [ex, Real.exp_log hpos] <;> rfl))
+    exact (hUo.measure_pos _ ⟨1, h1U⟩).trans_le (measure_mono hUE)
+  -- The vector `ψ`.
+  let ψ₀ : C𝔽(ℚ) → ℂ := E.indicator H₃
+  have hμ : ((μ(ℚ)).withDensity fun x ↦ ENNReal.ofReal
+      (if true then (intervalSobolevDensity 0 0 0 (logNorm(ℚ) x))⁻¹
+       else intervalSobolevDensity 0 0 0 (logNorm(ℚ) x))) = μ(ℚ) := by
+    simp [intervalSobolevDensity]
+  have hmem : MemLp ψ₀ 2 (μ(ℚ)) := by
+    refine (memLp_indicator_iff_restrict hEm.nullMeasurableSet).mpr ?_
+    have : IsFiniteMeasure ((μ(ℚ)).restrict E) := isFiniteMeasure_restrict.mpr hEfin.ne
+    exact MemLp.of_bound hH₃c.aestronglyMeasurable 1
+      (Filter.Eventually.of_forall fun x ↦ (hH₃n x).le)
+  have hmem' : MemLp ψ₀ 2 ((μ(ℚ)).withDensity fun x ↦ ENNReal.ofReal
+      (if true then (intervalSobolevDensity 0 0 0 (logNorm(ℚ) x))⁻¹
+       else intervalSobolevDensity 0 0 0 (logNorm(ℚ) x))) := by
+    rw [hμ]; exact hmem
+  let ψ : W'(ℚ, 0) := hmem'.toLp ψ₀
+  have hae : ae ((μ(ℚ)).withDensity fun x ↦ ENNReal.ofReal
+      (if true then (intervalSobolevDensity 0 0 0 (logNorm(ℚ) x))⁻¹
+       else intervalSobolevDensity 0 0 0 (logNorm(ℚ) x))) = ae (μ(ℚ)) := by
+    rw [hμ]
+  have hψ : (ψ : C𝔽(ℚ) → ℂ) =ᵐ[μ(ℚ)] ψ₀ := by
+    rw [← hae]
+    exact hmem'.coeFn_toLp
+  have hψne : ψ ≠ 0 := fun h0 ↦ by
+    have hz0 : (ψ : C𝔽(ℚ) → ℂ) =ᵐ[μ(ℚ)] 0 := by
+      rw [← hae, h0]
+      exact Lp.coeFn_zero _ _ _
+    have hnull : μ(ℚ) {x | ψ₀ x ≠ 0} = 0 := by
+      have := ae_iff.mp (hψ.symm.trans hz0)
+      simpa using this
+    refine hEpos.ne' (measure_mono_null (fun x hx ↦ ?_) hnull)
+    change E.indicator H₃ x ≠ 0
+    rw [Set.indicator_of_mem hx, ← norm_ne_zero_iff, hH₃n]
+    exact one_ne_zero
+  -- `ψ` annihilates the principal value of the trivial isotype.
+  have hψA : ψ ∈ A := by
+    rw [← SetLike.mem_coe, hA]
+    intro f hf
+    let R := (exists_globalThetaSobolevAction (F := ℚ) 0 hI (le_refl (0 : ℝ))).choose
+    have hR := (exists_globalThetaSobolevAction (F := ℚ) 0 hI (le_refl (0 : ℝ))).choose_spec.1
+    have hiso := (mem_actionIsotype _ _ _).mp hf
+    have hRf : R kk f = f := Subtype.ext ((hR kk f).trans (by
+      refine (hiso ⟨kk, hkk⟩).trans ?_
+      change ((1 : Circle) : ℂ) • (f : W(ℚ, 0)) = f
+      rw [Circle.coe_one, one_smul]))
+    have hRPf : R kk (globalThetaSobolevPrincipalValue ℚ ∅ 0 (le_refl (0 : ℝ)) f) =
+        globalThetaSobolevPrincipalValue ℚ ∅ 0 (le_refl (0 : ℝ)) f := by
+      have := globalThetaSobolevPrincipalValue_equivariant (F := ℚ) ∅ 0 (le_refl (0 : ℝ))
+        ⟨kk, hkk⟩ f
+      rw [← this]
+      exact congrArg _ hRf
+    let hv := (globalThetaSobolevPrincipalValue ℚ ∅ 0 (le_refl (0 : ℝ)) f).val
+    have hh : (hv : C𝔽(ℚ) → ℂ) =ᵐ[μ(ℚ)] fun x ↦ hv (kk⁻¹ * x) := by
+      have h1 := hardySobolevTranslation_apply (μ(ℚ))
+        (⟨ideleClassNorm ℚ, (isProperMap_ideleClassNorm ℚ).continuous⟩ : C𝔽(ℚ) →ₜ* ℝ≥0ˣ)
+        0 0 0 hI (le_refl (0 : ℝ)) kk hv
+      rw [← hR, hRPf] at h1
+      exact h1
+    have hψk (x : C𝔽(ℚ)) : ψ₀ (kk⁻¹ * x) = (H₃ kk)⁻¹ * ψ₀ x := by
+      have hE : kk⁻¹ * x ∈ E ↔ x ∈ E := by
+        simp only [E, Set.mem_preimage, map_mul, map_inv, MonoidHom.mem_ker.mp hkk, inv_one,
+          one_mul]
+      change E.indicator H₃ (kk⁻¹ * x) = (H₃ kk)⁻¹ * E.indicator H₃ x
+      by_cases hx : x ∈ E
+      · rw [Set.indicator_of_mem (hE.mpr hx), Set.indicator_of_mem hx, hH₃mul, hH₃inv]
+      · rw [Set.indicator_of_notMem (mt hE.mp hx), Set.indicator_of_notMem hx, mul_zero]
+    change ∫ g, hv g * ψ g ∂μ(ℚ) = 0
+    have hI0 : ∫ g, hv g * ψ g ∂μ(ℚ) = ∫ g, hv g * ψ₀ g ∂μ(ℚ) :=
+      integral_congr_ae (hψ.mono fun x hx ↦ by dsimp only; rw [hx])
+    have hinv : ∫ g, hv g * ψ₀ g ∂μ(ℚ) = (H₃ kk)⁻¹ * ∫ g, hv g * ψ₀ g ∂μ(ℚ) := by
+      calc ∫ g, hv g * ψ₀ g ∂μ(ℚ)
+          = ∫ g, hv (kk⁻¹ * g) * ψ₀ (kk⁻¹ * g) ∂μ(ℚ) :=
+            (integral_mul_left_eq_self (fun g ↦ hv g * ψ₀ g) kk⁻¹).symm
+        _ = ∫ g, (H₃ kk)⁻¹ * (hv g * ψ₀ g) ∂μ(ℚ) :=
+            integral_congr_ae (hh.mono fun x hx ↦ by
+              have hx' : hv (kk⁻¹ * x) = hv x := hx.symm
+              dsimp only; rw [hψk, hx']; ring)
+        _ = (H₃ kk)⁻¹ * ∫ g, hv g * ψ₀ g ∂μ(ℚ) := integral_const_mul _ _
+    rw [hI0]
+    have hc : (H₃ kk)⁻¹ ≠ 1 := fun e ↦ hHk (inv_eq_one.mp e)
+    by_contra hne
+    exact hc ((mul_eq_right₀ hne).mp hinv.symm)
+  exact hψne (congrArg Subtype.val (hA0 ⟨ψ, hψA⟩))
 
 /-- Paper: Remark 11.2.0.3, p. 485. The dual of the quotient by the entire
 isotypic theta space is identified by the pairing with the PV annihilator

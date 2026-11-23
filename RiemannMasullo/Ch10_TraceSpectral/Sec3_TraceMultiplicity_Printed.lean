@@ -103,6 +103,40 @@ and the Fourier transform of the averaging density has modulus one only at zero.
 Only constants then meet the dual norm at s = 3. Thus the peripheral algebraic
 multiplicity is at most one, contradicting the printed limit of 2. -/
 theorem Printed.spectralStripConvolution_trace_false :
-    ¬ Printed.spectralStripConvolution_trace := by sorry
+    ¬ Printed.spectralStripConvolution_trace := by
+  classical
+  intro hall
+  apply Printed.spectralLineConvolution_trace_false
+  intro F _ _ χ hχ a s hs φ
+  let L := {z : PontryaginDual C₁(F) × ℝ // 0 < orderAt(F, χ z.1, shift(a, z.2))}
+  let term (z : L) := ((min (orderAt(F, χ z.val.1, shift(a, z.val.2))).untop₀.toNat
+    (Nat.floor ((s - 1) / 2 + 1)) : ℕ) : ℂ) * mellinAt(F, φ, χ z.val.1, shift(0, z.val.2))
+  let P (l : ℝ) (hl : l ≤ 0) : Prop :=
+    ∃ T : nuclearEndomorphisms (spectralSobolevQuotient F a hl (zero_lt_one.trans hs).le),
+      T.val = spectralConvolution (F := F) a hl (zero_lt_one.trans hs).le φ ∧
+      HasSum term (hilbertTrace T)
+  have transport (l : ℝ) (hl : l ≤ 0) (he : l = 0) (hp : P l hl) : P 0 le_rfl := by
+    subst l
+    exact hp
+  apply transport _ ((neg_nonpos.mpr (le_refl (0 : ℝ))).trans le_rfl) neg_zero
+  let Z := {z : PontryaginDual C₁(F) × ℝ × ℝ //
+    z.2.1 ∈ Icc (-(0 : ℝ)) 0 ∧ 0 < orderAt(F, χ z.1, shift(a + z.2.1, z.2.2))}
+  have hoff (z : Z) : z.val.2.1 = 0 := by simpa using z.property.1
+  let e : L ≃ Z :=
+    { toFun := fun z ↦ ⟨(z.val.1, 0, z.val.2), by simp, by simpa only [add_zero] using z.property⟩
+      invFun := fun z ↦ ⟨(z.val.1, z.val.2.2), by simpa only [hoff z, add_zero] using z.property.2⟩
+      left_inv := fun z ↦ Subtype.ext rfl
+      right_inv := fun z ↦ Subtype.ext (Prod.ext rfl (Prod.ext (hoff z).symm rfl)) }
+  obtain ⟨T, hT, hsum⟩ := hall F χ hχ a 0 s le_rfl hs φ
+  refine ⟨T, hT, ?_⟩
+  let u (z : Z) :=
+    let b := z.val.2.1
+    let t := z.val.2.2
+    let n := (orderAt(F, χ z.val.1, shift(a + b, t))).untop₀.toNat
+    ((if b = -0 ∨ b = 0 then min n (Nat.floor ((s - 1) / 2 + 1)) else n : ℕ) : ℂ) *
+      mellinAt(F, φ, χ z.val.1, shift(b, t))
+  have hu : HasSum u (hilbertTrace T) := hsum
+  have heq (z : L) : u (e z) = term z := by simp only [u, e, Equiv.coe_fn_mk, add_zero, or_true, ite_true, term]
+  exact (e.hasSum_iff.mpr hu).congr_fun (fun z ↦ (heq z).symm)
 
 end RiemannMasullo

@@ -781,14 +781,14 @@ open scoped RestrictedProduct
 local notation "dF(" F ")" => algebraMap F (𝔸ᶠ[F])
 
 /-- The finite adeles whose component at every finite place lies in the local integer ring. -/
-private def finiteIntegralAdeles : Subring (𝔸ᶠ[F]) :=
+def finiteIntegralAdeles : Subring (𝔸ᶠ[F]) :=
   ⨅ v : HeightOneSpectrum (𝓞 F),
     ((v.adicCompletionIntegers F).toSubring).comap (RestrictedProduct.evalRingHom _ v)
 
 local notation "IF(" F ")" => finiteIntegralAdeles F
 
 /-- Membership in the integral finite adeles is tested at each finite place. -/
-private theorem mem_finiteIntegralAdeles_iff (a : 𝔸ᶠ[F]) :
+theorem mem_finiteIntegralAdeles_iff (a : 𝔸ᶠ[F]) :
     a ∈ IF(F) ↔ ∀ v : HeightOneSpectrum (𝓞 F), a v ∈ v.adicCompletionIntegers F := by
   simp only [finiteIntegralAdeles, Subring.mem_iInf]
   rfl
@@ -857,7 +857,7 @@ private theorem finiteIntegralAdeles_mod_nat (a : 𝔸ᶠ[F]) (ha : a ∈ IF(F))
   exact ⟨z, u, hx, by rw [hz, h, add_sub_cancel]⟩
 
 /-- A finite adele divisible by every positive integer within the integral finite adeles is zero. -/
-private theorem finiteAdele_eq_zero_of_forall_nat_mul (a : 𝔸ᶠ[F])
+theorem finiteAdele_eq_zero_of_forall_nat_mul (a : 𝔸ᶠ[F])
     (h : ∀ n : ℕ, n ≠ 0 → ∃ u : 𝔸ᶠ[F], u ∈ IF(F) ∧ a = (n : 𝔸ᶠ[F]) * u) :
     a = 0 := by
   apply FiniteAdeleRing.ext
@@ -1012,7 +1012,7 @@ private theorem finiteAdele_integralBasis_bijective
     rw [map_add, hu, hd, LinearEquiv.symm_apply_apply, sub_add_cancel]
 
 /-- The infinite component of scalar extension depends only on the input infinite component. -/
-private theorem rationalAdeleEmbedding_fst_eq (a b : 𝔸[ℚ]) (h : a.1 = b.1) :
+theorem rationalAdeleEmbedding_fst_eq (a b : 𝔸[ℚ]) (h : a.1 = b.1) :
     (rationalAdeleEmbedding F a).1 = (rationalAdeleEmbedding F b).1 := by
   let f := rationalAdeleEmbedding F
   have hzero : (f (a - b)).1 = 0 := by
@@ -1086,7 +1086,7 @@ private theorem infiniteAdele_integralBasis_bijective :
     fun y ↦ let ⟨c, hc⟩ := hcomp.surjective (m y); ⟨c, m.injective hc⟩⟩
 
 /-- The diagonal images of the integral basis form a basis over the rational adeles. -/
-private theorem exists_adelicIntegralBasis :
+theorem exists_adelicIntegralBasis :
     letI := (rationalAdeleEmbedding F).toAlgebra
     ∃ b : Module.Basis (Module.Free.ChooseBasisIndex ℤ (𝓞 F)) 𝔸[ℚ] 𝔸[F],
       ∀ i, b i = algebraMap F 𝔸[F] (integralBasis F i) := by
@@ -1507,7 +1507,7 @@ private theorem norm_fieldNorm_ratFinitePlace (v : HeightOneSpectrum (𝓞 ℚ))
 open scoped RestrictedProduct in
 /-- At each rational finite place, the adelic determinant has absolute value equal to
 the product of the normalized local factors above that place. -/
-private theorem rationalAdeleNorm_finitePlace (v : HeightOneSpectrum (𝓞 ℚ)) (a : 𝔸[F]) :
+theorem rationalAdeleNorm_finitePlace (v : HeightOneSpectrum (𝓞 ℚ)) (a : 𝔸[F]) :
     letI := (rationalAdeleEmbedding F).toAlgebra
     ‖(Algebra.norm 𝔸[ℚ] a).2 v‖ =
       ∏ᶠ (w : HeightOneSpectrum (𝓞 F)) (_ : w.under (𝓞 ℚ) = v), ‖a.2 w‖ := by

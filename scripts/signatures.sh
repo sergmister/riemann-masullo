@@ -5,9 +5,9 @@
 #   scripts/signatures.sh --all > new.txt               # private definitions too (see Signatures.lean)
 #   scripts/signatures.sh --compare old.txt new.txt     # lists declarations whose statement changed
 #
-# The comparison ignores declarations that exist in only one file: adding a lemma or finishing
-# a proof is fine, changing or removing what others build on is not. Exit status 1 if anything
-# changed.
+# The comparison allows new declarations: adding a lemma or finishing a proof is fine, but
+# changing or removing what others build on is not. Exit status 1 if anything changed or was
+# removed.
 #
 #   scripts/signatures.sh --sorry-in-defs [file]        # lists definitions whose body has a sorry,
 #                                                       # and declarations with one in the statement
@@ -20,8 +20,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 if [ "${1:-}" = --compare ]; then
   old=${2:?old signatures}; new=${3:?new signatures}
-  changed=$(awk 'NR==FNR { sig[$2]=$0; next } ($2 in sig) && sig[$2] != $0 { print $2 }' "$old" "$new")
-  removed=$(awk 'NR==FNR { seen[$2]=1; next } !($2 in seen) { print $2 }' "$new" "$old")
+  changed=$(awk 'FILENAME == ARGV[1] { sig[$2]=$0; next } ($2 in sig) && sig[$2] != $0 { print $2 }' "$old" "$new")
+  removed=$(awk 'FILENAME == ARGV[1] { seen[$2]=1; next } !($2 in seen) { print $2 }' "$new" "$old")
   [ -z "$changed" ] || { echo "statement or definition changed:"; echo "$changed" | sed 's/^/  /'; }
   [ -z "$removed" ] || { echo "removed:"; echo "$removed" | sed 's/^/  /'; }
   [ -z "$changed$removed" ]

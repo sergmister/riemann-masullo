@@ -6,9 +6,9 @@ public import RiemannMasullo.Ch03_IdelicZeta.Sec3
 public import RiemannMasullo.Ch05_ThetaZSpaces.Sec1
 public import Mathlib.Analysis.InnerProductSpace.TensorProduct
 public import Mathlib.Analysis.Fourier.LpSpace
-import all RiemannMasullo.Ch02_AdelicTheta.Sec1
+import RiemannMasullo.Ch02_AdelicTheta.Sec1
 import all RiemannMasullo.Ch02_AdelicTheta.Sec2a
-import all RiemannMasullo.Ch02_AdelicTheta.Sec2b
+import RiemannMasullo.Ch02_AdelicTheta.Sec2b
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec1b
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec1d
 import RiemannMasullo.ForMathlib.Analysis.Calculus.ContDiff.LineDeriv

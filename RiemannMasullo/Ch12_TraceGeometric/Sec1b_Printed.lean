@@ -1,7 +1,7 @@
 module
 
 public import RiemannMasullo.Ch12_TraceGeometric.Sec1b
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
+import RiemannMasullo.Ch10_TraceSpectral.Sec1
 
 /-! # The weighted spectral kernel in Remark 12.1.1.4 -/
 

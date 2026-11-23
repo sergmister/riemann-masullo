@@ -1,7 +1,7 @@
 module
 
 public import RiemannMasullo.Ch10_TraceSpectral.Sec4a
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
+import RiemannMasullo.Ch10_TraceSpectral.Sec1
 
 /-!
 # Printed cutoff and spectral lift claims in §§10.4.1–10.4.2

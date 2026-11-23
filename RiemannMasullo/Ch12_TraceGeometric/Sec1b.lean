@@ -2,7 +2,7 @@ module
 
 public import RiemannMasullo.Ch12_TraceGeometric.Sec1a
 public import RiemannMasullo.Ch10_TraceSpectral.Sec4b
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
+import RiemannMasullo.Ch10_TraceSpectral.Sec1
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec3b
 import Mathlib.MeasureTheory.Integral.Prod
 import Mathlib.MeasureTheory.Measure.SeparableMeasure
@@ -68,7 +68,7 @@ omit hU hBorel in
 open scoped Pointwise ENNReal in
 /-- The convolution kernel is eventually integrable on the averaging neighborhoods,
 and its averages on the diagonal converge to the test value at the identity. -/
-private theorem diagonal_mem_convolutionKernelRegularSet_averages
+theorem diagonal_mem_convolutionKernelRegularSet_averages
     {F : Type*} [Field F] [NumberField F]
     {U : ℕ → Set (IdeleClassGroup (𝓞 F) F)}
     (hU : IsDPrimeSequence (ideleClassTamagawaMeasure F) U)
@@ -291,7 +291,7 @@ private theorem dSequenceKernelSmoothening_conj_swap_diagonal {G : Type*} [CommG
 
 omit hU hBorel in
 open scoped ComplexConjugate ENNReal Pointwise in
-private theorem dSequenceKernelSmoothening_mul_continuous_snd_diagonal {G : Type*} [CommGroup G]
+theorem dSequenceKernelSmoothening_mul_continuous_snd_diagonal {G : Type*} [CommGroup G]
     [TopologicalSpace G] [IsTopologicalGroup G] [T2Space G] [LocallyCompactSpace G]
     [SecondCountableTopology G] [MeasurableSpace G] [BorelSpace G]
     {μ ν : Measure G} [μ.IsHaarMeasure] [IsFiniteMeasureOnCompacts ν] [ν.InnerRegular]

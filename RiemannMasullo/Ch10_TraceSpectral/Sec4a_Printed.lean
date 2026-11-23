@@ -4,7 +4,7 @@ public import RiemannMasullo.Ch10_TraceSpectral.Sec4a
 import Mathlib.Analysis.SpecificLimits.Normed
 import Mathlib.Analysis.InnerProductSpace.l2Space
 import Mathlib.Analysis.Normed.Group.Quotient
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
+import RiemannMasullo.Ch10_TraceSpectral.Sec1
 
 /-! # False assertions in §§10.4.1–10.4.2 -/
 

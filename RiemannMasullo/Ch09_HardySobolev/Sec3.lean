@@ -363,7 +363,7 @@ theorem hardySobolevTranslation_apply (a b s : ℝ) (hab : a ≤ b) (hs : 0 ≤ 
 
 /-- Continuity of a Bruhat-smooth function follows already from order zero.
 Around each point its restriction factors through an elementary quotient. -/
-private theorem continuous_of_bruhatSmooth {f : G → ℂ} (hf : IsBruhatSmooth f) : Continuous f := by
+theorem continuous_of_bruhatSmooth {f : G → ℂ} (hf : IsBruhatSmooth f) : Continuous f := by
   classical
   obtain ⟨k, hk, _, hdesc⟩ := hf 0
   have hkc := hk.isCompact

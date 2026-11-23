@@ -1,7 +1,7 @@
 module
 
 public import RiemannMasullo.Ch10_TraceSpectral.Sec2
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
+import RiemannMasullo.Ch10_TraceSpectral.Sec1
 import Mathlib.Analysis.SpecialFunctions.Complex.Analytic
 
 import all RiemannMasullo.Ch07_SchauderBasesZeta.Sec1b

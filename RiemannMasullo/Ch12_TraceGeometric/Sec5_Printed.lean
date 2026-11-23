@@ -1,8 +1,8 @@
 module
 
 public import RiemannMasullo.Ch12_TraceGeometric.Sec5
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
-import all RiemannMasullo.AppB_AnalyticNT.Sec4b
+import RiemannMasullo.Ch10_TraceSpectral.Sec1
+import RiemannMasullo.AppB_AnalyticNT.Sec4b
 import all RiemannMasullo.Ch03_IdelicZeta.Sec2
 import all RiemannMasullo.Ch02_AdelicTheta.Sec2b
 import all RiemannMasullo.Ch09_HardySobolev.Sec3

@@ -1,0 +1,10 @@
+{
+  "upstream": "https://github.com/mrdouglasny/gaussian-field",
+  "commit": "1283a2721377a36e80672799fcc1f69a494c8ea0",
+  "files": {
+    "HermiteFunctions.lean": {
+      "path": "SchwartzNuclear/HermiteFunctions.lean",
+      "sha256": "6c8c3423044ab1230bf614cb2828aaeb1e2db788da5b7de65a780abdc8b14285"
+    }
+  }
+}

@@ -2,8 +2,8 @@ module
 
 public import RiemannMasullo.Ch01_Introduction.Sec4
 import RiemannMasullo.Ch13_ZerosHecke.Targets
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
-import all RiemannMasullo.AppB_AnalyticNT.Sec4b
+import RiemannMasullo.Ch10_TraceSpectral.Sec1
+import RiemannMasullo.AppB_AnalyticNT.Sec4b
 
 /-! # Printed claims in the introduction's deduction of GRH -/
 

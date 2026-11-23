@@ -1,7 +1,6 @@
 module
 
 public import RiemannMasullo.Ch10_TraceSpectral.Sec1
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
 public import RiemannMasullo.AppD_SchwartzBruhat.Sec3a_part2
 public import RiemannMasullo.Ch04_PeriodicSchauderBases.Sec1
 import all RiemannMasullo.Ch09_HardySobolev.Sec2
@@ -1064,6 +1063,94 @@ theorem spectralLineIsotypeDual_pullback (a : ℝ) {s : ℝ} (hs : 0 ≤ s) (ω 
 
 end TestDuality
 
+/-- Every logarithmic moment of a function integrable against all quasi-characters is
+integrable against every real norm twist. -/
+private theorem spectralLineJet_functional_moment
+    {G : Type*} [CommGroup G] [TopologicalSpace G] [MeasurableSpace G] [BorelSpace G]
+    (m : G →ₜ* ℝ≥0ˣ) (μ : Measure G) (χ : QuasiCharacter G) (u : G → ℂ)
+    (hu : ∀ c : QuasiCharacter G, Integrable (fun g ↦ u g * c g) μ) (σ : ℝ) (n : ℕ) :
+    Integrable (fun g ↦ u g * (Real.log ((m g).val : ℝ) : ℂ) ^ n *
+      quasiCharacterNormTwist m.toMonoidHom m.continuous χ (σ : ℂ) g) μ := by
+  have hlog : Measurable (fun g ↦ Real.log ((m g).val : ℝ)) :=
+    (NNReal.continuous_coe.comp (Units.continuous_val.comp m.continuous)).measurable.log
+  let tw (w : ℝ) := quasiCharacterNormTwist m.toMonoidHom m.continuous χ (w : ℂ)
+  have h1 := (hu (tw (σ + 1))).norm
+  have h2 := (hu (tw (σ - 1))).norm
+  have hmeas : AEStronglyMeasurable (fun g ↦ u g * (Real.log ((m g).val : ℝ) : ℂ) ^ n *
+      quasiCharacterNormTwist m.toMonoidHom m.continuous χ (σ : ℂ) g) μ := by
+    have hL : AEStronglyMeasurable (fun g ↦ (Real.log ((m g).val : ℝ) : ℂ) ^ n) μ :=
+      ((Complex.measurable_ofReal.comp hlog).pow_const n).aestronglyMeasurable
+    refine ((hu (tw σ)).aestronglyMeasurable.mul hL).congr (ae_of_all _ fun g ↦ ?_)
+    simp only [Pi.mul_apply, tw]
+    ring
+  refine ((h1.add h2).const_mul (n.factorial : ℝ)).mono' hmeas (ae_of_all _ fun g ↦ ?_)
+  set L := Real.log ((m g).val : ℝ) with hLdef
+  have hnorm (w : ℝ) : ‖quasiCharacterNormTwist m.toMonoidHom m.continuous χ (w : ℂ) g‖ =
+      ‖χ g‖ * Real.exp (w * L) := by
+    rw [quasiCharacterNormTwist_eq_exp, norm_mul, ← Complex.ofReal_mul, Complex.norm_exp_ofReal]
+  have hpow : |L| ^ n ≤ n.factorial * (Real.exp L + Real.exp (-L)) := by
+    have h := Real.pow_div_factorial_le_exp |L| (abs_nonneg L) n
+    have hf : (0 : ℝ) < n.factorial := by exact_mod_cast Nat.factorial_pos n
+    have habs : Real.exp |L| ≤ Real.exp L + Real.exp (-L) := by
+      rcases abs_cases L with ⟨h', _⟩ | ⟨h', _⟩ <;> rw [h'] <;>
+        linarith [Real.exp_pos L, Real.exp_pos (-L)]
+    rw [div_le_iff₀ hf] at h
+    nlinarith
+  change ‖u g * (L : ℂ) ^ n * tw σ g‖ ≤
+    (n.factorial : ℝ) * (‖u g * tw (σ + 1) g‖ + ‖u g * tw (σ - 1) g‖)
+  simp only [tw, norm_mul, norm_pow, Complex.norm_real, Real.norm_eq_abs, hnorm]
+  have hA : 0 ≤ ‖u g‖ * (‖χ g‖ * Real.exp (σ * L)) := by positivity
+  have e1 : Real.exp ((σ + 1) * L) = Real.exp (σ * L) * Real.exp L := by
+    rw [← Real.exp_add]; ring_nf
+  have e2 : Real.exp ((σ - 1) * L) = Real.exp (σ * L) * Real.exp (-L) := by
+    rw [← Real.exp_add]; ring_nf
+  rw [e1, e2]
+  calc ‖u g‖ * |L| ^ n * (‖χ g‖ * Real.exp (σ * L))
+      = (‖u g‖ * (‖χ g‖ * Real.exp (σ * L))) * |L| ^ n := by ring
+    _ ≤ (‖u g‖ * (‖χ g‖ * Real.exp (σ * L))) * (n.factorial * (Real.exp L + Real.exp (-L))) :=
+        mul_le_mul_of_nonneg_left hpow hA
+    _ = _ := by ring
+
+/-- The pairing of a weighted function with a line jet is the derivative of its
+norm-twisted Mellin integral at the shifted point. -/
+private theorem spectralLineJet_functional_deriv
+    {G : Type*} [CommGroup G] [TopologicalSpace G] [MeasurableSpace G] [BorelSpace G]
+    (m : G →ₜ* ℝ≥0ˣ) (μ : Measure G) (χ : QuasiCharacter G) (u : G → ℂ)
+    (hu : ∀ c : QuasiCharacter G, Integrable (fun g ↦ u g * c g) μ) (a t : ℝ) (k : ℕ) :
+    ∫ g, modulationWeight m a u g *
+        (quasiCharacterNormTwist m.toMonoidHom m.continuous χ (((0 : ℝ) : ℂ) + (t : ℂ) * Complex.I) g *
+          (Real.log ((m g).val : ℝ) : ℂ) ^ k) ∂μ =
+      iteratedDeriv k (fun w ↦ ∫ g, u g *
+        quasiCharacterNormTwist m.toMonoidHom m.continuous χ w g ∂μ)
+        ((a : ℂ) + (t : ℂ) * Complex.I) := by
+  obtain ⟨_, _, hderiv⟩ := iteratedDeriv_normTwist_moment m μ χ
+    (α := a - 1) (β := a + 1) (fun σ _ n ↦ spectralLineJet_functional_moment m μ χ u hu σ n) k
+    (z := (a : ℂ) + (t : ℂ) * Complex.I) (by simp)
+  rw [hderiv]
+  refine integral_congr_ae (ae_of_all _ fun g ↦ ?_)
+  have hpos : 0 < ((m g).val : ℝ) := NNReal.coe_pos.mpr (pos_of_ne_zero (m g).ne_zero)
+  change (((((m g).val : ℝ) ^ a : ℝ)) : ℂ) * u g * _ = _
+  dsimp only
+  rw [quasiCharacterNormTwist_eq_exp, quasiCharacterNormTwist_eq_exp,
+    Real.rpow_def_of_pos hpos, Complex.ofReal_exp, Complex.ofReal_mul]
+  have e : Complex.exp (((a : ℂ) + (t : ℂ) * Complex.I) * (Real.log ((m g).val : ℝ) : ℂ)) =
+      Complex.exp ((Real.log ((m g).val : ℝ) : ℂ) * (a : ℂ)) *
+        Complex.exp ((((0 : ℝ) : ℂ) + (t : ℂ) * Complex.I) * (Real.log ((m g).val : ℝ) : ℂ)) := by
+    rw [← Complex.exp_add]; congr 1; push_cast; ring
+  rw [e]
+  ring
+
+
+/-- Every function in the two-sided decay space is integrable against every quasi-character. -/
+private theorem spectralLineJet_functional_integrable
+    {G : Type*} [CommGroup G] [TopologicalSpace G] [IsTopologicalGroup G] [T2Space G]
+    [LocallyCompactSpace G] [SecondCountableTopology G] [MeasurableSpace G] [BorelSpace G]
+    (m : G →ₜ* ℝ≥0ˣ) (hm : IsModulation m) (hms : Surjective m)
+    (μ : Measure G) [μ.IsHaarMeasure] (φ : ModulatedExponentialDecay m univ)
+    (c : QuasiCharacter G) : Integrable (fun g ↦ φ.val g * c g) μ :=
+  modulatedFourierMellin_integrable m univ hm ordConnected_univ univ_nonempty μ isOpen_univ hms φ
+    ⟨c, mem_univ _⟩
+
 /-- Paper: (10.2.1.9), p. 442. A surviving line jet acts on the Sobolev
 space by the integral of the input against that jet. On a weighted exponential-
 decay test this is precisely the derivative in the existing Mellin chart. -/
@@ -1075,7 +1162,41 @@ theorem spectralLineJet_functional (χ : PontryaginDual C₁ → PontryaginDual 
       ∀ (φ : ModulatedExponentialDecay m𝔽 univ) (f : W(0, 0, s)),
         (f : C𝔽 → ℂ) =ᵐ[μ𝔽] modulationWeight m𝔽 a φ.val →
         Λ f = iteratedDeriv j.val.2.2 (fun z ↦ modulatedFourierMellin m𝔽 univ hm𝔽 μ𝔽
-          φ.val (ideleClassNormTwist (χ j.val.1) z)) (shift(a, j.val.2.1)) := by sorry
+          φ.val (ideleClassNormTwist (χ j.val.1) z)) (shift(a, j.val.2.1)) := by
+  have hs0 : (0 : ℝ) ≤ s := by linarith
+  let Td := (modulatedIntervalSobolev_dual m𝔽 hm𝔽 μ𝔽 0 0 s le_rfl hs0).exists.choose
+  let u : W'(0, 0, s) := (spectralLineJet_memLp χ hs j).toLp (lineJet(χ, j))
+  have hac : μ𝔽 ≪ L2μ'(0, 0, s) := by
+    refine withDensity_absolutelyContinuous' ?_ (ae_of_all _ fun g ↦ ?_)
+    · exact ((continuous_intervalSobolevDensity' 0 0 s).measurable.comp
+        (NNReal.continuous_coe.comp (Units.continuous_val.comp
+          (isProperMap_ideleClassNorm F).continuous)).measurable.log).inv.ennreal_ofReal.aemeasurable
+    · exact ENNReal.ofReal_ne_zero_iff.mpr (inv_pos.mpr (intervalSobolevDensity_pos 0 0 s _))
+  have hae : (u : C𝔽 → ℂ) =ᵐ[μ𝔽] lineJet(χ, j) := hac.ae_le (MemLp.coeFn_toLp _)
+  have hpair (f : W(0, 0, s)) : Integrable (fun g ↦ f g * lineJet(χ, j) g) μ𝔽 ∧
+      Td.symm u f = ∫ g, f g * lineJet(χ, j) g ∂μ𝔽 := by
+    have h := spectralSobolevPairing_dual le_rfl hs0 (Td.symm u) f
+    have hTu : Td (Td.symm u) = u := Td.apply_symm_apply u
+    have hc : (fun g ↦ f g * Td (Td.symm u) g) =ᵐ[μ𝔽] fun g ↦ f g * lineJet(χ, j) g := by
+      rw [hTu]
+      exact hae.mono fun g hg ↦ congrArg (f g * ·) hg
+    exact ⟨h.1.congr hc, h.2.trans (integral_congr_ae hc)⟩
+  refine ⟨Td.symm u, hpair, fun φ f hf ↦ ?_⟩
+  let χq : QuasiCharacter C𝔽 :=
+    (⟨Circle.coeHom, continuous_subtype_val⟩ : Circle →ₜ* ℂ).comp (χ j.val.1)
+  have hc : (fun g ↦ f g * lineJet(χ, j) g) =ᵐ[μ𝔽]
+      fun g ↦ modulationWeight m𝔽 a φ.val g *
+        (quasiCharacterNormTwist (m𝔽).toMonoidHom (m𝔽).continuous χq (shift(0, j.val.2.1)) g *
+          (Real.log ((m𝔽 g).val : ℝ) : ℂ) ^ j.val.2.2) :=
+    hf.mono fun g hg ↦ by dsimp only; rw [hg]; rfl
+  have key := spectralLineJet_functional_deriv m𝔽 μ𝔽 χq φ.val
+    (spectralLineJet_functional_integrable m𝔽 hm𝔽 hms𝔽 μ𝔽 φ) a j.val.2.1 j.val.2.2
+  have hF : (fun z ↦ modulatedFourierMellin m𝔽 univ hm𝔽 μ𝔽 φ.val
+      (ideleClassNormTwist (χ j.val.1) z)) = fun w ↦ ∫ g, φ.val g *
+        quasiCharacterNormTwist (m𝔽).toMonoidHom (m𝔽).continuous χq w g ∂μ𝔽 :=
+    funext fun z ↦ modulatedFourierMellin_univ m𝔽 hm𝔽 μ𝔽 _ _
+  rw [(hpair f).2, integral_congr_ae hc, hF]
+  exact key
 
 section
 

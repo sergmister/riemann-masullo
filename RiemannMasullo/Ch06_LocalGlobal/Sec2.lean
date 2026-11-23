@@ -972,7 +972,45 @@ theorem exists_infiniteStandardThetaMellinAverage (χ : PontryaginDual Iₛ(S)) 
       A f x = ∫ g : N∞,
         let h := archPart((∅ : Finset V)) g.val
         f (Multiplicative.ofAdd (h * x).val) * (χ (archInsert(S) h) : ℂ)
-        ∂sNormOneIdeleTamagawaMeasure F ∅ := by sorry
+        ∂sNormOneIdeleTamagawaMeasure F ∅ := by
+  let D : Finset V := ∅
+  let (w : InfinitePlace F) : MeasurableSpace w.Completion := borel _
+  let (v : V) : MeasurableSpace (v.adicCompletion F) := borel _
+  let (w : InfinitePlace F) : BorelSpace w.Completion := ⟨rfl⟩
+  let (v : V) : BorelSpace (v.adicCompletion F) := ⟨rfl⟩
+  let (w : InfinitePlace F) : SecondCountableTopology w.Completion :=
+    (InfinitePlace.Completion.isometry_extensionEmbedding w).isEmbedding.secondCountableTopology
+  let (v : V) : ProperSpace (v.adicCompletion F) := properSpace_adicCompletion v
+  let : MeasurableSpace (SAdeleRing F D) := inferInstanceAs
+    (MeasurableSpace (((w : InfinitePlace F) → w.Completion) × ((v : D) → v.val.adicCompletion F)))
+  let : BorelSpace (SAdeleRing F D) := inferInstanceAs
+    (BorelSpace (((w : InfinitePlace F) → w.Completion) × ((v : D) → v.val.adicCompletion F)))
+  let : BorelSpace Iₛ(D) := by
+    refine ⟨?_⟩
+    rw [(sIdeleGroup_description F D).1.eq_induced, borel_comap, ← BorelSpace.measurable_eq]
+    rfl
+  let ν := sNormOneIdeleTamagawaMeasure F (∅ : Finset V)
+  let : LocallyCompactSpace Iₛ((∅ : Finset V)) := (sIdeleGroup_description F ∅).2.2.1
+  have hn : Continuous (sIdeleNorm F (∅ : Finset V)) :=
+    (isProperMap_sIdeleQuotientNorm F ∅).continuous.comp continuous_quotient_mk'
+  have hK : IsClosed (N∞ : Set Iₛ((∅ : Finset V))) :=
+    isClosed_eq hn continuous_const
+  let : LocallyCompactSpace N∞ := hK.locallyCompactSpace
+  let : ν.IsHaarMeasure := (sNormOneIdeleTamagawaMeasure_existsUnique F ∅).exists.choose_spec.1
+  let : ν.Regular := (sNormOneIdeleTamagawaMeasure_existsUnique F ∅).exists.choose_spec.2.1
+  obtain ⟨A, hA⟩ := exists_infiniteStandardThetaAverage χ⁻¹ (fun _ ↦ 1)
+  refine ⟨(classNumber F : ℂ)⁻¹ • A, fun f x ↦ ?_⟩
+  let K (g : N∞) := f (Multiplicative.ofAdd ((archPart((∅ : Finset V)) g.val) * x).val) *
+    (χ (archInsert(S) (archPart((∅ : Finset V)) g.val)) : ℂ)
+  have hf := hA f x
+  have hi : (∫ g : N∞, K g⁻¹ ∂ν) = ∫ g : N∞, K g ∂ν := integral_inv_eq_self K ν
+  have hj : A f x = (classNumber F : ℂ) * ∫ g : N∞, K g ∂ν := by
+    rw [hf, ← hi]
+    simp only [OneMemClass.coe_one, map_one, one_mul, K, InvMemClass.coe_inv, map_inv,
+      Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
+    rfl
+  change (classNumber F : ℂ)⁻¹ * A f x = ∫ g : N∞, K g ∂ν
+  rw [hj, ← mul_assoc, inv_mul_cancel₀ (Nat.cast_ne_zero.mpr (classNumber_pos F).ne'), one_mul]
 
 /-- Paper: Theorem 6.2.2.1(1), p. 299.
 The archimedean Mellin average integrates the positive translate against the given character.

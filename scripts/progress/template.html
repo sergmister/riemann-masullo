@@ -891,7 +891,8 @@ function overview() {
   if (extras.length) {
     frag.push(h('p', { class: 'muted' }, 'Outside the sections: ', extras.map((g, i) => [i ? '; ' : '',
       h('a', { href: '#' + g.key }, g.num), ' (' + g.title.charAt(0).toLowerCase() + g.title.slice(1) + '), ' +
-      plural(g.defs, 'definition') + ' and ' + g.proved + ' of ' + plural(g.thms, 'theorem') + ' proved']), '.'));
+      plural(g.defs, 'definition') + ' and ' + g.proved + ' of ' + plural(g.thms, 'theorem') + ' proved' +
+      (g.key === 'external' ? ', not counted in the totals above' : '')]), '.'));
   }
 
   /* waves */

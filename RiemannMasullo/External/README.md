@@ -9,6 +9,7 @@ sources we expect to draw on.
 | [`AlgebraicNumberTheoryLean/`](AlgebraicNumberTheoryLean/) | <https://github.com/jonhanke/algebraic-number-theory-lean> | Apache-2.0 | vendored at `5ea368e`: rational idelic Dirichlet character and its descent to idele classes |
 | [`Grh/`](Grh/) | <https://github.com/thatnealpatel/grh> | MIT | Vendored at `e55aab2` for good heights, zero-free disk estimates, weighted spectral jet kernels, and logarithmic derivative reflection |
 | [`TauCeti/`](TauCeti/) | <https://github.com/TauCetiProject/TauCeti> | Apache-2.0 | vendored at `8794ab3` for Montel's subsequence theorem in §1.4.3, and Runge's approximation theorem on `ℂ` with its import closure (97 files) for Lemma B.5.3.4(2) |
+| [`GaussianField/`](GaussianField/) | <https://github.com/mrdouglasny/gaussian-field> | Apache-2.0 | Vendored at `1283a27` for real one-dimensional Hermite completeness, orthonormality, and Schwartz seminorm growth |
 | [`Stacks/`](Stacks/) | <https://github.com/AxiomMath/Stacks> | Apache-2.0 | under consideration |
 
 Further material found by scouting. The exact declarations and pinned commits are listed in

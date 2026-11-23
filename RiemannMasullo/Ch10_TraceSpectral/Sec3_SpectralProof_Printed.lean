@@ -1,7 +1,8 @@
 module
 
 public import RiemannMasullo.Ch10_TraceSpectral.Sec3
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
+import RiemannMasullo.Ch10_TraceSpectral.Sec1
+import RiemannMasullo.Ch13_ZerosHecke.Targets
 
 /-! # Further assertions in the proofs of §10.3 that are false as printed -/
 
@@ -38,12 +39,68 @@ def Printed.spectralLineSelection_exists_isolatingInterval : Prop :=
       ∃ ε : ℝ, 0 < ε ∧
         Icc (K.min' hK - ε) (K.max' hK + ε) ∩ lineZeros(χ ω, a) = (K : Set ℝ)
 
+/-- Three ordered critical-line zeros of the ordinary Riemann zeta function suffice
+for the interval counterexample. This is a finite consequence of Hardy's theorem. -/
+private theorem spectralLineSelection_three_zeta_zeros :
+    ∃ u v w : ℝ, u < v ∧ v < w ∧ riemannZeta (shift(1 / 2, u)) = 0 ∧
+      riemannZeta (shift(1 / 2, v)) = 0 ∧ riemannZeta (shift(1 / 2, w)) = 0 := by
+  sorry
+
+/-- A critical-line zero of ordinary zeta has positive order for the completed
+L-function of the trivial rational character. -/
+private theorem spectralLineSelection_mem_lineZeros (t : ℝ)
+    (ht : riemannZeta (shift(1 / 2, t)) = 0) :
+    t ∈ lineZeros((1 : PontryaginDual C𝔽(ℚ)), 1 / 2) := by
+  let z : ℂ := shift(1 / 2, t)
+  have hre : z.re = 1 / 2 := by simp [z]
+  have hne : z ≠ 1 := fun h ↦ by norm_num [h] at hre
+  have hm : MeromorphicOn riemannZeta univ := by
+    simpa only [DirichletCharacter.LFunction_modOne_eq] using
+      meromorphic_dirichletLFunction (1 : DirichletCharacter ℂ 1)
+  change 0 < meromorphicOrderAt (continuedCompletedHeckeL (1 : PontryaginDual C𝔽(ℚ))) z
+  rw [← meromorphicOrderAt_finiteHeckeL_continuation _ hm (fun s ↦
+    (dedekindZeta_rat_eq_riemannZeta s.property).symm.trans
+      (finiteHeckeL_one_eq_dedekindZeta (K := ℚ) s).symm) (by rw [hre]; norm_num)]
+  apply (tendsto_zero_iff_meromorphicOrderAt_pos (hm z (mem_univ z))).mp
+  change riemannZeta z = 0 at ht
+  rw [← ht]
+  exact (differentiableAt_riemannZeta hne).continuousAt.continuousWithinAt
+
 /-- Paper: Theorem 10.3.1.1, interval choice before (10.3.1.15), p. 450.
 Use F = ℚ, the trivial base character and a = 1/2. Let K consist of the first and third
 distinct positive critical-line zeta ordinates. The omitted second ordinate lies inside
 the closed interval for every ε > 0. -/
 theorem Printed.spectralLineSelection_exists_isolatingInterval_false :
-    ¬ Printed.spectralLineSelection_exists_isolatingInterval := by sorry
+    ¬ Printed.spectralLineSelection_exists_isolatingInterval := by
+  classical
+  intro hall
+  obtain ⟨χ, hχ⟩ := exists_spectralBasepointChoice ℚ
+  let χ' := Function.update χ 1 (1 : PontryaginDual C𝔽(ℚ))
+  have hχ' : IsSpectralBasepointChoice χ' := by
+    intro ω
+    by_cases h : ω = 1
+    · subst ω
+      rw [show χ' 1 = 1 from Function.update_self ..]
+      rfl
+    · simpa [χ', Function.update_of_ne h] using hχ ω
+  obtain ⟨u, v, w, huv, hvw, hu, hv, hw⟩ := spectralLineSelection_three_zeta_zeros
+  let K : Finset ℝ := {u, w}
+  have huK : u ∈ K := by simp [K]
+  have hwK : w ∈ K := by simp [K]
+  have hzeros : (K : Set ℝ) ⊆ lineZeros((1 : PontryaginDual C𝔽(ℚ)), 1 / 2) := by
+    intro t ht
+    rcases (show t = u ∨ t = w by simpa [K] using ht) with rfl | rfl
+    · exact spectralLineSelection_mem_lineZeros _ hu
+    · exact spectralLineSelection_mem_lineZeros _ hw
+  have htriv : χ' 1 = 1 := Function.update_self ..
+  obtain ⟨ε, hε, hK⟩ := hall ℚ χ' hχ' (1 / 2) 1 K ⟨u, huK⟩ (by simpa only [htriv] using hzeros)
+  rw [htriv] at hK
+  have hvK : v ∈ (K : Set ℝ) := by
+    rw [← hK]
+    refine ⟨⟨?_, ?_⟩, spectralLineSelection_mem_lineZeros _ hv⟩
+    · exact (sub_le_self _ hε.le).trans ((K.min'_le u huK).trans huv.le)
+    · exact hvw.le.trans ((K.le_max' w hwK).trans (le_add_of_nonneg_right hε.le))
+  simp [K, huv.ne', hvw.ne] at hvK
 
 /-- Paper: Theorem 10.3.1.1, count following (10.3.1.16), p. 450.
 As printed: in each such interval the number of jets is at most the floor cutoff times the

@@ -17,6 +17,8 @@ import RiemannMasullo.ForMathlib.Topology.ContinuousMap.Sigma
 import RiemannMasullo.ForMathlib.MeasureTheory.Integral.Bochner.Regular
 import RiemannMasullo.ForMathlib.NumberTheory.NumberField.Completion.FinitePlace
 
+import Mathlib.MeasureTheory.Integral.Pi
+
 import all RiemannMasullo.AppC_LCTVS.Sec1
 
 import all RiemannMasullo.AppC_LCTVS.Sec1
@@ -217,6 +219,140 @@ def NormOneCharacterUnramifiedOutside (ω : PontryaginDual C₁)
     (S : Finset (HeightOneSpectrum (𝓞 F))) : Prop :=
   ∃ c : unramifiedOutside F S, ∀ x : C₁, c.val x.val = (ω x : ℂ)
 
+/-- An idele class character unramified outside `S` takes the same value at an idele that is
+a unit outside `S` and at the reinsertion of its `S`-coordinates. The two differ by a family of
+local integer units outside `S`, on which the character is trivial by continuity. -/
+private theorem normOneCharacterUnramifiedOutside_iff_reinsert (c : unramifiedOutside F S)
+    (u : (integralAdelesOutside F S)ˣ) :
+    c.val (QuotientGroup.mk (integralIdeleInsertion F S u)) =
+      c.val (QuotientGroup.mk (sIdeleInsertion F S
+        (Units.map (adeleProjection F S).toMonoidHom (integralIdeleInsertion F S u)))) := by
+  classical
+  let fin : (∀ v : HeightOneSpectrum (𝓞 F), (v.adicCompletionIntegers F)ˣ) →ₜ*
+      IdeleClassGroup (𝓞 F) F :=
+    let f : (∀ v : HeightOneSpectrum (𝓞 F), (v.adicCompletionIntegers F)) →* AdeleRing (𝓞 F) F :=
+      (1 : _ →* InfiniteAdeleRing F).prod
+        { toFun := RestrictedProduct.structureMap
+            (fun v : HeightOneSpectrum (𝓞 F) => v.adicCompletion F)
+            (fun v => ((v.adicCompletionIntegers F) : Set (v.adicCompletion F))) Filter.cofinite
+          map_one' := rfl
+          map_mul' := fun _ _ => rfl }
+    ⟨(QuotientGroup.mk' _).comp ((Units.map f).comp
+      (ContinuousMulEquiv.piUnits.symm :
+        (∀ v : HeightOneSpectrum (𝓞 F), (v.adicCompletionIntegers F)ˣ) ≃ₜ* _).toMonoidHom),
+      QuotientGroup.continuous_mk.comp
+        ((continuous_const.prodMk RestrictedProduct.isEmbedding_structureMap.continuous).units_map f
+          |>.comp (ContinuousMulEquiv.piUnits.symm :
+            (∀ v : HeightOneSpectrum (𝓞 F), (v.adicCompletionIntegers F)ˣ) ≃ₜ* _).continuous)⟩
+  have hsingle (v : HeightOneSpectrum (𝓞 F)) (w : (v.adicCompletionIntegers F)ˣ) :
+      fin (Pi.mulSingle v w) =
+        IdeleClassGroup.ofAdicCompletion (𝓞 F) F v
+          (Units.map (v.adicCompletionIntegers F).subtype.toMonoidHom w) := by
+    apply congrArg (QuotientGroup.mk : IdeleGroup (𝓞 F) F → IdeleClassGroup (𝓞 F) F)
+    apply Units.ext
+    refine Prod.ext rfl ?_
+    apply RestrictedProduct.ext
+    intro w'
+    change (((Pi.mulSingle v w : ∀ w : HeightOneSpectrum (𝓞 F),
+        (w.adicCompletionIntegers F)ˣ) w').val :
+        w'.adicCompletion F) =
+      RestrictedProduct.mulSingle (fun w : HeightOneSpectrum (𝓞 F) => w.adicCompletionIntegers F) v
+        (w.val : v.adicCompletion F) w'
+    rcases eq_or_ne w' v with rfl | hw
+    · rw [Pi.mulSingle_eq_same]
+      exact (RestrictedProduct.mulSingle_eq_same _ _ _).symm
+    · rw [Pi.mulSingle_eq_of_ne hw]
+      exact (RestrictedProduct.mulSingle_eq_of_ne _ _ hw).symm
+  let i := (integralAdelesOutside F S).subtype
+  let a := Units.map i.toMonoidHom u
+  let s := Units.map ((adeleProjection F S).comp i).toMonoidHom u
+  let q := QuotientGroup.mk' (IdeleGroup.principalSubgroup (𝓞 F) F)
+  let localEval (v : HeightOneSpectrum (𝓞 F)) (hv : v ∉ S) :
+      integralAdelesOutside F S →+* (v.adicCompletionIntegers F) :=
+    (((RestrictedProduct.evalRingHom _ v).comp (RingHom.snd _ _)).comp i).codRestrict _
+      (fun x => by
+        have hx := x.property
+        simp only [integralAdelesOutside, Subring.mem_iInf] at hx
+        exact hx v hv)
+  let outsideUnits (v : HeightOneSpectrum (𝓞 F)) : (v.adicCompletionIntegers F)ˣ :=
+    if hv : v ∈ S then 1 else Units.map (localEval v hv).toMonoidHom u
+  have hb : c.val (fin outsideUnits) = 1 := by
+    let χ := c.val.comp fin
+    have hp : HasProd (fun v => Pi.mulSingle v (outsideUnits v)) outsideUnits := by
+      refine Pi.hasProd.mpr fun w => ?_
+      convert hasProd_pi_single w (outsideUnits w) using 1
+      funext v
+      rcases eq_or_ne v w with rfl | hv
+      · simp
+      · simp [hv, hv.symm]
+    refine (hp.map χ χ.continuous).unique (hasProd_one.congr_fun fun v => ?_)
+    change c.val (fin (Pi.mulSingle v (outsideUnits v))) = 1
+    by_cases hv : v ∈ S
+    · simp [outsideUnits, hv]
+    · rw [hsingle]
+      have hc : ∀ v ∉ S, c.val.IsUnramifiedAt v := c.property
+      have h := (hc v hv).restrict_apply_unit_eq_one (outsideUnits v)
+      change c.val.restrict v
+        ↑(Units.map (v.adicCompletionIntegers F).subtype.toMonoidHom (outsideUnits v)) = 1 at h
+      rw [HeckeCharacter.restrict, MulChar.ofUnitHom_coe] at h
+      exact h
+  have hfactor : q a = q (sIdeleInsertion F S s) * fin outsideUnits := by
+    change q a = q (sIdeleInsertion F S s) * q _
+    rw [← map_mul]
+    apply congrArg q
+    apply Units.ext
+    obtain ⟨hinf, hin, hout⟩ := sIdeleInsertion_apply F S s
+    refine Prod.ext ?_ ?_
+    · change a.val.1 = (sIdeleInsertion F S s).val.1 * 1
+      rw [mul_one, hinf]
+      rfl
+    · apply RestrictedProduct.ext
+      intro v
+      change a.val.2 v =
+        (sIdeleInsertion F S s).val.2 v * ((outsideUnits v).val : v.adicCompletion F)
+      by_cases hv : v ∈ S
+      · rw [hin ⟨v, hv⟩]
+        change a.val.2 v = a.val.2 v * ((outsideUnits v).val : v.adicCompletion F)
+        simp [outsideUnits, hv]
+      · rw [hout v hv, one_mul]
+        dsimp [outsideUnits]
+        rw [dite_eq_right hv]
+        rfl
+  have h := congrArg c.val hfactor
+  rw [map_mul, hb, mul_one] at h
+  exact h
+
+/-- Every norm-one class of `S`-ideles is the projection of an idele that is a unit outside `S`
+and whose idele class has norm one. -/
+private theorem normOneCharacterUnramifiedOutside_iff_lift (y : J₁(S)) :
+    ∃ (u : (integralAdelesOutside F S)ˣ) (x : C₁),
+      x.val = QuotientGroup.mk (integralIdeleInsertion F S u) ∧
+      y.val = QuotientGroup.mk
+        (Units.map (adeleProjection F S).toMonoidHom (integralIdeleInsertion F S u)) := by
+  obtain ⟨a, ha⟩ := QuotientGroup.mk_surjective y.val
+  have hmem : sIdeleInsertion F S a ∈ Set.range (integralIdeleInsertion F S) := by
+    rw [mem_range_integralIdeleInsertion]
+    intro v hv
+    have h1 := (sIdeleInsertion_apply F S a).2.2 v hv
+    have h2 := (sIdeleInsertion_apply F S a⁻¹).2.2 v hv
+    rw [map_inv] at h2
+    refine ⟨?_, ?_⟩
+    · rw [h1]; exact one_mem _
+    · change ((sIdeleInsertion F S a)⁻¹).val.2 v ∈ _
+      rw [h2]; exact one_mem _
+  obtain ⟨u, hu⟩ := hmem
+  have hproj : Units.map (adeleProjection F S).toMonoidHom (integralIdeleInsertion F S u) = a := by
+    rw [hu]
+    obtain ⟨hinf, hin, -⟩ := sIdeleInsertion_apply F S a
+    apply Units.ext
+    refine Prod.ext hinf (funext fun v ↦ hin v)
+  have hnorm : m𝔽 (QuotientGroup.mk (integralIdeleInsertion F S u)) = 1 := by
+    rw [hu]
+    change ideleNorm F (sIdeleInsertion F S a) = 1
+    rw [ideleNorm_sIdeleInsertion, ← sIdeleQuotientNorm_mk, ha]
+    exact y.property
+  exact ⟨u, ⟨_, hnorm⟩, rfl, by rw [hproj, ha]⟩
+
 /-- Paper: Remark 5.2.3.3, p. 236.
 Unramifiedness is equivalent to unique descent to the norm-one S-idele quotient.
 Deviation: The descent identity is tested on norm-one ideles integral outside S. -/
@@ -227,7 +363,103 @@ theorem normOneCharacterUnramifiedOutside_iff (ω : PontryaginDual C₁) :
           let g := integralIdeleInsertion F S u
           x.val = QuotientGroup.mk g →
           y.val = QuotientGroup.mk (Units.map (adeleProjection F S).toMonoidHom g) →
-          χ y = ω x := by sorry
+          χ y = ω x := by
+  constructor
+  · rintro ⟨c, hc⟩
+    let r := sIdeleRestriction F S c
+    have hval (u : (integralAdelesOutside F S)ˣ) (x : C₁) (y : J₁(S))
+        (hx : x.val = QuotientGroup.mk (integralIdeleInsertion F S u))
+        (hy : y.val = QuotientGroup.mk
+          (Units.map (adeleProjection F S).toMonoidHom (integralIdeleInsertion F S u))) :
+        r y.val = ω x := by
+      rw [hy, sIdeleRestriction_mk, ← normOneCharacterUnramifiedOutside_iff_reinsert, ← hx, hc]
+    have hr (y : J₁(S)) : r y.val ∈ Submonoid.unitSphere ℂ := by
+      obtain ⟨u, x, hx, hy⟩ := normOneCharacterUnramifiedOutside_iff_lift y
+      rw [hval u x y hx hy]
+      exact (ω x).property
+    let χ : PontryaginDual (J₁(S)) :=
+      ⟨(r.toMonoidHom.comp (J₁(S)).subtype).codRestrict (Submonoid.unitSphere ℂ) hr,
+        (r.continuous.comp continuous_subtype_val).subtype_mk _⟩
+    refine ⟨χ, fun u x y hx hy ↦ Subtype.ext (hval u x y hx hy), fun χ' hχ' ↦ ?_⟩
+    ext y
+    obtain ⟨u, x, hx, hy⟩ := normOneCharacterUnramifiedOutside_iff_lift y
+    rw [hχ' u x y hx hy]
+    exact (hval u x y hx hy).symm
+  · classical
+    rintro ⟨χ, hχ, -⟩
+    let τ : ℝ≥0ˣ →* C𝔽 :=
+      (QuotientGroup.mk' (IdeleGroup.principalSubgroup (𝓞 F) F)).comp (canonicalIdeleNormSection F)
+    have hτ (t : ℝ≥0ˣ) : m𝔽 (τ t) = t := canonicalIdeleNormSection_rightInverse F t
+    have hτc : Continuous τ :=
+      QuotientGroup.continuous_mk.comp (canonicalIdeleNormSection_continuous F)
+    let D₀ : C𝔽 →* C𝔽 := MonoidHom.id C𝔽 / τ.comp m𝔽
+    have hD (x : C𝔽) : D₀ x ∈ C₁ := by
+      rw [MonoidHom.mem_ker]
+      simp [D₀, hτ]
+    let D : C𝔽 →ₜ* C₁ := ⟨D₀.codRestrict _ hD,
+      (continuous_id.div' (hτc.comp (isProperMap_ideleClassNorm F).continuous)).subtype_mk _⟩
+    have hD1 (x : C₁) : D x.val = x := by
+      apply Subtype.ext
+      have hx : m𝔽 x.val = 1 := x.property
+      change x.val / τ (m𝔽 x.val) = x.val
+      rw [hx, map_one, div_one]
+    let c : HeckeCharacter (𝓞 F) F :=
+      (⟨Circle.coeHom, continuous_subtype_val⟩ : Circle →ₜ* ℂ).comp (ω.comp D)
+    have hcu : c ∈ unramifiedOutside F S := by
+      rw [mem_unramifiedOutside_iff]
+      intro v hv w
+      let gi := IdeleGroup.ofAdicCompletion (𝓞 F) F v
+        (Units.map (v.adicCompletionIntegers F).subtype.toMonoidHom w)
+      have hnorm : m𝔽 (QuotientGroup.mk gi) = 1 := by
+        change m𝔽 (IdeleClassGroup.ofAdicCompletion (𝓞 F) F v _) = 1
+        rw [ideleClassNorm_ofAdicCompletion]
+        apply Units.ext
+        change ‖((w : (v.adicCompletionIntegers F)) : v.adicCompletion F)‖₊ = 1
+        let a : v.adicCompletionIntegers F := w
+        let b : v.adicCompletionIntegers F := ((w⁻¹ : (v.adicCompletionIntegers F)ˣ) :
+          v.adicCompletionIntegers F)
+        have h1 : ‖(a : v.adicCompletion F)‖ ≤ 1 :=
+          Valued.toNormedField.norm_le_one_iff.mpr a.property
+        have h2 : ‖(b : v.adicCompletion F)‖ ≤ 1 :=
+          Valued.toNormedField.norm_le_one_iff.mpr b.property
+        have h3 : ‖(a : v.adicCompletion F)‖ * ‖(b : v.adicCompletion F)‖ = 1 := by
+          rw [← norm_mul, ← MulMemClass.coe_mul]
+          simp only [a, b, Units.mul_inv, OneMemClass.coe_one, norm_one]
+        apply NNReal.coe_injective
+        simp only [coe_nnNorm, NNReal.coe_one]
+        nlinarith [norm_nonneg (a : v.adicCompletion F), norm_nonneg (b : v.adicCompletion F)]
+      obtain ⟨u, hu⟩ : gi ∈ Set.range (integralIdeleInsertion F S) := by
+        rw [mem_range_integralIdeleInsertion]
+        intro v' hv'
+        have hc (z : (v.adicCompletion F)ˣ)
+            (hz : (z : v.adicCompletion F) ∈ v.adicCompletionIntegers F) :
+            (IdeleGroup.ofAdicCompletion (𝓞 F) F v z).val.2 v' ∈ (v'.adicCompletionIntegers F) := by
+          change RestrictedProduct.mulSingle (fun w : HeightOneSpectrum (𝓞 F) ↦
+            w.adicCompletionIntegers F) v z.val v' ∈ _
+          rcases eq_or_ne v' v with rfl | hne
+          · rw [RestrictedProduct.mulSingle_eq_same]
+            exact hz
+          · rw [RestrictedProduct.mulSingle_eq_of_ne _ _ hne]
+            exact one_mem _
+        refine ⟨hc _ w.val.property, ?_⟩
+        rw [Units.inv_eq_val_inv, show gi⁻¹ = IdeleGroup.ofAdicCompletion (𝓞 F) F v
+          (Units.map (v.adicCompletionIntegers F).subtype.toMonoidHom w⁻¹) by
+            simp only [gi, map_inv]]
+        exact hc _ (w⁻¹).val.property
+      have hproj : Units.map (adeleProjection F S).toMonoidHom gi = 1 := by
+        apply Units.ext
+        refine Prod.ext rfl (funext fun v'' ↦ ?_)
+        change RestrictedProduct.mulSingle (fun w : HeightOneSpectrum (𝓞 F) ↦
+          w.adicCompletionIntegers F) v _ v''.val = 1
+        exact RestrictedProduct.mulSingle_eq_of_ne _ _ (fun h ↦ hv (h ▸ v''.property))
+      have h := hχ u ⟨_, hnorm⟩ 1 (by rw [hu]) (by rw [hu, hproj]; rfl)
+      change ((ω (D (QuotientGroup.mk gi)) : Circle) : ℂ) = 1
+      rw [show D (QuotientGroup.mk gi) = ⟨_, hnorm⟩ from hD1 ⟨_, hnorm⟩, ← h, map_one]
+      rfl
+    exact ⟨⟨c, hcu⟩, fun x ↦ by
+      change ((ω (D x.val) : Circle) : ℂ) = ω x
+      rw [hD1]⟩
+
 
 variable (S) in
 /-- Paper: Theorem 5.2.3.1, p. 233.
@@ -1392,7 +1624,30 @@ theorem globalHomogeneousThetaSpace_complete :
 /-- Paper: Theorem 5.2.3.1(2), p. 233.
 The S-local homogeneous quotient is complete for its additive uniformity. -/
 theorem sLocalHomogeneousThetaSpace_complete (χ : PontryaginDual (J₁(S))) :
-    @CompleteSpace (Θₛω(S, χ)) (IsTopologicalAddGroup.rightUniformSpace _) := by sorry
+    @CompleteSpace (Θₛω(S, χ)) (IsTopologicalAddGroup.rightUniformSpace _) := by
+  let E := SLocalAdelicThetaSpace F S
+  let G := J₁(S)
+  have := isClosed_sProjectedDiagonal (F := F) (S := S)
+  let : T2Space (Jₛ(S)) := inferInstanceAs (T2Space (_ ⧸ _))
+  let : T2Space G := inferInstanceAs (T2Space ((sIdeleQuotientNorm F S).ker : Set (Jₛ(S))))
+  let : MeasurableSpace G := borel _
+  let : BorelSpace G := ⟨rfl⟩
+  let : CompactSpace G := isCompact_iff_compactSpace.mp
+    ((isProperMap_sIdeleQuotientNorm F S).isCompact_preimage (isCompact_singleton (x := 1)))
+  let : T2Space E := sLocalAdelicThetaSpace_t2_of_isClosed (F := F) (S := S)
+    (sLocalAdelicTheta_ker_isClosed (F := F) (S := S))
+  let : PolynormableSpace ℂ E := sLocalAdelicThetaSpace_polynormable (F := F) (S := S)
+  let μ := sLocalNormOneQuotientMeasure F S
+  have : μ.IsHaarMeasure := (sLocalNormOneQuotientMeasure_normProduct (F := F) (S := S)).1
+  let ρ := (existsUnique_sLocalThetaAction (F := F) (S := S)).exists.choose
+  have hσ : Continuous (fun p : G × E ↦ ρ p.1.val p.2) :=
+    (existsUnique_sLocalThetaAction (F := F) (S := S)).exists.choose_spec.1.comp
+      ((continuous_subtype_val.comp continuous_fst).prodMk continuous_snd)
+  have hq := globalHomogeneousThetaSpace_complete_subgroup G
+    (sLocalAdelicThetaSpace_complete (F := F) (S := S)) μ ρ hσ χ
+  have he := (sLocalHomogeneousThetaSpace_equiv_coinvariants (F := F) (S := S) χ).choose
+  with_reducible_and_instances
+    exact globalHomogeneousThetaSpace_complete_transfer he hq
 
 /-- Paper: Theorem 5.2.3.1(2), p. 233.
 The global homogeneous quotient is nuclear. -/
@@ -2302,6 +2557,168 @@ theorem existsUnique_sLocalThetaFourier :
         e ((Kₛ(S)).mkQ f) = (Kₛ(S)).mkQ (sAdeleSchwartzFourier (F := F) (S := S) f) :=
   by sorry
 
+open scoped IsDedekindDomain.FiniteAdeleRing RestrictedProduct in
+/-- The adelic Fourier transform is a continuous linear operator on the global tests. It is
+linear because it is the Pontryagin-dual transform read through self-duality, and continuous
+because it maps bounded sets to bounded sets. -/
+private theorem existsUnique_globalThetaFourier_clm :
+    ∃ P : ℬ𝔽 →L[ℂ] ℬ𝔽, ∀ f, P f = adeleSchwartzFourier f := by
+  let : MeasurableSpace 𝔸[F] := borel _
+  let G := Multiplicative 𝔸[F]
+  let : MeasurableSpace G := borel G
+  let μ : Measure G := additiveTamagawaMeasure F
+  let (v : HeightOneSpectrum (𝓞 F)) : LocallyCompactSpace (v.adicCompletion F) :=
+    locallyCompactSpace_adicCompletion v
+  let (v : HeightOneSpectrum (𝓞 F)) : CompactSpace (v.adicCompletionIntegers F) :=
+    compactSpace_adicCompletionIntegers v
+  let : Fact (∀ v : HeightOneSpectrum (𝓞 F),
+      IsOpen (v.adicCompletionIntegers F : Set (v.adicCompletion F))) :=
+    ⟨fun _ ↦ Valued.isOpen_valuationSubring _⟩
+  let : LocallyCompactSpace G := by
+    change LocallyCompactSpace (InfiniteAdeleRing F ×
+      (Πʳ v : HeightOneSpectrum (𝓞 F), [v.adicCompletion F, v.adicCompletionIntegers F]))
+    infer_instance
+  let : T2Space G := by
+    change T2Space (((v : InfinitePlace F) → v.Completion) ×
+      (Πʳ v : HeightOneSpectrum (𝓞 F), [v.adicCompletion F, v.adicCompletionIntegers F]))
+    infer_instance
+  let : BorelSpace G := ⟨rfl⟩
+  have hμ := (additiveTamagawaMeasure_existsUnique F).exists.choose_spec
+  let : μ.IsHaarMeasure :=
+    { toIsFiniteMeasureOnCompacts := hμ.1.toIsFiniteMeasureOnCompacts
+      toIsOpenPosMeasure := hμ.1.toIsOpenPosMeasure
+      map_mul_left_eq_self := fun x ↦ hμ.1.map_add_left_eq_self x.toAdd }
+  let : μ.Regular := hμ.2.1
+  obtain ⟨e, he⟩ := additiveTamagawaMeasure_selfDual F
+  obtain ⟨Fo, hFo⟩ := schwartzBruhat_fourier_equiv μ
+  have hpt (f : ℬ𝔽) (y : G) : adeleSchwartzFourier f y = Fo f (e y) := by
+    refine (tamagawaFourier_eq_lcaFourier _ _ _ _ (e y) (fun x ↦ ?_)).trans ((hFo f).2 _).symm
+    rw [mul_comm x y.toAdd]
+    exact he.1 y.toAdd x
+  let L : ℬ𝔽 →ₗ[ℂ] ℬ𝔽 :=
+    { toFun := adeleSchwartzFourier
+      map_add' := fun f g ↦ Subtype.ext (funext fun y ↦ by
+        change adeleSchwartzFourier (f + g) y =
+          adeleSchwartzFourier f y + adeleSchwartzFourier g y
+        rw [hpt, hpt, hpt, map_add]
+        rfl)
+      map_smul' := fun c f ↦ Subtype.ext (funext fun y ↦ by
+        change adeleSchwartzFourier (c • f) y = c * adeleSchwartzFourier f y
+        rw [hpt, hpt, map_smul]
+        rfl) }
+  exact ⟨⟨L, continuous_of_bornological_image schwartzBruhat_bornological L
+    adeleSchwartzFourier_image_isVonNBounded⟩, fun _ ↦ rfl⟩
+
+/-- There are idele classes of every norm `n + 1`. -/
+private theorem existsUnique_globalThetaFourier_seq :
+    ∃ g : ℕ → IdeleClassGroup (𝓞 F) F,
+      ∀ n, ((ideleClassNorm F (g n) : ℝ≥0) : ℝ) = n + 1 := by
+  refine ⟨fun n ↦ QuotientGroup.mk (canonicalIdeleNormSection F
+    (Units.mk0 ((n : ℝ≥0) + 1) (Nat.cast_add_one_ne_zero n))), fun n ↦ ?_⟩
+  change ((ideleNorm F (canonicalIdeleNormSection F _) : ℝ≥0) : ℝ) = _
+  rw [canonicalIdeleNormSection_rightInverse F]
+  simp
+
+/-- Global theta decays faster than the inverse norm along classes of norm `n + 1`. -/
+private theorem existsUnique_globalThetaFourier_tendsto (h : ℬ𝔽)
+    (g : ℕ → IdeleClassGroup (𝓞 F) F) (hg : ∀ n, ((ideleClassNorm F (g n) : ℝ≥0) : ℝ) = n + 1) :
+    Tendsto (fun n : ℕ ↦ ((n : ℂ) + 1) * adelicTheta h (g n)) atTop (𝓝 0) := by
+  obtain ⟨C, T, hC, -, hdec⟩ := adelicTheta_decay_large h 2
+  refine squeeze_zero_norm' ?_ (tendsto_const_div_atTop_nhds_zero_nat C)
+  filter_upwards [eventually_gt_atTop ⌈T⌉₊, eventually_ge_atTop 1] with n hn hn1
+  have hT : T < ((ideleClassNorm F (g n) : ℝ≥0) : ℝ) := by
+    rw [hg]
+    have := Nat.lt_of_ceil_lt hn
+    linarith
+  have hb := hdec (g n) hT
+  simp only [hg] at hb
+  have hpos : (0 : ℝ) < n := by exact_mod_cast hn1
+  rw [norm_mul, show ((n : ℂ) + 1) = ((n + 1 : ℝ) : ℂ) by push_cast; ring, Complex.norm_real,
+    Real.norm_of_nonneg (by positivity)]
+  calc ((n : ℝ) + 1) * ‖adelicTheta h (g n)‖ ≤ ((n : ℝ) + 1) * (C * (((n : ℝ) + 1) ^ 2)⁻¹) :=
+        mul_le_mul_of_nonneg_left hb (by positivity)
+    _ = C / ((n : ℝ) + 1) := by field_simp
+    _ ≤ C / n := div_le_div_of_nonneg_left hC.le hpos (by linarith)
+
+/-- A constant whose multiples by `n + 1` converge is zero. -/
+private theorem existsUnique_globalThetaFourier_const {z w : ℂ}
+    (h : Tendsto (fun n : ℕ ↦ ((n : ℂ) + 1) * z) atTop (𝓝 w)) : z = 0 := by
+  have hinv : Tendsto (fun n : ℕ ↦ ((n : ℂ) + 1)⁻¹) atTop (𝓝 0) := by
+    have := (Complex.continuous_ofReal.tendsto 0).comp tendsto_one_div_add_atTop_nhds_zero_nat
+    simpa [Function.comp_def] using this
+  have hz := h.mul hinv
+  rw [mul_zero] at hz
+  refine tendsto_nhds_unique (tendsto_const_nhds.congr fun n ↦ ?_) hz
+  field_simp [Nat.cast_add_one_ne_zero n]
+
+/-- A test with vanishing theta function vanishes at zero, and so does its Fourier transform.
+By Riemann–Roch the Fourier theta is `a / ‖g‖ - b` with `a`, `b` the two values at zero,
+and theta decays at infinity. -/
+private theorem existsUnique_globalThetaFourier_zero (f : ℬ𝔽) (hf : adelicTheta f = 0) :
+    f (Multiplicative.ofAdd 0) = 0 ∧ adeleSchwartzFourier f (Multiplicative.ofAdd 0) = 0 := by
+  obtain ⟨g, hg⟩ := existsUnique_globalThetaFourier_seq (F := F)
+  set a := f (Multiplicative.ofAdd (0 : 𝔸[F]))
+  set b := adeleSchwartzFourier f (Multiplicative.ofAdd (0 : 𝔸[F]))
+  have hval (n : ℕ) :
+      ((n : ℂ) + 1) * adelicTheta (adeleSchwartzFourier f) (g n) = a - ((n : ℂ) + 1) * b := by
+    have h := adelicTheta_riemannRoch f (g n)⁻¹
+    simp only [hf, ContinuousMap.zero_apply, inv_inv, map_inv, Units.val_inv_eq_inv_val,
+      NNReal.coe_inv, hg, Complex.real_smul] at h
+    push_cast at h
+    linear_combination (-1 : ℂ) * h
+  have ht := existsUnique_globalThetaFourier_tendsto (adeleSchwartzFourier f) g hg
+  simp_rw [hval] at ht
+  have hb : b = 0 := by
+    have h2 : Tendsto (fun n : ℕ ↦ ((n : ℂ) + 1) * (-b)) atTop (𝓝 (0 - a)) :=
+      (ht.sub (tendsto_const_nhds (x := a))).congr fun n ↦ by ring
+    exact neg_eq_zero.mp (existsUnique_globalThetaFourier_const h2)
+  simp only [hb, mul_zero, sub_zero] at ht
+  exact ⟨tendsto_nhds_unique tendsto_const_nhds ht, hb⟩
+
+/-- The adelic Fourier transform preserves the global theta kernel. -/
+private theorem existsUnique_globalThetaFourier_ker (f : ℬ𝔽) (hf : adelicTheta f = 0) :
+    adelicTheta (adeleSchwartzFourier f) = 0 := by
+  obtain ⟨h0, h1⟩ := existsUnique_globalThetaFourier_zero f hf
+  ext g
+  have h := adelicTheta_riemannRoch f g⁻¹
+  have hn : ((ideleClassNorm F g⁻¹ : ℝ≥0) : ℝ)⁻¹ ≠ 0 :=
+    inv_ne_zero (NNReal.coe_ne_zero.mpr (ideleClassNorm F g⁻¹).ne_zero)
+  simp only [hf, ContinuousMap.zero_apply, inv_inv, h0, h1, smul_zero, add_zero,
+    sub_zero] at h
+  exact (smul_eq_zero.mp h.symm).resolve_left hn
+
+/-- The double adelic Fourier transform has the same theta function. Riemann–Roch twice
+shows the two theta functions differ by a constant, and both decay at infinity. -/
+private theorem existsUnique_globalThetaFourier_inv (f : ℬ𝔽) :
+    adelicTheta (adeleSchwartzFourier (adeleSchwartzFourier f)) = adelicTheta f := by
+  set a := f (Multiplicative.ofAdd (0 : 𝔸[F]))
+  set b := adeleSchwartzFourier f (Multiplicative.ofAdd (0 : 𝔸[F]))
+  set c := adeleSchwartzFourier (adeleSchwartzFourier f) (Multiplicative.ofAdd (0 : 𝔸[F]))
+  have hrr (g : IdeleClassGroup (𝓞 F) F) :
+      adelicTheta f g = adelicTheta (adeleSchwartzFourier (adeleSchwartzFourier f)) g + c - a := by
+    have h1 := adelicTheta_riemannRoch f g
+    have h2 := adelicTheta_riemannRoch (adeleSchwartzFourier f) g⁻¹
+    have hn : ((ideleClassNorm F g : ℝ≥0) : ℝ) ≠ 0 :=
+      NNReal.coe_ne_zero.mpr (ideleClassNorm F g).ne_zero
+    simp only [inv_inv, map_inv, Units.val_inv_eq_inv_val, NNReal.coe_inv,
+      Complex.real_smul] at h1 h2
+    rw [h1, h2]
+    have hn' : (((ideleClassNorm F g : ℝ≥0) : ℝ) : ℂ) ≠ 0 := Complex.ofReal_ne_zero.mpr hn
+    push_cast
+    field_simp
+    ring
+  obtain ⟨g, hg⟩ := existsUnique_globalThetaFourier_seq (F := F)
+  have hca : c - a = 0 := by
+    refine existsUnique_globalThetaFourier_const (w := 0 - 0) ?_
+    refine ((existsUnique_globalThetaFourier_tendsto f g hg).sub
+      (existsUnique_globalThetaFourier_tendsto
+        (adeleSchwartzFourier (adeleSchwartzFourier f)) g hg)).congr fun n ↦ ?_
+    rw [hrr]
+    ring
+  ext g
+  rw [hrr]
+  linear_combination -hca
+
 /-- Paper: Theorem 5.2.4.1(2), p. 239.
 Adelic Fourier transform descends to a unique continuous linear involution
 on the global theta quotient.
@@ -2309,14 +2726,158 @@ Deviation: The descent identity is tested on global test functions, as in the pr
 theorem existsUnique_globalThetaFourier :
     ∃! e : Θ𝔽 ≃L[ℂ] Θ𝔽,
       Involutive e ∧ ∀ f : ℬ𝔽,
-        e ((K𝔽).mkQ f) = (K𝔽).mkQ (adeleSchwartzFourier (F := F) f) :=
-  by sorry
+        e ((K𝔽).mkQ f) = (K𝔽).mkQ (adeleSchwartzFourier (F := F) f) := by
+  obtain ⟨P, hP⟩ := existsUnique_globalThetaFourier_clm (F := F)
+  have hK : K𝔽 ≤ (K𝔽).comap P.toLinearMap := fun f hf ↦ by
+    rw [Submodule.mem_comap, LinearMap.mem_ker, ContinuousLinearMap.coe_coe, hP]
+    exact existsUnique_globalThetaFourier_ker f (LinearMap.mem_ker.mp hf)
+  let E₀ : Θ𝔽 →ₗ[ℂ] Θ𝔽 := (K𝔽).mapQ K𝔽 P.toLinearMap hK
+  have hE₀ (f : ℬ𝔽) : E₀ ((K𝔽).mkQ f) = (K𝔽).mkQ (adeleSchwartzFourier f) := by
+    rw [← hP]
+    rfl
+  have hcont : Continuous E₀ := by
+    refine (K𝔽).isQuotientMap_mkQ.continuous_iff.mpr ?_
+    have : (E₀ ∘ (K𝔽).mkQ) = (K𝔽).mkQ ∘ P :=
+      funext fun f ↦ (hE₀ f).trans (by simp only [Function.comp_apply, hP])
+    rw [this]
+    exact (K𝔽).isQuotientMap_mkQ.continuous.comp P.continuous
+  let E : Θ𝔽 →L[ℂ] Θ𝔽 := ⟨E₀, hcont⟩
+  have hEE (x : Θ𝔽) : E (E x) = x := by
+    obtain ⟨f, rfl⟩ := (K𝔽).mkQ_surjective x
+    change E₀ (E₀ _) = _
+    rw [hE₀, hE₀]
+    exact (globalAdelicThetaSpace_mk_eq_iff _ _).mpr (existsUnique_globalThetaFourier_inv f)
+  refine ⟨ContinuousLinearEquiv.equivOfInverse E E hEE hEE, ⟨hEE, hE₀⟩, ?_⟩
+  rintro e' ⟨-, he'⟩
+  ext x
+  obtain ⟨f, rfl⟩ := (K𝔽).mkQ_surjective x
+  exact (he' f).trans (hE₀ f).symm
+
 
 -- TODO(paper-gap): The unrestricted compatibility assertions on p. 239 fail.
 -- For ℚ(i) above 2 the Fourier image of the integer indicator is half the inverse-
 -- different indicator. An archimedean bump supported near 1/2 detects the difference.
 
 set_option maxSynthPendingDepth 8 in
+open Classical in
+/-- Integrating a stage function times one factor at each new place separates over the
+additive Tamagawa measure, without a pure-tensor hypothesis on the old stage function. -/
+private theorem sLocalThetaFourier_transition_integral
+    {D : Finset (HeightOneSpectrum (𝓞 F))} (hD : Disjoint S D)
+    (g : SAdeleRing F S → ℂ) (k : (v : D) → v.val.adicCompletion F → ℂ) :
+    (∫ z : SAdeleRing F (S ∪ D),
+      g (z.1, fun v ↦ z.2 ⟨v.val, Finset.mem_union_left D v.property⟩) *
+        ∏ v : D, k v (z.2 ⟨v.val, Finset.mem_union_right S v.property⟩)
+        ∂sAdditiveTamagawaMeasure F (S ∪ D)) =
+      (∫ z, g z ∂sAdditiveTamagawaMeasure F S) *
+        ∏ v : D, ∫ x, k v x ∂finiteLocalAdditiveTamagawaMeasure F v.val := by
+  classical
+  let V := HeightOneSpectrum (𝓞 F)
+  let K (v : V) := v.adicCompletion F
+  let (v : V) : MeasurableSpace (K v) := borel (v.adicCompletion F)
+  let (w : InfinitePlace F) : MeasurableSpace w.Completion := borel _
+  let : MeasurableSpace (InfiniteAdeleRing F) :=
+    inferInstanceAs (MeasurableSpace ((w : InfinitePlace F) → w.Completion))
+  let μ (v : V) : Measure (K v) := finiteLocalAdditiveTamagawaMeasure F v
+  let (v : V) : ProperSpace (v.adicCompletion F) := properSpace_adicCompletion v
+  let (v : V) : (finiteLocalAdditiveTamagawaMeasure F v).IsAddHaarMeasure :=
+    finiteLocalAdditiveTamagawaMeasure_isAddHaar F v
+  let (v : V) : SigmaFinite (μ v) :=
+    inferInstanceAs (SigmaFinite (finiteLocalAdditiveTamagawaMeasure F v))
+  let (w : InfinitePlace F) : SecondCountableTopology w.Completion :=
+    (InfinitePlace.Completion.isometry_extensionEmbedding w).isEmbedding.secondCountableTopology
+  let (w : InfinitePlace F) : (infiniteLocalAdditiveTamagawaMeasure F w).IsAddHaarMeasure :=
+    infiniteLocalAdditiveTamagawaMeasure_haar F w
+  let μa := Measure.pi (infiniteLocalAdditiveTamagawaMeasure F)
+  let η (A : Finset V) := Measure.pi (fun v : A ↦ μ v.val)
+  let e := MeasurableEquiv.piFinsetUnion K hD
+  let E := MeasurableEquiv.prodAssoc.trans ((MeasurableEquiv.refl (InfiniteAdeleRing F)).prodCongr e)
+  have hE : MeasurePreserving E ((μa.prod (η S)).prod (η D)) (μa.prod (η (S ∪ D))) :=
+    ((MeasurePreserving.id μa).prod (measurePreserving_piFinsetUnion hD μ)).comp
+      (measurePreserving_prodAssoc μa (η S) (η D))
+  let H (z : SAdeleRing F (S ∪ D)) :=
+    g (z.1, fun v ↦ z.2 ⟨v.val, Finset.mem_union_left D v.property⟩) *
+      ∏ v : D, k v (z.2 ⟨v.val, Finset.mem_union_right S v.property⟩)
+  change (∫ z, H z ∂μa.prod (η (S ∪ D))) = _
+  refine (hE.integral_comp' H).symm.trans ?_
+  have h (p : SAdeleRing F S × ((v : D) → K v.val)) :
+      H (E p) = g p.1 * ∏ v : D, k v (p.2 v) := by
+    change g (p.1.1, fun v ↦ Equiv.piFinsetUnion K hD (p.1.2, p.2) ⟨v.val, Finset.mem_union_left D v.property⟩) *
+      ∏ v : D, k v (Equiv.piFinsetUnion K hD (p.1.2, p.2) ⟨v.val, Finset.mem_union_right S v.property⟩) = _
+    simp only [Equiv.piFinsetUnion_left K hD (Subtype.property _),
+      Equiv.piFinsetUnion_right K hD (Subtype.property _)]
+    rfl
+  simp_rw [h]
+  exact (integral_prod_mul (μ := μa.prod (η S)) (ν := η D) g (fun x ↦ ∏ v : D, k v (x v))).trans
+    (congrArg (_ * ·) (integral_fintype_prod_eq_prod k (μ := fun v : D ↦ μ v.val)))
+
+open Classical in
+/-- Extending to a disjoint union multiplies by the integer indicators on its second summand. -/
+private theorem sLocalThetaFourier_transition_apply
+    {D : Finset (HeightOneSpectrum (𝓞 F))} (hD : Disjoint S D)
+    (f : ℬₛ(S)) (z : SAdeleRing F (S ∪ D)) :
+    sAdeleSchwartzTransition F (Finset.subset_union_left (s₁ := S) (s₂ := D)) f
+        (Multiplicative.ofAdd z) =
+      f (Multiplicative.ofAdd (z.1, fun v : S ↦ z.2 ⟨v.val, Finset.mem_union_left D v.property⟩)) *
+        ∏ v : D, (v.val.adicCompletionIntegers F : Set (v.val.adicCompletion F)).indicator
+          (fun _ ↦ (1 : ℂ)) (z.2 ⟨v.val, Finset.mem_union_right S v.property⟩) := by
+  classical
+  rw [sAdeleSchwartzTransition_apply]
+  split_ifs with h
+  · rw [Finset.prod_eq_one (fun v _ ↦ Set.indicator_of_mem
+      (h ⟨v.val, Finset.mem_union_right S v.property⟩
+        (fun hv ↦ Finset.disjoint_left.mp hD hv v.property)) _), mul_one]
+  · push Not at h
+    obtain ⟨v, hv, hz⟩ := h
+    have hvD := (Finset.mem_union.mp v.property).resolve_left hv
+    rw [Finset.prod_eq_zero (Finset.mem_univ (⟨v.val, hvD⟩ : D))
+      (Set.indicator_of_notMem hz _), mul_zero]
+
+open Classical in
+/-- The Fourier integral for an enlarged test function factors into its stage transform
+and the local transforms of the newly inserted integer indicators. -/
+private theorem sLocalThetaFourier_transition_union
+    {D : Finset (HeightOneSpectrum (𝓞 F))} (hD : Disjoint S D)
+    (hgood : ∀ v ∈ D, ¬ v.asIdeal ∣ differentIdeal ℤ (𝓞 F)) (f : ℬₛ(S)) :
+    let i := sAdeleSchwartzTransition F (Finset.subset_union_left (s₁ := S) (s₂ := D))
+    sAdeleSchwartzFourier (i f) = i (sAdeleSchwartzFourier f) := by
+  classical
+  intro i
+  apply Subtype.ext
+  funext y
+  let p (z : SAdeleRing F (S ∪ D)) : SAdeleRing F S :=
+    (z.1, fun v ↦ z.2 ⟨v.val, Finset.mem_union_left D v.property⟩)
+  let j (v : D) : ↥(S ∪ D) := ⟨v.val, Finset.mem_union_right S v.property⟩
+  let I (v : D) := (v.val.adicCompletionIntegers F : Set (v.val.adicCompletion F)).indicator
+    (fun _ ↦ (1 : ℂ))
+  let C := (starRingEnd ℂ).toMonoidHom.comp Circle.coeHom
+  let g (x : SAdeleRing F S) := f (Multiplicative.ofAdd x) * C (sAdeleStandardCharacter F S (x * p y.toAdd))
+  let k (v : D) (x : v.val.adicCompletion F) :=
+    I v x * C (finiteLocalStandardCharacter F v.val (x * y.toAdd.2 (j v)))
+  have hψ (z : SAdeleRing F (S ∪ D)) : sAdeleStandardCharacter F (S ∪ D) (z * y.toAdd) =
+      sAdeleStandardCharacter F S (p z * p y.toAdd) *
+        ∏ v : D, finiteLocalStandardCharacter F v.val (z.2 (j v) * y.toAdd.2 (j v)) := by
+    let b (v : ↥(S ∪ D)) := finiteLocalStandardCharacter F v.val (z.2 v * y.toAdd.2 v)
+    change _ * (∏ v, b v) = (_ * _) * _
+    rw [← (Equiv.Finset.union S D hD).prod_comp b, Fintype.prod_sum_type, ← mul_assoc]
+    rfl
+  have hInt (z : SAdeleRing F (S ∪ D)) :
+      i f (Multiplicative.ofAdd z) * C (sAdeleStandardCharacter F (S ∪ D) (z * y.toAdd)) =
+        g (p z) * ∏ v : D, k v (z.2 (j v)) := by
+    rw [show i f (Multiplicative.ofAdd z) = _ from sLocalThetaFourier_transition_apply hD f z,
+      hψ, map_mul, map_prod]
+    simp only [g, k, Finset.prod_mul_distrib]
+    ring
+  have hfix (v : D) : (∫ x, k v x ∂finiteLocalAdditiveTamagawaMeasure F v.val) =
+      I v (y.toAdd.2 (j v)) :=
+    congrFun ((finiteLocalTamagawaFourier_fixes_integers_iff F v.val).mpr (hgood v.val v.property)) _
+  change (∫ z, i f (Multiplicative.ofAdd z) * C (sAdeleStandardCharacter F (S ∪ D) (z * y.toAdd))
+      ∂sAdditiveTamagawaMeasure F (S ∪ D)) = _
+  simp_rw [hInt]
+  exact (sLocalThetaFourier_transition_integral hD g k).trans
+    ((congrArg (_ * ·) (Finset.prod_congr rfl fun v _ ↦ hfix v)).trans
+      (sLocalThetaFourier_transition_apply hD (sAdeleSchwartzFourier f) y.toAdd).symm)
+
 /-- Paper: Theorem 5.2.4.1(1), p. 239.
 The S-local Fourier involutions commute with stage enlargement away from the different.
 Deviation: Every added place is required to have a Fourier-fixed integer indicator. -/
@@ -2327,7 +2888,22 @@ theorem sLocalThetaFourier_transition (hST : S ⊆ T)
     let fourierS := (existsUnique_sLocalThetaFourier (F := F) (S := S)).exists.choose
     let fourierT := (existsUnique_sLocalThetaFourier (F := F) (S := T)).exists.choose
     let transition := sLocalThetaTransition (F := F) (S := S) (T := T) hST
-    fourierT (transition x) = transition (fourierS x) := by sorry
+    fourierT (transition x) = transition (fourierS x) := by
+  classical
+  intro fourierS fourierT transition
+  induction x using Submodule.Quotient.induction_on with
+  | _ f =>
+    let P (A : Finset (HeightOneSpectrum (𝓞 F))) := ∀ h : S ⊆ A,
+      let i := sAdeleSchwartzTransition F h
+      sAdeleSchwartzFourier (i f) = i (sAdeleSchwartzFourier f)
+    have hu : P (S ∪ (T \ S)) := fun _ ↦
+      sLocalThetaFourier_transition_union Finset.disjoint_sdiff
+        (fun v hv ↦ hgood v (Finset.mem_sdiff.mp hv).1 (Finset.mem_sdiff.mp hv).2) f
+    have hT : P T := (Finset.union_sdiff_of_subset hST) ▸ hu
+    exact ((existsUnique_sLocalThetaFourier (F := F) (S := T)).exists.choose_spec.2
+      (sAdeleSchwartzTransition F hST f)).trans
+      ((congrArg (Kₛ(T)).mkQ (hT hST)).trans (congrArg transition
+        ((existsUnique_sLocalThetaFourier (F := F) (S := S)).exists.choose_spec.2 f).symm))
 
 set_option maxSynthPendingDepth 8 in
 /-- Paper: (5.2.4.4), p. 239.

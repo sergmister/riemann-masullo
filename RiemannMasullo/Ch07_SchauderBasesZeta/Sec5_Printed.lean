@@ -1,6 +1,7 @@
 module
 
 public import RiemannMasullo.Ch07_SchauderBasesZeta.Sec5
+import all RiemannMasullo.Ch03_IdelicZeta.Sec2
 
 /-! # False claims printed in §7.5 -/
 
@@ -90,12 +91,104 @@ def Printed.strongCoprimalityFourierJet_zero_full : Prop :=
               (ideleClassNormTwist χ⁻¹ z)
             AnalyticAt ℂ Z (1 - s) ∧ d (q f) = Z (1 - s)
 
+section
+
+open Filter
+open scoped Topology
+
+local instance strongCoprimalityFourierJetFalseClassMeasurable : MeasurableSpace (IdeleClassGroup (𝓞 ℚ) ℚ) := borel _
+local notation "zeroAdele" => Multiplicative.ofAdd (0 : 𝔸[ℚ])
+/-- The trivial character has value one on every local unit. -/
+private theorem strongCoprimalityFourierJet_false_restrict_one (v : HeightOneSpectrum (𝓞 ℚ)) (u : (v.adicCompletion ℚ)ˣ) :
+    (ideleClassNormTwist (1 : PontryaginDual (IdeleClassGroup (𝓞 ℚ) ℚ)) 0).restrict v u = 1 := by
+  rw [HeckeCharacter.restrict, MulChar.ofUnitHom_coe]
+  change (1 : ℂ) * _ ^ (0 : ℂ) = 1
+  rw [Complex.cpow_zero, mul_one]
+/-- The trivial character is unramified at every finite place. -/
+private theorem strongCoprimalityFourierJet_false_unramified (v : HeightOneSpectrum (𝓞 ℚ)) :
+    (ideleClassNormTwist (1 : PontryaginDual (IdeleClassGroup (𝓞 ℚ) ℚ)) 0).IsUnramifiedAt v := by
+  rw [HeckeCharacter.isUnramifiedAt_iff]
+  intro u
+  exact strongCoprimalityFourierJet_false_restrict_one v (Units.map (v.adicCompletionIntegers ℚ).subtype.toMonoidHom u)
+/-- At exponent zero, the reciprocal Euler factor of the trivial character vanishes. -/
+private theorem strongCoprimalityFourierJet_false_euler (v : HeightOneSpectrum (𝓞 ℚ)) :
+    (finiteHeckeEulerFactor (1 : PontryaginDual (IdeleClassGroup (𝓞 ℚ) ℚ)) v 0)⁻¹ = 0 := by
+  let val : Valuation (v.adicCompletion ℚ) (WithZero (Multiplicative ℤ)) := Valued.v
+  let u := Units.mk0 (val.exists_isUniformizer_of_isCyclic_of_nontrivial.choose : v.adicCompletion ℚ)
+    val.exists_isUniformizer_of_isCyclic_of_nontrivial.choose_spec.ne_zero
+  have hv : (ideleClassNormTwist (1 : PontryaginDual (IdeleClassGroup (𝓞 ℚ) ℚ)) 0).localValue v = 1 := strongCoprimalityFourierJet_false_restrict_one v u
+  simp [finiteHeckeEulerFactor, strongCoprimalityFourierJet_false_unramified v, hv]
+/-- A test nonzero at zero gives a reflected Fourier zeta function that is not analytic at one. -/
+private theorem strongCoprimalityFourierJet_false_nonanalytic (f : SchwartzBruhat (Multiplicative (𝔸[ℚ]))) (hf : f zeroAdele ≠ 0) :
+    ¬ AnalyticAt ℂ (fun z ↦ globalIdelicZFunction (adeleSchwartzFourier f)
+      (ideleClassNormTwist (1 : PontryaginDual (IdeleClassGroup (𝓞 ℚ) ℚ)) z)) 1 := by
+  intro ha
+  let ν := normOneIdeleClassTamagawaMeasure ℚ
+  let : CompactSpace (ideleClassNorm ℚ).ker := (ideleClassGroup_finiteness ℚ).2.1
+  let : ν.IsHaarMeasure :=
+    (multiplicativeTamagawaMeasures_existsUnique ℚ).exists.choose_spec.2.2.2.1
+  have hm : (ν univ).toReal ≠ 0 := by
+    exact (ENNReal.toReal_pos (isOpen_univ.measure_pos ν Set.univ_nonempty).ne'
+      isCompact_univ.measure_lt_top.ne).ne'
+  have hc : ContinuousAt (fun s : ℂ ↦ globalIdelicZFunction f
+      (ideleClassNormTwist (1 : PontryaginDual (IdeleClassGroup (𝓞 ℚ) ℚ)) s)) 0 := by
+    have ha' : ContinuousAt (fun z ↦ globalIdelicZFunction (adeleSchwartzFourier f)
+      (ideleClassNormTwist (1 : PontryaginDual (IdeleClassGroup (𝓞 ℚ) ℚ)) z)) (1 - 0) := by
+      simpa using ha.continuousAt
+    have h := ha'.comp (by fun_prop : ContinuousAt (fun s : ℂ ↦ 1 - s) 0)
+    have heq : (fun s : ℂ ↦ globalIdelicZFunction f
+        (ideleClassNormTwist (1 : PontryaginDual (IdeleClassGroup (𝓞 ℚ) ℚ)) s)) =
+        (fun s : ℂ ↦ globalIdelicZFunction (adeleSchwartzFourier f)
+          (ideleClassNormTwist (1 : PontryaginDual (IdeleClassGroup (𝓞 ℚ) ℚ)) (1 - s))) := by
+      funext s
+      rw [globalIdelicZFunction_functionalEquation, dualQuasiCharacter_ideleClassNormTwist, inv_one]
+    rw [heq]
+    exact h
+  have ht : Tendsto (fun s : ℂ ↦ s * globalIdelicZFunction f
+      (ideleClassNormTwist (1 : PontryaginDual (IdeleClassGroup (𝓞 ℚ) ℚ)) s))
+      (𝓝[≠] 0) (𝓝 0) := by
+    simpa only [Pi.mul_apply, id_eq, zero_mul] using
+      (continuousAt_id.tendsto.mul hc.tendsto).mono_left (nhdsWithin_le_nhds (s := {0}ᶜ))
+  have he := tendsto_nhds_unique ht (globalIdelicZFunction_residue_zero f)
+  exact (mul_ne_zero (neg_ne_zero.mpr (Complex.ofReal_ne_zero.mpr hm)) hf) he.symm
 /-- Paper: Theorem 7.5.0.1, proof, equation (7.5.0.8), p. 377.
-Take F = ℚ, χ = 1, S₀ = S with finite part {2}, and s = 0.
-The factor 1 − 2⁻ˢ has a simple zero there. The adelic Gaussian with real
-factor exp(−πx²) and finite integer indicators is self-dual. Its reflected
-zeta function Γℝ(z)ζ(z) has a simple pole at z = 1. -/
+Take F = ℚ, χ = 1, the rational prime 2, and s = 0. Enlarge the primary
+set S₀ to a finite set S with trivial S-ideal class group. The reciprocal
+Euler factor vanishes at zero. If the reflected Fourier zeta function of
+the standard adelic Gaussian were analytic at one, the functional equation
+would make its original zeta function continuous at zero. Its nonzero
+residue there contradicts this continuity. -/
 theorem Printed.strongCoprimalityFourierJet_zero_full_false :
-    ¬ Printed.strongCoprimalityFourierJet_zero_full := by sorry
+    ¬ Printed.strongCoprimalityFourierJet_zero_full := by
+  intro h
+  classical
+  let p : HeightOneSpectrum (𝓞 ℚ) := Rat.HeightOneSpectrum.primesEquiv.symm ⟨2, Nat.prime_two⟩
+  let S₀ := (finite_nuclearityPlacesAbove (F := ℚ) p).toFinset
+  let T := (eventually_trivial_sIdealClassGroup (F := ℚ)).choose
+  let S := T ∪ S₀
+  have hS : Subsingleton (CommRing.Pic ((S : Set (HeightOneSpectrum (𝓞 ℚ))).integer ℚ)) :=
+    (eventually_trivial_sIdealClassGroup (F := ℚ)).choose_spec S Finset.subset_union_left
+  have hp : p ∈ S₀ := by
+    change p ∈ (finite_nuclearityPlacesAbove (F := ℚ) p).toFinset
+    simp only [Set.Finite.mem_toFinset, Set.mem_ofPred_eq]
+    apply HeightOneSpectrum.ext
+    change Ideal.comap (algebraMap (𝓞 ℚ) (𝓞 ℚ)) p.asIdeal = p.asIdeal
+    have he : algebraMap (𝓞 ℚ) (𝓞 ℚ) = RingHom.id _ := by
+      ext x
+      simp
+    rw [he, Ideal.comap_id]
+  have hu : ideleClassNormTwist (1 : PontryaginDual (IdeleClassGroup (𝓞 ℚ) ℚ)) 0 ∈
+      unramifiedOutside ℚ S := fun v _ ↦ strongCoprimalityFourierJet_false_unramified v
+  have hd := h ℚ 1 p S Finset.subset_union_right hS hu p hp 0 (strongCoprimalityFourierJet_false_euler p)
+  let f := adelicStandardGaussian (1 : PontryaginDual (IdeleClassGroup (𝓞 ℚ) ℚ))
+  have hf : f zeroAdele ≠ 0 := by
+    change adelicStandardGaussian _ (Multiplicative.ofAdd 0) ≠ 0
+    rw [adelicStandardGaussian_trivial_zero]
+    exact pow_ne_zero _ (inv_ne_zero (mul_ne_zero (by norm_num)
+      (Complex.ofReal_ne_zero.mpr Real.pi_ne_zero)))
+  apply strongCoprimalityFourierJet_false_nonanalytic f hf
+  simpa only [inv_one, sub_zero] using (hd.choose_spec f).1
+
+end
 
 end RiemannMasullo

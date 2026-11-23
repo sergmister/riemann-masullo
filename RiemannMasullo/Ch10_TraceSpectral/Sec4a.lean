@@ -12,7 +12,7 @@ public import Mathlib.Topology.Compactness.Compact
 import all RiemannMasullo.AppA_AlgebraicNT.Sec3
 import Mathlib.Analysis.Normed.Operator.Extend
 import Mathlib.Analysis.SpecificLimits.Basic
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
+import RiemannMasullo.Ch10_TraceSpectral.Sec1
 import all RiemannMasullo.Ch10_TraceSpectral.Sec3
 import all RiemannMasullo.AppC_LCTVS.Sec3a
 import all RiemannMasullo.AppC_LCTVS.Sec3a_part2
@@ -1909,6 +1909,120 @@ local notation "cutoffTraces(" op ", " eps ", " rho ", " test ", " t ")" =>
     let T := (op) a hα hs hc (test)
     ∃ hT : IsNuclearOperator (E := W₀) (F := W₀) T, (t) R = hilbertTrace (H := W₀) ⟨T, hT⟩)
 
+/-- A nuclear operator admits a rank-one expansion with summable trace norms. -/
+private theorem spectralRestriction_series
+    {H : Type*} [NormedAddCommGroup H] [InnerProductSpace ℂ H] [CompleteSpace H]
+    (T : nuclearEndomorphisms H) :
+    ∃ (a : ℕ → ℂ) (l : ℕ → H →L[ℂ] ℂ) (y : ℕ → H),
+      Summable (fun n ↦ ‖a n‖ * (‖l n‖ * ‖y n‖)) ∧
+      ∀ v, HasSum (fun n ↦ (a n * l n v) • y n) (T.val v) := by
+  obtain ⟨a, l, y, ha, hl, hy, hseries⟩ := (isNuclearOperator_iff_isBanachNuclear _).mp T.property
+  obtain ⟨L, hL, hL'⟩ := (Metric.isBounded_range_of_tendsto l hl).exists_pos_norm_le
+  obtain ⟨Y, _, hY'⟩ := (Metric.isBounded_range_of_tendsto y hy).exists_pos_norm_le
+  refine ⟨a, l, y, (ha.mul_right (L * Y)).of_nonneg_of_le (fun n ↦ by positivity) ?_, hseries⟩
+  intro n
+  exact mul_le_mul_of_nonneg_left (mul_le_mul (hL' _ (mem_range_self n))
+    (hY' _ (mem_range_self n)) (norm_nonneg _) hL.le) (norm_nonneg _)
+
+/-- Cyclicity for a nuclear factor and an arbitrary bounded factor. -/
+theorem spectralRestriction_cyclic
+    {H : Type*} [NormedAddCommGroup H] [InnerProductSpace ℂ H] [CompleteSpace H]
+    (A : H →L[ℂ] H) (T : nuclearEndomorphisms H) :
+    hilbertTrace ⟨A * T.val, mul_mem_nuclearEndomorphisms_left A T⟩ =
+      hilbertTrace ⟨T.val * A, mul_mem_nuclearEndomorphisms_right A T⟩ := by
+  obtain ⟨a, l, y, hcost, hs⟩ := spectralRestriction_series T
+  have hp (n : ℕ) : ‖a n‖ * (‖l n‖ * ‖A (y n)‖) ≤ (‖a n‖ * (‖l n‖ * ‖y n‖)) * ‖A‖ := by
+    calc
+      _ ≤ ‖a n‖ * (‖l n‖ * (‖A‖ * ‖y n‖)) := by gcongr; exact A.le_opNorm _
+      _ = _ := by ring
+  have hq (n : ℕ) : ‖a n‖ * (‖(l n).comp A‖ * ‖y n‖) ≤ (‖a n‖ * (‖l n‖ * ‖y n‖)) * ‖A‖ := by
+    calc
+      _ ≤ ‖a n‖ * ((‖l n‖ * ‖A‖) * ‖y n‖) := by gcongr; exact ContinuousLinearMap.opNorm_comp_le _ _
+      _ = _ := by ring
+  unfold hilbertTrace
+  rw [tsum_hilbertDiagonal_eq_series _ _ a l (fun n ↦ A (y n))
+    ((hcost.mul_right ‖A‖).of_nonneg_of_le (fun n ↦ by positivity) hp)
+    (fun x ↦ by change HasSum _ (A (T.val x)); simpa only [map_smul] using A.hasSum (hs x))]
+  exact (tsum_hilbertDiagonal_eq_series _ (T.val * A) a (fun n ↦ (l n).comp A) y
+    ((hcost.mul_right ‖A‖).of_nonneg_of_le (fun n ↦ by positivity) hq)
+    (fun x ↦ hs (A x))).symm
+
+/-- If uniformly bounded operators converge weakly to zero, their traces against a fixed
+nuclear operator tend to zero. -/
+private theorem spectralRestriction_weak_trace
+    {H : Type*} [NormedAddCommGroup H] [InnerProductSpace ℂ H] [CompleteSpace H]
+    (S : ℝ → H →L[ℂ] H) (T : nuclearEndomorphisms H)
+    (C : ℝ) (hS : ∀ t, ‖S t‖ ≤ C)
+    (hw : ∀ v (l : H →L[ℂ] ℂ), Tendsto (fun t ↦ l (S t v)) atTop (𝓝 0)) :
+    Tendsto (fun t ↦ hilbertTrace ⟨S t * T.val, mul_mem_nuclearEndomorphisms_left (S t) T⟩)
+      atTop (𝓝 0) := by
+  obtain ⟨a, l, y, hcost, hs⟩ := spectralRestriction_series T
+  have hdom (t : ℝ) (n : ℕ) :
+      ‖a n‖ * (‖l n‖ * ‖S t (y n)‖) ≤ (‖a n‖ * (‖l n‖ * ‖y n‖)) * C := by
+    have h := ((S t).le_opNorm (y n)).trans (mul_le_mul_of_nonneg_right (hS t) (norm_nonneg _))
+    calc
+      _ ≤ ‖a n‖ * (‖l n‖ * (C * ‖y n‖)) := by gcongr
+      _ = _ := by ring
+  have htr (t : ℝ) : hilbertTrace ⟨S t * T.val, mul_mem_nuclearEndomorphisms_left (S t) T⟩ =
+      ∑' n, a n * l n (S t (y n)) :=
+    tsum_hilbertDiagonal_eq_series _ _ _ _ _
+      ((hcost.mul_right C).of_nonneg_of_le (fun n ↦ by positivity) (hdom t))
+      (fun x ↦ by change HasSum _ (S t (T.val x)); simpa only [map_smul] using (S t).hasSum (hs x))
+  simp_rw [htr]
+  have h := tendsto_tsum_of_dominated_convergence (g := fun _ ↦ (0 : ℂ))
+    (hcost.mul_right C) (fun n ↦ by simpa using (hw (y n) (l n)).const_mul (a n))
+    (Eventually.of_forall fun t n ↦ (by
+      rw [norm_mul]
+      exact (mul_le_mul_of_nonneg_left ((l n).le_opNorm _) (norm_nonneg _)).trans (hdom t n)
+      : ‖a n * l n (S t (y n))‖ ≤ (‖a n‖ * (‖l n‖ * ‖y n‖)) * C))
+  simpa using h
+
+/-- A one-sided approximation of the commutator bounds the difference of the two traces. -/
+private theorem spectralRestriction_commutator_bound
+    {H : Type*} [NormedAddCommGroup H] [InnerProductSpace ℂ H] [CompleteSpace H]
+    (P A M B : H →L[ℂ] H) (hP : ‖P‖ ≤ 1) (hPA : IsNuclearOperator (P * A))
+    (hMA : IsNuclearOperator (M * A)) (E : nuclearEndomorphisms H)
+    (herr : M * A - A * M = A * B + E.val) :
+    ‖hilbertTrace ⟨(M * A) * P, mul_mem_nuclearEndomorphisms_right P ⟨_, hMA⟩⟩ -
+      hilbertTrace ⟨M * (P * A), mul_mem_nuclearEndomorphisms_left M ⟨_, hPA⟩⟩‖ ≤
+      ‖hilbertTrace ⟨B * (P * A), mul_mem_nuclearEndomorphisms_left B ⟨_, hPA⟩⟩‖ + traceNorm E := by
+  let PA : nuclearEndomorphisms H := ⟨P * A, hPA⟩
+  let MA : nuclearEndomorphisms H := ⟨M * A, hMA⟩
+  let left (U : H →L[ℂ] H) (T : nuclearEndomorphisms H) : nuclearEndomorphisms H :=
+    ⟨U * T.val, mul_mem_nuclearEndomorphisms_left U T⟩
+  let right (T : nuclearEndomorphisms H) (U : H →L[ℂ] H) : nuclearEndomorphisms H :=
+    ⟨T.val * U, mul_mem_nuclearEndomorphisms_right U T⟩
+  have hid : left P MA - right PA M = right PA B + left P E := by
+    apply Subtype.ext
+    change P * (M * A) - (P * A) * M = (P * A) * B + P * E.val
+    simpa only [mul_sub, mul_add, mul_assoc] using congrArg (P * ·) herr
+  obtain ⟨tr, htr⟩ := hilbertTrace_linear (H := H)
+  have htrace : hilbertTrace (left P MA) - hilbertTrace (right PA M) =
+      hilbertTrace (right PA B) + hilbertTrace (left P E) := by
+    rw [← htr _, ← htr _, ← htr _, ← htr _, ← map_sub, ← map_add, hid]
+  change ‖hilbertTrace (right MA P) - hilbertTrace (left M PA)‖ ≤
+    ‖hilbertTrace (left B PA)‖ + traceNorm E
+  rw [← spectralRestriction_cyclic P MA, spectralRestriction_cyclic M PA, htrace,
+    ← spectralRestriction_cyclic B PA]
+  exact (norm_add_le _ _).trans (add_le_add le_rfl ((norm_hilbertTrace_le (left P E)).trans
+    ((traceNorm_mul_left_le P E).trans (mul_le_of_le_one_left (traceNorm_nonneg E) hP))))
+
+/-- Paper: Theorem 10.4.2.8, pp. 463–464. The commutator of cutoff multiplication
+and ambient convolution can be approximated in trace norm by products `A * B R`, where `A` is
+convolution and the uniformly bounded operators `B R` tend to zero in the weak operator topology.
+Deviation: This sufficient estimate involves only the weighted ambient space. In log-norm
+coordinates the commutator is supported near the two ends of the cutoff interval. -/
+private theorem spectralRestriction_cutoff_commutator_approx (φ : BruhatCompactSupport C𝔽)
+    (ε : ℝ → ℝ) (ρ : ℝ → C𝔽 → ℝ) (_hε : Tendsto (fun R ↦ ε R * R) atTop (𝓝 0))
+    (_hρ : ∀ᶠ R in atTop, IsModulatedCutoff m𝔽 R (ε R) (ρ R) ∧
+      0 < R⁻¹ + ε R ∧ R⁻¹ + ε R < R - ε R) (η : ℝ) (_hη : 0 < η) :
+    let A : W₀ →L[ℂ] W₀ := A(φ)
+    ∃ (C : ℝ) (B : ℝ → W₀ →L[ℂ] W₀), (∀ R, ‖B R‖ ≤ C) ∧
+      (∀ v (l : W₀ →L[ℂ] ℂ), Tendsto (fun R ↦ l (B R v)) atTop (𝓝 0)) ∧
+      ∀ᶠ R in atTop, ∀ hc : IsModulatedCutoff m𝔽 R (ε R) (ρ R),
+        let M : W₀ →L[ℂ] W₀ := M(hc)
+        ∃ E : nuclearEndomorphisms W₀, M * A - A * M = A * B R + E.val ∧ traceNorm E < η := by sorry
+
 /-- Paper: Theorem 10.4.2.8, pp. 463–464. The trace of the cutoff times the
 spectral-to-geometric block tends to zero. By (10.4.1.11) and linearity of
 the trace this is the difference of the traces of the two composition orders.
@@ -1922,7 +2036,31 @@ theorem spectralRestriction_offDiagonal_trace_tendsto_zero (φ : BruhatCompactSu
     (l : ℝ → ℂ)
     (_hl : cutoffTraces(spectralTruncatedConvolution, ε, ρ, φ, l)) :
     ∃ r : ℝ → ℂ, cutoffTraces(spectralRestriction, ε, ρ, φ, r) ∧
-      Tendsto (fun R ↦ r R - l R) atTop (𝓝 0) := by sorry
+      Tendsto (fun R ↦ r R - l R) atTop (𝓝 0) := by
+  classical
+  let r (R : ℝ) : ℂ :=
+    if h : IsModulatedCutoff m𝔽 R (ε R) (ρ R) ∧ 0 < R⁻¹ + ε R ∧ R⁻¹ + ε R < R - ε R then
+      hilbertTrace ⟨_, spectralRestriction_nuclear a hα hs h.1 h.2 φ⟩ else 0
+  have hr : cutoffTraces(spectralRestriction, ε, ρ, φ, r) := by
+    filter_upwards [_hρ] with R h
+    exact ⟨h.1, spectralRestriction_nuclear a hα hs h.1 h.2 φ, dite_eq_left h⟩
+  refine ⟨r, hr, Metric.tendsto_nhds.mpr ?_⟩
+  intro η hη
+  obtain ⟨C, B, hC, hw, herror⟩ :=
+    spectralRestriction_cutoff_commutator_approx hα hs φ ε ρ _hε _hρ (η / 2) (half_pos hη)
+  have hPA := spectralProjection_convolution_nuclear (F := F) a hα hs φ _hquot
+  have hlim := spectralRestriction_weak_trace B ⟨_, hPA⟩ C hC hw
+  filter_upwards [hr, _hl, _hρ, herror, Metric.tendsto_nhds.mp hlim (η / 2) (half_pos hη)]
+    with R hrR hlR hcut herr hsmall
+  obtain ⟨hc, hn, hright⟩ := hrR
+  obtain ⟨hc', hn', hleft⟩ := hlR
+  obtain ⟨E, heq, hE⟩ := herr hc
+  have hMA := (truncatedConvolution_trace_split (F := F) a hα hs hc hcut.2 φ _hquot).choose
+  have hbound := spectralRestriction_commutator_bound Pspec (A(φ)) (M(hc)) (B R)
+    (Submodule.starProjection_norm_le _) hPA hMA E heq
+  rw [dist_zero_right] at hsmall ⊢
+  rw [hright, hleft]
+  exact hbound.trans_lt ((add_lt_add hsmall hE).trans_eq (add_halves η))
 
 /-- Paper: Theorem 10.4.2.8, p. 463. As the cutoff radius tends to infinity
 with width times radius tending to zero, the trace of convolution after

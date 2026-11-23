@@ -448,6 +448,274 @@ theorem sLocalZetaPair_translate (χ : PontryaginDual Jₛ) (u : Aₛˣ) (f : �
             (congrArg (ρₛ(χ, s) * ·) (hp.2 hs.2).symm)))
         _ = _ := by ring
 
+private theorem exists_sLocalZetaPair_action_multiplier_mem (I : Set ℝ) (r : ℝ) (hr : 0 < r)
+    (c : ℂ) (f : schwartzBergmanSubmodule I) :
+    (fun z : ℂ ↦ c * (r : ℂ) ^ z * f.val z) ∈ schwartzBergmanSubmodule I := by
+  refine ⟨?_, ?_, ?_⟩
+  · intro z hz
+    change c * (r : ℂ) ^ z * f.val z = 0
+    simp only [f.property.1 hz, Pi.zero_apply, mul_zero]
+  · exact ((differentiable_const c).mul
+      (differentiable_id.const_cpow (Or.inl (Complex.ofReal_ne_zero.mpr hr.ne')))).differentiableOn.mul
+        f.property.2.1
+  · intro a b hab hsub N
+    obtain ⟨C, hC⟩ := f.property.2.2 a b hab hsub N
+    have hc : ContinuousOn (fun x : ℝ ↦ r ^ x) (Icc a b) :=
+      (Real.continuous_const_rpow hr.ne').continuousOn
+    obtain ⟨D, hD⟩ := isCompact_Icc.bddAbove_image hc
+    refine ⟨‖c‖ * max D 0 * C, ?_⟩
+    rintro _ ⟨z, hz, rfl⟩
+    have hcz := hC (mem_image_of_mem _ hz)
+    have hdz : r ^ z.re ≤ max D 0 := (hD (mem_image_of_mem _ hz)).trans (le_max_left _ _)
+    calc
+      ‖z ^ N * (c * (r : ℂ) ^ z * f.val z)‖ =
+          (‖c‖ * r ^ z.re) * ‖z ^ N * f.val z‖ := by
+        rw [show z ^ N * (c * (r : ℂ) ^ z * f.val z) =
+          (c * (r : ℂ) ^ z) * (z ^ N * f.val z) by ring]
+        rw [norm_mul, norm_mul, Complex.norm_cpow_eq_rpow_re_of_pos hr]
+      _ ≤ (‖c‖ * max D 0) * C :=
+        mul_le_mul (mul_le_mul_of_nonneg_left hdz (norm_nonneg _)) hcz
+          (norm_nonneg _) (mul_nonneg (norm_nonneg _) (le_max_right _ _))
+
+private theorem exists_sLocalZetaPair_action_multiplier_norm (I : Set ℝ) (r : ℝ) (hr : 0 < r)
+    (c : ℂ) (f : schwartzBergmanSubmodule I) (a : I) (N : ℕ) :
+    lpNorm (weightedVerticalTrace a N (fun z : ℂ ↦ c * (r : ℂ) ^ z * f.val z)) 2 volume =
+      (‖c‖ * r ^ (a : ℝ)) * lpNorm (weightedVerticalTrace a N f.val) 2 volume := by
+  let u : schwartzBergmanSubmodule I := ⟨_, exists_sLocalZetaPair_action_multiplier_mem I r hr c f⟩
+  have hu := schwartzBergman_trace_memLp I a 2 (by norm_num) (by norm_num) N u
+  have hf := schwartzBergman_trace_memLp I a 2 (by norm_num) (by norm_num) N f
+  have hn : ∀ y : ℝ, ‖weightedVerticalTrace a N u.val y‖ =
+      ‖((‖c‖ * r ^ (a : ℝ)) • weightedVerticalTrace a N f.val) y‖ := by
+    intro y
+    simp only [weightedVerticalTrace, u, norm_mul, Complex.norm_cpow_eq_rpow_re_of_pos hr,
+      Complex.add_re, Complex.ofReal_re, Complex.mul_re, Complex.I_re, Complex.I_im,
+      Complex.ofReal_im, mul_zero, zero_mul, sub_self, add_zero, Pi.smul_apply,
+      norm_smul, Real.norm_eq_abs]
+    rw [abs_norm, abs_of_pos (Real.rpow_pos_of_pos hr _)]
+    ring
+  change lpNorm (weightedVerticalTrace a N u.val) 2 volume = _
+  unfold lpNorm
+  rw [eLpNorm_congr_norm_ae hu.aestronglyMeasurable
+    (hf.const_smul (‖c‖ * r ^ (a : ℝ))).aestronglyMeasurable (Filter.Eventually.of_forall hn)]
+  change lpNorm ((‖c‖ * r ^ (a : ℝ)) • weightedVerticalTrace a N f.val) 2 volume = _
+  rw [lpNorm_const_smul]
+  change |‖c‖ * r ^ (a : ℝ)| * _ = _
+  rw [abs_of_nonneg (mul_nonneg (norm_nonneg c) (Real.rpow_pos_of_pos hr _).le)]
+  rfl
+
+private theorem exists_sLocalZetaPair_action_multiplier_clm (I : Set ℝ) (r : ℝ) (hr : 0 < r) (c : ℂ) :
+    ∃ A : SchwartzBergman I →L[ℂ] SchwartzBergman I,
+      ∀ f z, (A f).val z = c * (r : ℂ) ^ z * f.val z := by
+  let A : SchwartzBergman I →ₗ[ℂ] SchwartzBergman I :=
+    { toFun := fun f ↦ ⟨_, exists_sLocalZetaPair_action_multiplier_mem I r hr c f⟩
+      map_add' := fun f g ↦ Subtype.ext (funext fun z ↦ mul_add _ _ _)
+      map_smul' := fun d f ↦ Subtype.ext (funext fun z ↦ by
+        change c * (r : ℂ) ^ z * (d * f.val z) = d * (c * (r : ℂ) ^ z * f.val z)
+        ring) }
+  let P : I × ℕ → Seminorm ℂ (SchwartzBergman I) := fun i ↦ Seminorm.of
+    (fun f : schwartzBergmanSubmodule I ↦
+      (eLpNorm (weightedVerticalTrace i.1 i.2 f.val) 2 volume).toReal)
+    (schwartzBergman_l2_seminorm I i).1 (schwartzBergman_l2_seminorm I i).2
+  have hP : WithSeminorms P := withGeneratingSeminorms_spec (schwartzBergmanSubmodule I) P
+  have hc : Continuous A := by
+    apply hP.continuous_of_continuous_comp A
+    intro i
+    have he : (fun f ↦ P i (A f)) = (fun f ↦ (‖c‖ * r ^ (i.1 : ℝ)) * P i f) := by
+      funext f
+      exact exists_sLocalZetaPair_action_multiplier_norm I r hr c f i.1 i.2
+    change Continuous (fun f ↦ P i (A f))
+    rw [he]
+    exact (hP.continuous_seminorm i).const_mul _
+  exact ⟨⟨A, hc⟩, fun _ _ ↦ rfl⟩
+
+private theorem exists_sLocalZetaPair_action_multiplier_action.{u} (G : Type u) [Group G] (I : Set ℝ)
+    (r : G →* ℝ≥0ˣ) (c : G →* ℂ) :
+    ∃ A : G →* (SchwartzBergman I →L[ℂ] SchwartzBergman I),
+      ∀ g f z, (A g f).val z = c g * ((r g).val : ℂ) ^ z * f.val z := by
+  have hp (g : G) : 0 < ((r g).val : ℝ) := NNReal.coe_pos.mpr (pos_iff_ne_zero.mpr (r g).ne_zero)
+  choose A hA using fun g ↦ exists_sLocalZetaPair_action_multiplier_clm I ((r g).val : ℝ) (hp g) (c g)
+  refine ⟨{ toFun := A, map_one' := ?_, map_mul' := ?_ }, hA⟩
+  · apply ContinuousLinearMap.ext
+    intro f
+    apply Subtype.ext
+    funext z
+    rw [hA]
+    simp
+  · intro g h
+    apply ContinuousLinearMap.ext
+    intro f
+    apply Subtype.ext
+    funext z
+    change (A (g * h) f).val z = (A g (A h f)).val z
+    rw [hA, hA, hA, map_mul, map_mul]
+    simp only [Units.val_mul, NNReal.coe_mul, Complex.ofReal_mul]
+    rw [Complex.mul_cpow_ofReal_nonneg (hp g).le (hp h).le]
+    ring
+
+private theorem exists_sLocalZetaPair_action_multiplier_l2_cont (X : Type) [TopologicalSpace X] [FirstCountableTopology X]
+    (u : X → ℝ → ℂ) (x₀ : X) (b : ℝ → ℝ)
+    (hu : ∀ x, MemLp (u x) 2 volume) (hb : MemLp b 2 volume)
+    (hbound : ∀ᶠ x in nhds x₀, ∀ y, ‖u x y‖ ≤ b y)
+    (hcont : ∀ y, ContinuousAt (fun x ↦ u x y) x₀) :
+    ContinuousAt (fun x ↦ lpNorm (u x) 2 volume) x₀ := by
+  have hc : ContinuousAt (fun x ↦ ∫ y, ‖u x y‖ ^ (2 : ℕ)) x₀ := by
+    apply continuousAt_of_dominated (bound := fun y ↦ ‖b y‖ ^ (2 : ℕ))
+    · exact Filter.Eventually.of_forall fun x ↦ (hu x).aestronglyMeasurable.norm.pow 2
+    · filter_upwards [hbound] with x hx
+      exact Filter.Eventually.of_forall fun y ↦ by
+        rw [Real.norm_eq_abs, abs_of_nonneg (sq_nonneg _)]
+        exact pow_le_pow_left₀ (norm_nonneg _) ((hx y).trans (le_abs_self _)) 2
+    · exact hb.integrable_norm_pow (by norm_num)
+    · exact Filter.Eventually.of_forall fun y ↦ (hcont y).norm.pow 2
+  have he (x : X) : lpNorm (u x) 2 volume = (∫ y, ‖u x y‖ ^ (2 : ℕ)) ^ (1 / 2 : ℝ) := by
+    rw [lpNorm_eq_integral_norm_rpow_toReal (by norm_num) (by norm_num) (hu x).aestronglyMeasurable]
+    norm_num
+  simp_rw [he]
+  exact hc.rpow_const (Or.inr (by norm_num))
+
+private theorem exists_sLocalZetaPair_action_multiplier_orbit (X : Type) [TopologicalSpace X] [FirstCountableTopology X]
+    (I : Set ℝ) (r : X → ℝ) (hr : ∀ x, 0 < r x) (hcR : Continuous r)
+    (c : X → ℂ) (hcC : Continuous c)
+    (A : X → SchwartzBergman I →L[ℂ] SchwartzBergman I)
+    (hA : ∀ x f z, (A x f).val z = c x * (r x : ℂ) ^ z * f.val z)
+    (f : SchwartzBergman I) : Continuous (fun x ↦ A x f) := by
+  let P : I × ℕ → Seminorm ℂ (SchwartzBergman I) := fun i ↦ Seminorm.of
+    (fun f : schwartzBergmanSubmodule I ↦
+      (eLpNorm (weightedVerticalTrace i.1 i.2 f.val) 2 volume).toReal)
+    (schwartzBergman_l2_seminorm I i).1 (schwartzBergman_l2_seminorm I i).2
+  have hP : WithSeminorms P := withGeneratingSeminorms_spec (schwartzBergmanSubmodule I) P
+  apply continuous_iff_continuousAt.mpr
+  intro x₀
+  apply (hP.tendsto_nhds _ _).mpr
+  intro i ε hε
+  let T := fun v : SchwartzBergman I ↦ weightedVerticalTrace i.1 i.2 v.val
+  let u := fun x ↦ T (A x f - A x₀ f)
+  let C := fun x ↦ ‖c x‖ * (r x) ^ (i.1 : ℝ)
+  have hC : Continuous C := hcC.norm.mul (hcR.rpow_const fun x ↦ Or.inl (hr x).ne')
+  have hT (v : SchwartzBergman I) : MemLp (T v) 2 volume :=
+    schwartzBergman_trace_memLp I i.1 2 (by norm_num) (by norm_num) i.2 v
+  have hnorm (x : X) (y : ℝ) : ‖T (A x f) y‖ = C x * ‖T f y‖ := by
+    simp only [T, weightedVerticalTrace, hA, norm_mul,
+      Complex.norm_cpow_eq_rpow_re_of_pos (hr x), Complex.add_re, Complex.ofReal_re,
+      Complex.mul_re, Complex.I_re, Complex.I_im, Complex.ofReal_im, mul_zero,
+      zero_mul, sub_self, add_zero, C]
+    ring
+  have hsub (x : X) (y : ℝ) : u x y = T (A x f) y - T (A x₀ f) y := by
+    change _ * ((A x f).val _ - (A x₀ f).val _) = _
+    exact mul_sub _ _ _
+  have hb : MemLp (fun y ↦ (2 * C x₀ + 1) * ‖T f y‖) 2 volume :=
+    (hT f).norm.const_mul _
+  have hbnd : ∀ᶠ x in nhds x₀, ∀ y, ‖u x y‖ ≤ (2 * C x₀ + 1) * ‖T f y‖ := by
+    filter_upwards [hC.continuousAt.eventually (gt_mem_nhds (by linarith : C x₀ < C x₀ + 1))] with x hx
+    intro y
+    rw [hsub]
+    calc
+      _ ≤ ‖T (A x f) y‖ + ‖T (A x₀ f) y‖ := norm_sub_le _ _
+      _ = (C x + C x₀) * ‖T f y‖ := by rw [hnorm, hnorm]; ring
+      _ ≤ _ := mul_le_mul_of_nonneg_right (by linarith) (norm_nonneg _)
+  have huc (y : ℝ) : ContinuousAt (fun x ↦ u x y) x₀ := by
+    simp_rw [hsub]
+    simp only [T, weightedVerticalTrace, hA]
+    apply ContinuousAt.sub _ continuousAt_const
+    apply ContinuousAt.const_mul
+    apply ContinuousAt.mul _ continuousAt_const
+    apply hcC.continuousAt.mul
+    exact (Complex.continuous_ofReal.comp hcR).continuousAt.cpow continuousAt_const
+      (Complex.ofReal_mem_slitPlane.mpr (hr x₀))
+  have hu := exists_sLocalZetaPair_action_multiplier_l2_cont X u x₀ _ (fun x ↦ hT _) hb hbnd huc
+  have hz : lpNorm (u x₀) 2 volume = 0 := by
+    have he : u x₀ = 0 := by funext y; rw [hsub]; simp
+    rw [he, lpNorm_zero]
+  have he : ∀ x, P i (A x f - A x₀ f) = lpNorm (u x) 2 volume := fun _ ↦ rfl
+  simp_rw [he]
+  exact hu.eventually (gt_mem_nhds (by simpa only [hz] using hε))
+
+private theorem exists_sLocalZetaPair_action_multiplier_joint (X : Type) [TopologicalSpace X] [FirstCountableTopology X]
+    (I : Set ℝ) (r : X → ℝ) (hr : ∀ x, 0 < r x) (hcR : Continuous r)
+    (c : X → ℂ) (hcC : Continuous c)
+    (A : X → SchwartzBergman I →L[ℂ] SchwartzBergman I)
+    (hA : ∀ x f z, (A x f).val z = c x * (r x : ℂ) ^ z * f.val z) :
+    Continuous (fun p : X × SchwartzBergman I ↦ A p.1 p.2) := by
+  let P : I × ℕ → Seminorm ℂ (SchwartzBergman I) := fun i ↦ Seminorm.of
+    (fun f : schwartzBergmanSubmodule I ↦
+      (eLpNorm (weightedVerticalTrace i.1 i.2 f.val) 2 volume).toReal)
+    (schwartzBergman_l2_seminorm I i).1 (schwartzBergman_l2_seminorm I i).2
+  have hP : WithSeminorms P := withGeneratingSeminorms_spec (schwartzBergmanSubmodule I) P
+  have hnorm (i : I × ℕ) (x : X) (f : SchwartzBergman I) :
+      P i (A x f) = (‖c x‖ * (r x) ^ (i.1 : ℝ)) * P i f := by
+    change lpNorm (weightedVerticalTrace i.1 i.2 (A x f).val) 2 volume = _
+    have he : (A x f).val = fun z ↦ c x * (r x : ℂ) ^ z * f.val z := funext (hA x f)
+    rw [he]
+    exact exists_sLocalZetaPair_action_multiplier_norm I (r x) (hr x) (c x) f i.1 i.2
+  apply continuous_iff_continuousAt.mpr
+  intro p₀
+  apply (hP.tendsto_nhds _ _).mpr
+  intro i ε hε
+  let B := fun p : X × SchwartzBergman I ↦
+    (‖c p.1‖ * (r p.1) ^ (i.1 : ℝ)) * P i (p.2 - p₀.2) + P i (A p.1 p₀.2 - A p₀.1 p₀.2)
+  have hb : Continuous B :=
+    (((hcC.comp continuous_fst).norm.mul
+      ((hcR.comp continuous_fst).rpow_const fun p ↦ Or.inl (hr p.1).ne')).mul
+        ((hP.continuous_seminorm i).comp (continuous_snd.sub continuous_const))).add
+      ((hP.continuous_seminorm i).comp
+        (((exists_sLocalZetaPair_action_multiplier_orbit X I r hr hcR c hcC A hA p₀.2).comp continuous_fst).sub continuous_const))
+  have hz : B p₀ = 0 := by simp [B]
+  filter_upwards [hb.continuousAt.eventually (gt_mem_nhds (by simpa only [hz] using hε))] with p hp
+  apply lt_of_le_of_lt _ hp
+  have he : A p.1 p.2 - A p₀.1 p₀.2 =
+      A p.1 (p.2 - p₀.2) + (A p.1 p₀.2 - A p₀.1 p₀.2) := by rw [map_sub]; abel
+  rw [he]
+  exact (map_add_le_add (P i) _ _).trans_eq (by rw [hnorm])
+
+/-- Paper: Theorem 5.4.1.1(1), pp. 265–266.
+For each class, multiplication by its norm-twisted character preserves one
+Schwartz–Bergman space and is a continuous linear map. -/
+private theorem exists_sLocalZetaPair_action_multiplier_maps (χ : PontryaginDual Jₛ)
+    (I : Set ℝ) :
+    ∃ A : Jₛ →* (SchwartzBergman I →L[ℂ] SchwartzBergman I),
+      ∀ (g : Jₛ) (f : SchwartzBergman I),
+        EqOn (A g f).val (fun s ↦ normChart(χ) s g * f.val s) (Complex.re ⁻¹' I) := by
+  obtain ⟨A, hA⟩ := exists_sLocalZetaPair_action_multiplier_action Jₛ I mₛ (Circle.coeHom.comp χ.toMonoidHom)
+  exact ⟨A, fun g f z _ ↦ hA g f z⟩
+
+/-- Paper: Theorem 5.4.1.1(1), pp. 265–266.
+The multiplier action on one Schwartz–Bergman space is jointly continuous. -/
+private theorem exists_sLocalZetaPair_action_multiplier_continuous (χ : PontryaginDual Jₛ)
+    (I : Set ℝ) (A : Jₛ →* (SchwartzBergman I →L[ℂ] SchwartzBergman I))
+    (hA : ∀ (g : Jₛ) (f : SchwartzBergman I),
+      EqOn (A g f).val (fun s ↦ normChart(χ) s g * f.val s) (Complex.re ⁻¹' I)) :
+    Continuous (fun p : Jₛ × SchwartzBergman I ↦ A p.1 p.2) := by
+  let X := ℂ × Set.Ioi (0 : ℝ)
+  let r : X → ℝ := fun p ↦ p.2.val
+  let c : X → ℂ := Prod.fst
+  have hr (x : X) : 0 < r x := x.2.property
+  choose B hB using fun x ↦ exists_sLocalZetaPair_action_multiplier_clm I (r x) (hr x) (c x)
+  have hBc := exists_sLocalZetaPair_action_multiplier_joint X I r hr
+    (continuous_subtype_val.comp continuous_snd)
+    c continuous_fst B hB
+  let p : Jₛ → X := fun g ↦
+    (χ g, ⟨normℝ(mₛ g), NNReal.coe_pos.mpr (pos_iff_ne_zero.mpr (mₛ g).ne_zero)⟩)
+  have hp : Continuous p := (continuous_subtype_val.comp χ.continuous).prodMk
+    ((NNReal.continuous_coe.comp (Units.continuous_val.comp hmₛ)).subtype_mk _)
+  have he (g : Jₛ) (f : SchwartzBergman I) : A g f = B (p g) f := by
+    apply Subtype.ext
+    funext z
+    by_cases hz : z ∈ Complex.re ⁻¹' I
+    · rw [hA g f hz, hB]
+      rfl
+    · rw [(A g f).property.1 hz, (B (p g) f).property.1 hz]
+  have hc := hBc.comp ((hp.comp continuous_fst).prodMk continuous_snd)
+  exact hc.congr (fun q ↦ (he q.1 q.2).symm)
+
+private theorem exists_sLocalZetaPair_action_multiplier (χ : PontryaginDual Jₛ) (I : Set ℝ) :
+    ∃ A : Jₛ →* (SchwartzBergman I →L[ℂ] SchwartzBergman I),
+      Continuous (fun p : Jₛ × SchwartzBergman I ↦ A p.1 p.2) ∧
+      ∀ (g : Jₛ) (f : SchwartzBergman I),
+        EqOn (A g f).val (fun s ↦ normChart(χ) s g * f.val s) (Complex.re ⁻¹' I) := by
+  obtain ⟨A, hA⟩ := exists_sLocalZetaPair_action_multiplier_maps (F := F) (S := S) χ I
+  exact ⟨A, exists_sLocalZetaPair_action_multiplier_continuous (F := F) (S := S) χ I A hA,
+    hA⟩
+
 /-- Paper: Theorem 5.4.1.1(1), pp. 265–266.
 The componentwise multipliers give a jointly continuous action on the ambient pair.
 Deviation: Both coordinates in the reflected chart have the character of the test. -/
@@ -456,7 +724,21 @@ theorem exists_sLocalZetaPair_action (χ : PontryaginDual Jₛ) :
       Continuous (fun p : Jₛ × (B⁺ × B⁻) ↦ A p.1 p.2) ∧
       ∀ (g : Jₛ) (p : B⁺ × B⁻),
         EqOn (A g p).1.val (fun s ↦ normChart(χ) s g * p.1.val s) rightHalf ∧
-        EqOn (A g p).2.val (fun s ↦ normChart(χ) s g * p.2.val s) leftHalf := by sorry
+        EqOn (A g p).2.val (fun s ↦ normChart(χ) s g * p.2.val s) leftHalf := by
+  obtain ⟨Aplus, hplus, eplus⟩ := exists_sLocalZetaPair_action_multiplier (F := F) (S := S) χ rightInterval
+  obtain ⟨Aminus, hminus, eminus⟩ := exists_sLocalZetaPair_action_multiplier (F := F) (S := S) χ leftInterval
+  let A : Jₛ →* ((B⁺ × B⁻) →L[ℂ] (B⁺ × B⁻)) :=
+    { toFun := fun g ↦ (Aplus g).prodMap (Aminus g)
+      map_one' := by
+        ext p <;> simp [Aplus.map_one, Aminus.map_one]
+      map_mul' := by
+        intro g h
+        ext p <;> simp [map_mul] }
+  refine ⟨A, ?_, ?_⟩
+  · exact (hplus.comp (continuous_fst.prodMk (continuous_fst.comp continuous_snd))).prodMk
+      (hminus.comp (continuous_fst.prodMk (continuous_snd.comp continuous_snd)))
+  · intro g p
+    exact ⟨eplus g p.1, eminus g p.2⟩
 
 /-- Paper: Theorem 5.4.1.1(2), p. 266.
 The quotient topology on every homogeneous S-local theta space is Fréchet. -/
@@ -1146,6 +1428,39 @@ theorem sLocalCech_left_commutes (χ : PontryaginDual Jₛ)
     EqOn (M₁ p.1).val (fun s ↦ Zₛ f (normChart(χ) s)) rightHalf ∧
     EqOn (M₂ p.2).val (fun s ↦ Zₛ (Fourierₛ f) (normChart(χ⁻¹) s)) rightHalf := by sorry
 
+/-- Transport an exact pair through two linear homeomorphisms; separating observations ensure uniqueness. -/
+private theorem existsUnique_sLocalCechDifference_conjugate
+    {X Y Z W V : Type*}
+    [AddCommGroup X] [Module ℂ X] [TopologicalSpace X]
+    [AddCommGroup Y] [Module ℂ Y] [TopologicalSpace Y]
+    [AddCommGroup Z] [Module ℂ Z] [TopologicalSpace Z]
+    [AddCommGroup W] [Module ℂ W] [TopologicalSpace W]
+    [AddCommGroup V] [Module ℂ V] [TopologicalSpace V]
+    (e : Y ≃L[ℂ] Z) (m : W ≃L[ℂ] V)
+    (u : X →L[ℂ] Y) (v : X →L[ℂ] Z) (d : Z →L[ℂ] V)
+    (hleft : ∀ q, e (u q) = v q) (hexact : Function.Exact v d)
+    (R : Y → V → Prop) (hR : ∀ p, R p (d (e p)))
+    (huniq : ∀ p a b, R p a → R p b → a = b) :
+    ∃! A : Y →L[ℂ] W, (∀ p, R p (m (A p))) ∧ Function.Exact u A := by
+  let A := m.symm.toContinuousLinearMap.comp (d.comp e.toContinuousLinearMap)
+  have hA (p : Y) : m (A p) = d (e p) := m.apply_symm_apply _
+  have hform (p : Y) : R p (m (A p)) := (hA p).symm ▸ hR p
+  refine ⟨A, ⟨hform, ?_⟩, ?_⟩
+  · intro p
+    constructor
+    · intro hp
+      have hd : d (e p) = 0 := (hA p).symm.trans ((congrArg m hp).trans (map_zero m))
+      obtain ⟨q,hq⟩ := (hexact (e p)).mp hd
+      exact ⟨q, e.injective ((hleft q).trans hq)⟩
+    · rintro ⟨q,rfl⟩
+      apply m.injective
+      exact (hA _).trans ((congrArg d (hleft q)).trans
+        ((hexact.apply_apply_eq_zero q).trans (map_zero m).symm))
+  · intro A' hA'
+    apply ContinuousLinearMap.ext
+    intro p
+    exact m.injective (huniq p _ _ (hA'.1 p) (hform p))
+
 /-- Paper: Theorem 5.4.2.2(3)–(6) and (5.4.2.6), pp. 276–277.
 The upper difference is the unique continuous map whose shifted Mellin transform
 is the lower difference. The upper row is exact at the pair of decay spaces.
@@ -1165,7 +1480,25 @@ theorem existsUnique_sLocalCechDifference (χ : PontryaginDual Jₛ)
     ∃! D : upperMiddle(χ) →L[ℂ] PositiveRealExponentialDecay overlapInterval,
       (∀ p : upperMiddle(χ), EqOn (M₀ (D p)).val
         (fun s ↦ (M₁ p.1).val s - ρₛ(χ, s) * (M₂ p.2).val (1 - s)) overlap) ∧
-      Function.Exact cechThetaPair(χ) D := by sorry
+      Function.Exact cechThetaPair(χ) D := by
+  intro M₁ M₂ M₀ h₁ h₂ _h₀
+  let lower := sLocalCechBergman_exact (F := F) (S := S) χ
+  let U : Θω(restrict₁(χ)) →L[ℂ] B⁺ × B⁺ := lower.choose
+  let D : B⁺ × B⁺ →L[ℂ] B⁰ := lower.choose_spec.choose
+  have hU := lower.choose_spec.choose_spec.1
+  have hD := lower.choose_spec.choose_spec.2.1
+  have hExact : Function.Exact U D := lower.choose_spec.choose_spec.2.2
+  let e : upperMiddle(χ) ≃L[ℂ] B⁺ × B⁺ := M₁.prodCongr M₂
+  have hleft (q : Θω(restrict₁(χ))) : e (cechThetaPair(χ) q) = U q := by
+    refine Submodule.Quotient.induction_on _ q (fun f ↦ ?_)
+    have h := sLocalCech_left_commutes χ τ hτ x _hx M₁ M₂ h₁ h₂ f
+    exact Prod.ext (existsUnique_sLocalZetaPair_ext (h.1.trans (hU f).1.symm))
+      (existsUnique_sLocalZetaPair_ext (h.2.trans (hU f).2.symm))
+  exact existsUnique_sLocalCechDifference_conjugate e M₀ cechThetaPair(χ) U D hleft hExact
+    (fun p f ↦ EqOn f.val
+      (fun s ↦ (M₁ p.1).val s - ρₛ(χ,s) * (M₂ p.2).val (1-s)) overlap)
+    (fun p ↦ hD (e p))
+    (fun _ _ _ hf hg ↦ existsUnique_sLocalZetaPair_ext (hf.trans hg.symm))
 
 /-- Paper: Remark 5.4.2.3 and (5.4.2.7), p. 277.
 The pair of homogeneous theta functions of a test and its Fourier transform

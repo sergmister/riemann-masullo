@@ -12,6 +12,7 @@ import all RiemannMasullo.AppD_SchwartzBruhat.Sec1b
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec3a_part2
 import all RiemannMasullo.Ch02_AdelicTheta.Sec1
 import Mathlib.Analysis.Calculus.InverseFunctionTheorem.ContDiff
+import Mathlib.Analysis.Meromorphic.RCLike
 import Mathlib.Analysis.SpecialFunctions.Exponential
 import Mathlib.Geometry.Manifold.PartitionOfUnity
 import Mathlib.Topology.Algebra.IsOpenUnits
@@ -1351,14 +1352,100 @@ theorem archimedeanWeightedSchwartz_empty_equiv (I : Set ℝ) :
 -- family of exponents in I bracketing each exponent in I, together with zero.
 
 /-- Paper: Lemma 5.3.3.3(1), p. 252.
+Metrizability half of the lemma. A weight at an exponent between two exponents of `I`
+is bounded by the larger of the two weights, so countably many exponents in `I`
+together with zero already generate the seminorm topology. This is where the printed
+proof uses integer exponents, which need not lie in an interval `I` that misses `ℤ`. -/
+theorem archimedeanWeightedSchwartz_metrizable {I : Set ℝ} (ho : IsOpen I)
+    (hi : OrdConnected I) (hne : I.Nonempty) : MetrizableSpace 𝓦(I) := by
+  sorry
+
+/-- Paper: Lemma 5.3.3.3(1), p. 252.
+Completeness half of the lemma. The partial weight maps embed the weighted space as a
+closed submodule of a product of complete Schwartz–Bruhat spaces, so every Cauchy
+filter of twists converges to the family of its pointwise limits. -/
+theorem archimedeanWeightedSchwartz_complete {I : Set ℝ} (ho : IsOpen I)
+    (hi : OrdConnected I) (hne : I.Nonempty) : CompleteSpace 𝓦(I) := by
+  sorry
+
+/-- Paper: Lemma 5.3.3.3(1), p. 252.
 For an open nonempty interval the topology from the partial weight maps is Fréchet. -/
 theorem archimedeanWeightedSchwartz_frechet {I : Set ℝ} (_ho : IsOpen I)
-    (_hi : OrdConnected I) (_hne : I.Nonempty) : IsFrechetTVS 𝓦(I) := by sorry
+    (_hi : OrdConnected I) (_hne : I.Nonempty) : IsFrechetTVS 𝓦(I) := by
+  refine ⟨inferInstance, inferInstance,
+    archimedeanWeightedSchwartz_metrizable _ho _hi _hne, ?_⟩
+  rw [IsUniformAddGroup.rightUniformSpace_eq]
+  exact archimedeanWeightedSchwartz_complete _ho _hi _hne
 
 /-- Paper: Lemma 5.3.3.3(1), p. 252.
 For an open nonempty interval the weighted Schwartz–Bruhat space is separable. -/
 theorem archimedeanWeightedSchwartz_separable {I : Set ℝ} (_ho : IsOpen I)
-    (_hi : OrdConnected I) (_hne : I.Nonempty) : SeparableSpace 𝓦(I) := by sorry
+    (_hi : OrdConnected I) (_hne : I.Nonempty) : SeparableSpace 𝓦(I) := by
+  classical
+  have sep {E : Type _} [AddCommGroup E] [Module ℂ E] [TopologicalSpace E]
+      [FirstCountableTopology E] (h : IsNuclearTVS.{0} E) : SeparableSpace E := by
+    let := h.1
+    let := h.2.1
+    let := PolynormableSpace.isTopologicalAddGroup ℂ E
+    have hw := PolynormableSpace.withSeminorms ℂ E
+    let : ContinuousSMul ℂ E := hw.continuousSMul
+    obtain ⟨U, hU⟩ := (𝓝 (0 : E)).exists_antitone_basis
+    have hex (n : ℕ) : ∃ q : Seminorm ℂ E, Continuous q ∧ ∃ r > 0, q.ball 0 r ⊆ U n := by
+      obtain ⟨s, r, hr, hsub⟩ := (hw.mem_nhds_iff 0 (U n)).mp (hU.mem n)
+      refine ⟨s.sup fun p : {p : Seminorm ℂ E // Continuous p} ↦ p.1, ?_, r, hr, hsub⟩
+      exact hw.continuous_finsetSup_seminorm s
+    choose q hq r hr hsub using hex
+    have hsep (n : ℕ) : SeparableSpace (WithLocalSeminorm (q n)) :=
+      seminorm_separable_of_nuclear h (q n) (hq n)
+    have hd (n : ℕ) : ∃ d : ℕ → E, ∀ x : E, ∃ m, q n (x - d m) < r n := by
+      obtain ⟨d, hd⟩ := exists_dense_seq (WithLocalSeminorm (q n))
+      refine ⟨d, fun x ↦ ?_⟩
+      let x' : WithLocalSeminorm (q n) := x
+      obtain ⟨m, hm⟩ := hd.exists_dist_lt x' (hr n)
+      rw [dist_eq_norm] at hm
+      exact ⟨m, hm⟩
+    choose d hd using hd
+    refine ⟨range fun m : ℕ × ℕ ↦ d m.1 m.2, countable_range _, ?_⟩
+    intro x
+    rw [mem_closure_iff_nhds]
+    intro W hW
+    have hW0 : (fun y ↦ x + y) ⁻¹' W ∈ 𝓝 (0 : E) :=
+      (continuous_const.add continuous_id).continuousAt.preimage_mem_nhds (by simpa using hW)
+    obtain ⟨n, -, hn⟩ := hU.1.mem_iff.mp hW0
+    obtain ⟨m, hm⟩ := hd n x
+    refine ⟨d n m, ?_, ⟨(n, m), rfl⟩⟩
+    have : d n m - x ∈ U n := hsub n (by rw [Seminorm.mem_ball, sub_zero, map_sub_rev]; exact hm)
+    simpa using hn this
+  let : SecondCountableTopology ℝˣ := Units.isEmbedding_val₀.secondCountableTopology
+  let : SecondCountableTopology ℂˣ := Units.isEmbedding_val₀.secondCountableTopology
+  let X := SchwartzBruhat (archMul(ι, κ))
+  let Z := weights(ι, κ, I)
+  let t : 𝓦(I) →ₗ[ℂ] (Z → X) := LinearMap.pi (archimedeanSchwartzTwist I)
+  let : PolynormableSpace ℂ X := (schwartzBruhat_nuclear.{0} (G := archMul(ι, κ))).2.1
+  have hp := withSeminorms_pi fun _ : Z ↦ PolynormableSpace.withSeminorms ℂ X
+  have hs := withGeneratingSeminorms_spec (archimedeanWeightedSchwartzSubmodule (ι := ι) (κ := κ) I)
+    (fun i : Z × {p : Seminorm ℂ X // Continuous p} ↦ i.2.val.comp (archimedeanSchwartzTwist I i.1))
+  have ht : Topology.IsEmbedding t := by
+    constructor
+    · constructor
+      refine hs.topologicalSpace_eq_iInf.trans ?_
+      refine Eq.trans ?_ (WithSeminorms.topologicalSpace_eq_iInf
+        (t := TopologicalSpace.induced t inferInstance) (t.withSeminorms_induced hp)).symm
+      rw [iInf_sigma, iInf_prod]
+      rfl
+    · intro f g h
+      let a : Z := (fun _ ↦ ⟨0, Set.mem_insert _ _⟩, fun _ ↦ ⟨0, Set.mem_insert _ _⟩)
+      apply Subtype.ext
+      funext u
+      have hu := congrArg (fun v : X ↦ v u) (congrFun h a)
+      change archimedeanSchwartzTwist I a f u = archimedeanSchwartzTwist I a g u at hu
+      have hv := (archimedeanSchwartzTwist_apply I a f u).symm.trans
+        (hu.trans (archimedeanSchwartzTwist_apply I a g u))
+      simpa [a] using hv
+  have hn : IsNuclearTVS.{0} 𝓦(I) := isNuclearTVS_of_linearEmbedding t ht
+    (isNuclearTVS_pi fun _ : Z ↦ schwartzBruhat_nuclear (G := archMul(ι, κ)))
+  obtain ⟨_, -, _, -⟩ := archimedeanWeightedSchwartz_frechet (ι := ι) (κ := κ) _ho _hi _hne
+  exact sep hn
 
 /-- Paper: Lemma 5.3.3.3(1), p. 252.
 For an open nonempty interval the weighted Schwartz–Bruhat space is nuclear. -/
@@ -1553,12 +1640,43 @@ theorem archimedeanFlatSchwartz_isClosed :
 -- supported close to, but away from, the origin.
 
 /-- Paper: Lemma 5.3.3.3(3), p. 253.
+Forward half of the restriction equivalence: restricting a flat Schwartz function to the
+product of the punctured lines is a continuous linear map into the all-exponent weighted
+space. The estimates (5.3.3.21)–(5.3.3.23) fail for bumps supported close to, but away
+from, the origin; the bound comes instead from Taylor's theorem at the coordinate walls. -/
+theorem archimedeanFlatSchwartz_restrict_to_weighted :
+    ∃ R : ↥(archimedeanFlatSchwartz (ι := ι) (κ := κ)) →L[ℂ] 𝓦(univ),
+      ∀ (f : archimedeanFlatSchwartz) (u : archMul(ι, κ)), (R f).val u = f.val (archVal u) := by
+  sorry
+
+/-- Paper: Lemma 5.3.3.3(3), p. 253.
+Inverse half of the restriction equivalence, for a fixed restriction map: a function of
+the all-exponent weighted space extends by zero across the coordinate walls to a flat
+Schwartz function, the extension is continuous, and it is a left inverse of restriction. -/
+theorem archimedeanWeightedSchwartz_zeroExtension
+    (R : ↥(archimedeanFlatSchwartz (ι := ι) (κ := κ)) →L[ℂ] 𝓦(univ))
+    (hR : ∀ (f : archimedeanFlatSchwartz) (u : archMul(ι, κ)), (R f).val u =
+      f.val (archVal u)) :
+    ∃ E : 𝓦(univ) →L[ℂ] ↥(archimedeanFlatSchwartz (ι := ι) (κ := κ)),
+      (∀ (f : 𝓦(univ)) (u : archMul(ι, κ)), (E f).val (archVal u) = f.val u) ∧
+        ∀ f, E (R f) = f := by
+  sorry
+
+/-- Paper: Lemma 5.3.3.3(3), p. 253.
 Restriction to the product of the punctured lines identifies flat Schwartz functions
 with the all-exponent weighted space. The inverse extends by zero. -/
 theorem archimedeanFlatSchwartz_restrict_equiv :
     ∃ e : ↥(archimedeanFlatSchwartz (ι := ι) (κ := κ)) ≃L[ℂ] 𝓦(univ),
-      ∀ (f : archimedeanFlatSchwartz) (u : archMul(ι, κ)), (e f).val u = f.val (archVal u) :=
-  by sorry
+      ∀ (f : archimedeanFlatSchwartz) (u : archMul(ι, κ)), (e f).val u = f.val (archVal u) := by
+  obtain ⟨R, hR⟩ := archimedeanFlatSchwartz_restrict_to_weighted (ι := ι) (κ := κ)
+  obtain ⟨E, hE, hER⟩ :=
+    archimedeanWeightedSchwartz_zeroExtension (ι := ι) (κ := κ) R hR
+  have hRE : ∀ g : 𝓦(univ), R (E g) = g := by
+    intro g
+    apply Subtype.ext
+    funext u
+    rw [hR (E g) u, hE g u]
+  exact ⟨ContinuousLinearEquiv.equivOfInverse R E hER hRE, hR⟩
 
 /-- Paper: Lemma 5.3.3.3(3), p. 253.
 A continuous quasi-character on the product of punctured fields acts by multiplication
@@ -1580,12 +1698,229 @@ local notation "complexProfile(" f ", " n ")" =>
   (fun t : ℝ ↦ ∫ θ in (0 : ℝ)..(2 * Real.pi),
     (unitAngle(θ)) ^ n * f ((Real.sqrt t : ℂ) * unitAngle(θ)))
 
+/-- A Schwartz function is `O(x^(-a))` at infinity for every `a`. -/
+private theorem realArchimedeanMellin_existsUnique_isBigO_atTop (G : SchwartzMap ℝ ℂ) (a : ℝ) :
+    (G : ℝ → ℂ) =O[atTop] (· ^ (-a)) := by
+  have h := G.isBigO_cocompact_rpow (-a)
+  refine (h.mono atTop_le_cocompact).congr' (EventuallyEq.refl _ _) ?_
+  filter_upwards [eventually_gt_atTop (0 : ℝ)] with x hx
+  rw [Real.norm_eq_abs, abs_of_pos hx]
+
+/-- A Schwartz function is bounded near zero. -/
+private theorem realArchimedeanMellin_existsUnique_isBigO_zero (G : SchwartzMap ℝ ℂ) :
+    (G : ℝ → ℂ) =O[𝓝[>] 0] (· ^ (-(0 : ℝ))) := by
+  have hb : (G : ℝ → ℂ) =O[⊤] (fun _ ↦ (1 : ℝ)) := by
+    obtain ⟨C, -, hC⟩ := G.decay 0 0
+    refine Asymptotics.isBigO_iff.mpr ⟨C, .of_forall fun x ↦ ?_⟩
+    simpa using hC x
+  refine (hb.mono le_top).congr' (EventuallyEq.refl _ _) (.of_forall fun x ↦ ?_)
+  simp
+
+private theorem realArchimedeanMellin_existsUnique_convergent (G : SchwartzMap ℝ ℂ) {s : ℂ} (hs : 0 < s.re) :
+    MellinConvergent G s :=
+  mellinConvergent_of_isBigO_rpow (G.continuous.continuousOn.locallyIntegrableOn measurableSet_Ioi)
+    (realArchimedeanMellin_existsUnique_isBigO_atTop G (s.re + 1)) (lt_add_one _) (realArchimedeanMellin_existsUnique_isBigO_zero G) (by simpa using hs)
+
+private theorem realArchimedeanMellin_existsUnique_differentiableAt (G : SchwartzMap ℝ ℂ) {s : ℂ} (hs : 0 < s.re) :
+    DifferentiableAt ℂ (mellin G) s :=
+  mellin_differentiableAt_of_isBigO_rpow
+    (G.continuous.continuousOn.locallyIntegrableOn measurableSet_Ioi)
+    (realArchimedeanMellin_existsUnique_isBigO_atTop G (s.re + 1)) (lt_add_one _) (realArchimedeanMellin_existsUnique_isBigO_zero G) (by simpa using hs)
+
+private theorem realArchimedeanMellin_existsUnique_ibp (G : SchwartzMap ℝ ℂ) {s : ℂ} (hs : 0 < s.re) :
+    mellin G s = -(1 / s) * mellin (SchwartzMap.derivCLM ℂ ℂ G) (s + 1) := by
+  have hs0 : s ≠ 0 := fun h ↦ by simp [h] at hs
+  let G' := SchwartzMap.derivCLM ℂ ℂ G
+  let u : ℝ → ℂ := fun t ↦ (t : ℂ) ^ ((s - 1) + 1) / ((s - 1) + 1)
+  have hu_eq (t : ℝ) : u t = (t : ℂ) ^ s / s := by simp [u]
+  have hu : ∀ x ∈ Ioi (0 : ℝ), HasDerivAt u ((x : ℂ) ^ (s - 1)) x := fun x hx ↦
+    hasDerivAt_ofReal_cpow_const' (ne_of_gt hx) (fun h ↦ hs0 (by linear_combination h))
+  have hv : ∀ x ∈ Ioi (0 : ℝ), HasDerivAt (G : ℝ → ℂ) (G' x) x := fun x _ ↦
+    (G.differentiableAt).hasDerivAt
+  have hs1 : 0 < (s + 1).re := by simp; linarith
+  have hG's := realArchimedeanMellin_existsUnique_convergent G' hs1
+  have hGs := realArchimedeanMellin_existsUnique_convergent G hs
+  have huv' : IntegrableOn (u * (G' : ℝ → ℂ)) (Ioi 0) := by
+    refine IntegrableOn.congr_fun (hG's.const_mul (1 / s)) (fun t _ ↦ ?_) measurableSet_Ioi
+    simp only [Pi.mul_apply, hu_eq, smul_eq_mul, add_sub_cancel_right]
+    ring
+  have hu'v : IntegrableOn ((fun x : ℝ ↦ (x : ℂ) ^ (s - 1)) * (G : ℝ → ℂ)) (Ioi 0) := hGs
+  have h0 : Tendsto (u * (G : ℝ → ℂ)) (𝓝[>] 0) (𝓝 0) := by
+    have hc : ContinuousAt (fun t : ℝ ↦ (t : ℂ) ^ s / s * G t) 0 :=
+      ((Complex.continuousAt_ofReal_cpow_const 0 s (Or.inl hs)).div_const s).mul
+        G.continuous.continuousAt
+    have := hc.tendsto
+    simp only [Complex.ofReal_zero, Complex.zero_cpow hs0, zero_div, zero_mul] at this
+    refine tendsto_nhdsWithin_of_tendsto_nhds (this.congr fun t ↦ ?_)
+    simp only [Pi.mul_apply, hu_eq]
+  have hinf : Tendsto (u * (G : ℝ → ℂ)) atTop (𝓝 0) := by
+    have hub : u =O[atTop] (fun t : ℝ ↦ t ^ s.re) := by
+      refine Asymptotics.isBigO_iff.mpr ⟨‖s‖⁻¹, ?_⟩
+      filter_upwards [eventually_gt_atTop (0 : ℝ)] with t ht
+      rw [hu_eq, norm_div, Complex.norm_cpow_eq_rpow_re_of_pos ht, Real.norm_eq_abs,
+        abs_of_pos (Real.rpow_pos_of_pos ht _), div_eq_mul_inv, mul_comm]
+    have hprod := hub.mul (realArchimedeanMellin_existsUnique_isBigO_atTop G (s.re + 1))
+    have hexp : (fun t : ℝ ↦ t ^ s.re * t ^ (-(s.re + 1))) =ᶠ[atTop] fun t ↦ t ^ (-1 : ℝ) := by
+      filter_upwards [eventually_gt_atTop (0 : ℝ)] with t ht
+      rw [← Real.rpow_add ht]
+      ring_nf
+    exact (hprod.congr' (EventuallyEq.refl _ _) hexp).trans_tendsto
+      (tendsto_rpow_neg_atTop one_pos)
+  have key := integral_Ioi_mul_deriv_eq_deriv_mul hu hv huv' hu'v h0 hinf
+  simp only [sub_zero, zero_sub] at key
+  unfold mellin
+  have hL : (∫ t in Ioi (0 : ℝ), (t : ℂ) ^ (s - 1) • G t) =
+      -∫ t in Ioi (0 : ℝ), u t * G' t := by
+    rw [key, neg_neg]
+    rfl
+  rw [hL]
+  have hR : (∫ t in Ioi (0 : ℝ), u t * G' t) =
+      (1 / s) * ∫ t in Ioi (0 : ℝ), (t : ℂ) ^ (s + 1 - 1) • G' t := by
+    rw [← MeasureTheory.integral_const_mul]
+    refine MeasureTheory.setIntegral_congr_fun measurableSet_Ioi fun t _ ↦ ?_
+    simp only [hu_eq, smul_eq_mul, add_sub_cancel_right]
+    ring
+  rw [hR]
+  ring
+
+private theorem realArchimedeanMellin_existsUnique_succ (G : SchwartzMap ℝ ℂ) (E : ℕ → ℂ → ℂ)
+    (hE : ∀ N s, E N s = (-1 : ℂ) ^ N * (∏ j ∈ Finset.range N, (s + j))⁻¹ *
+      mellin ((SchwartzMap.derivCLM ℂ ℂ)^[N] G) (s + N)) (N : ℕ) {s : ℂ} (hs : 0 < (s + N).re) :
+    E N s = E (N + 1) s := by
+  rw [hE, hE]
+  rw [realArchimedeanMellin_existsUnique_ibp _ hs, Function.iterate_succ_apply', Finset.prod_range_succ,
+    pow_succ, Nat.cast_succ, ← add_assoc, mul_inv]
+  ring
+
+private theorem realArchimedeanMellin_existsUnique_eq (G : SchwartzMap ℝ ℂ) (E : ℕ → ℂ → ℂ)
+    (hE : ∀ N s, E N s = (-1 : ℂ) ^ N * (∏ j ∈ Finset.range N, (s + j))⁻¹ *
+      mellin ((SchwartzMap.derivCLM ℂ ℂ)^[N] G) (s + N)) {s : ℂ} {N M : ℕ} (hN : 0 < (s + N).re) (hNM : N ≤ M) :
+    E N s = E M s := by
+  induction M, hNM using Nat.le_induction with
+  | base => rfl
+  | succ M hNM ih =>
+    refine ih.trans (realArchimedeanMellin_existsUnique_succ G E hE M ?_)
+    have : (N : ℝ) ≤ M := by exact_mod_cast hNM
+    simp only [Complex.add_re, Complex.natCast_re] at hN ⊢
+    linarith
+
+private theorem realArchimedeanMellin_existsUnique_contEq (G : SchwartzMap ℝ ℂ) (E : ℕ → ℂ → ℂ)
+    (hE : ∀ N s, E N s = (-1 : ℂ) ^ N * (∏ j ∈ Finset.range N, (s + j))⁻¹ *
+      mellin ((SchwartzMap.derivCLM ℂ ℂ)^[N] G) (s + N))
+    (F : ℂ → ℂ) (hF : ∀ s, F s = E (⌈-s.re⌉₊ + 1) s) {s : ℂ} {N : ℕ} (hN : 0 < (s + N).re) :
+    F s = E N s := by
+  rw [hF]
+  have hn : 0 < (s + ((⌈-s.re⌉₊ + 1 : ℕ) : ℂ)).re := by
+    simp only [Complex.add_re, Complex.natCast_re, Nat.cast_add, Nat.cast_one, Complex.one_re]
+    have := Nat.le_ceil (-s.re)
+    linarith
+  rcases le_total N (⌈-s.re⌉₊ + 1) with h | h
+  · exact (realArchimedeanMellin_existsUnique_eq G E hE hN h).symm
+  · exact realArchimedeanMellin_existsUnique_eq G E hE hn h
+
+private theorem realArchimedeanMellin_existsUnique_analyticAt (G : SchwartzMap ℝ ℂ) (N : ℕ) {s : ℂ} (hs : 0 < (s + N).re) :
+    AnalyticAt ℂ (fun z ↦ mellin ((SchwartzMap.derivCLM ℂ ℂ)^[N] G) (z + N)) s := by
+  have hU : IsOpen {z : ℂ | 0 < (z + N).re} :=
+    isOpen_lt continuous_const (Complex.continuous_re.comp (continuous_id.add continuous_const))
+  have hd : DifferentiableOn ℂ (fun z ↦ mellin ((SchwartzMap.derivCLM ℂ ℂ)^[N] G) (z + N))
+      {z : ℂ | 0 < (z + N).re} := fun z hz ↦
+    ((realArchimedeanMellin_existsUnique_differentiableAt _ hz).comp z
+      (differentiableAt_id.add_const _)).differentiableWithinAt
+  exact hd.analyticAt (hU.mem_nhds hs)
+
+private theorem realArchimedeanMellin_existsUnique_meromorphicAt (G : SchwartzMap ℝ ℂ) (E : ℕ → ℂ → ℂ)
+    (hE : ∀ N s, E N s = (-1 : ℂ) ^ N * (∏ j ∈ Finset.range N, (s + j))⁻¹ *
+      mellin ((SchwartzMap.derivCLM ℂ ℂ)^[N] G) (s + N))
+    (F : ℂ → ℂ) (hF : ∀ s, F s = E (⌈-s.re⌉₊ + 1) s) (s : ℂ) :
+    MeromorphicAt F s := by
+  set N := ⌈-s.re⌉₊ + 1
+  have hN : 0 < (s + N).re := by
+    simp only [N, Complex.add_re, Complex.natCast_re, Nat.cast_add, Nat.cast_one, Complex.one_re]
+    have := Nat.le_ceil (-s.re)
+    linarith
+  have hU : IsOpen {z : ℂ | 0 < (z + N).re} :=
+    isOpen_lt continuous_const (Complex.continuous_re.comp (continuous_id.add continuous_const))
+  have hP : AnalyticAt ℂ (fun z : ℂ ↦ ∏ j ∈ Finset.range N, (z + j)) s := by fun_prop
+  have hE' : MeromorphicAt (E N) s := by
+    have h0 := ((MeromorphicAt.const ((-1 : ℂ) ^ N) s).mul hP.meromorphicAt.inv).mul
+      (realArchimedeanMellin_existsUnique_analyticAt G N hN).meromorphicAt
+    exact h0.congr (Eventually.of_forall fun z ↦ (hE N z).symm)
+  refine hE'.congr ?_
+  filter_upwards [nhdsWithin_le_nhds (hU.mem_nhds hN)] with z hz
+  exact (realArchimedeanMellin_existsUnique_contEq G E hE F hF hz).symm
+
+private theorem realArchimedeanMellin_existsUnique_eqMellin (G : SchwartzMap ℝ ℂ) (E : ℕ → ℂ → ℂ)
+    (hE : ∀ N s, E N s = (-1 : ℂ) ^ N * (∏ j ∈ Finset.range N, (s + j))⁻¹ *
+      mellin ((SchwartzMap.derivCLM ℂ ℂ)^[N] G) (s + N))
+    (F : ℂ → ℂ) (hF : ∀ s, F s = E (⌈-s.re⌉₊ + 1) s) {s : ℂ} (hs : 0 < s.re) :
+    F s = mellin G s := by
+  rw [realArchimedeanMellin_existsUnique_contEq G E hE F hF (N := 0) (by simpa using hs), hE]
+  simp
+
+private theorem realArchimedeanMellin_existsUnique_contAnalyticAt (G : SchwartzMap ℝ ℂ) (E : ℕ → ℂ → ℂ)
+    (hE : ∀ N s, E N s = (-1 : ℂ) ^ N * (∏ j ∈ Finset.range N, (s + j))⁻¹ *
+      mellin ((SchwartzMap.derivCLM ℂ ℂ)^[N] G) (s + N))
+    (F : ℂ → ℂ) (hF : ∀ s, F s = E (⌈-s.re⌉₊ + 1) s) {s : ℂ} (hs : 0 < s.re) :
+    AnalyticAt ℂ F s := by
+  have hU : IsOpen {z : ℂ | 0 < z.re} := isOpen_lt continuous_const Complex.continuous_re
+  have h := realArchimedeanMellin_existsUnique_analyticAt G 0 (s := s) (by simpa using hs)
+  simp only [Function.iterate_zero, id_eq, Nat.cast_zero, add_zero] at h
+  refine h.congr ?_
+  filter_upwards [hU.mem_nhds hs] with z hz
+  exact (realArchimedeanMellin_existsUnique_eqMellin G E hE F hF hz).symm
+
+/-- Two functions in meromorphic normal form on the plane that agree on the right
+half-plane agree everywhere. -/
+private theorem realArchimedeanMellin_existsUnique_eqNF {G H : ℂ → ℂ}
+    (hG : MeromorphicNFOn G univ) (hH : MeromorphicNFOn H univ)
+    (h : ∀ z : ℂ, 0 < z.re → G z = H z) (s : ℂ) : G s = H s := by
+  have hAt : meromorphicOrderAt (G - H) (1 : ℂ) = ⊤ := by
+    apply meromorphicOrderAt_eq_top_iff.mpr
+    have hn : ∀ᶠ z : ℂ in 𝓝 (1 : ℂ), 0 < z.re :=
+      (isOpen_lt continuous_const Complex.continuous_re).mem_nhds (by norm_num)
+    exact (hn.filter_mono nhdsWithin_le_nhds).mono fun z hz ↦ sub_eq_zero.mpr (h z hz)
+  have hOrd := (hG.meromorphicOn.sub hH.meromorphicOn).meromorphicOrderAt_eq_top_of_isPreconnected
+    isPreconnected_univ (mem_univ (1 : ℂ)) (mem_univ s) hAt
+  have hNear : G =ᶠ[𝓝[≠] s] H :=
+    (meromorphicOrderAt_eq_top_iff.mp hOrd).mono fun _ h ↦ sub_eq_zero.mp h
+  exact (((hG (mem_univ s)).eventuallyEq_nhdsNE_iff_eventuallyEq_nhds (hH (mem_univ s))).mp
+    hNear).eq_of_nhds
+
+private theorem realArchimedeanMellin_existsUnique_schwartz (G : SchwartzMap ℝ ℂ) :
+    ∃! L : ℂ → ℂ, MeromorphicNFOn L univ ∧ ∀ s : ℂ, 0 < s.re → HasMellin G s (L s) := by
+  let E : ℕ → ℂ → ℂ := fun N s ↦ (-1 : ℂ) ^ N * (∏ j ∈ Finset.range N, (s + j))⁻¹ *
+    mellin ((SchwartzMap.derivCLM ℂ ℂ)^[N] G) (s + N)
+  have hE : ∀ N s, E N s = (-1 : ℂ) ^ N * (∏ j ∈ Finset.range N, (s + j))⁻¹ *
+      mellin ((SchwartzMap.derivCLM ℂ ℂ)^[N] G) (s + N) := fun _ _ ↦ rfl
+  let F : ℂ → ℂ := fun s ↦ E (⌈-s.re⌉₊ + 1) s
+  have hF : ∀ s, F s = E (⌈-s.re⌉₊ + 1) s := fun _ ↦ rfl
+  have hm : MeromorphicOn F univ := fun s _ ↦ realArchimedeanMellin_existsUnique_meromorphicAt G E hE F hF s
+  refine ⟨toMeromorphicNFOn F univ, ⟨meromorphicNFOn_toMeromorphicNFOn _ _,
+    fun s hs ↦ ⟨realArchimedeanMellin_existsUnique_convergent G hs, ?_⟩⟩, ?_⟩
+  · rw [toMeromorphicNFOn_eq_toMeromorphicNFAt hm (mem_univ s),
+      toMeromorphicNFAt_eq_self.mpr (realArchimedeanMellin_existsUnique_contAnalyticAt G E hE F hF hs).meromorphicNFAt,
+      realArchimedeanMellin_existsUnique_eqMellin G E hE F hF hs]
+  · rintro L ⟨hL, hLm⟩
+    funext s
+    refine realArchimedeanMellin_existsUnique_eqNF hL (meromorphicNFOn_toMeromorphicNFOn _ _) (fun z hz ↦ ?_) s
+    rw [toMeromorphicNFOn_eq_toMeromorphicNFAt hm (mem_univ z),
+      toMeromorphicNFAt_eq_self.mpr (realArchimedeanMellin_existsUnique_contAnalyticAt G E hE F hF hz).meromorphicNFAt,
+      realArchimedeanMellin_existsUnique_eqMellin G E hE F hF hz]
+    exact (hLm z hz).2.symm
+
 /-- Paper: Proposition 5.3.3.4, p. 258.
 The real Mellin integral converges on the right half-plane and has a unique
 meromorphic continuation for each sign parity. -/
 theorem realArchimedeanMellin_existsUnique (f : 𝓢(ℝ, ℂ)) (ε : Fin 2) :
     ∃! L : ℂ → ℂ, MeromorphicNFOn L univ ∧
-      ∀ s : ℂ, 0 < s.re → HasMellin (realProfile(f, ε)) s (L s) := by sorry
+      ∀ s : ℂ, 0 < s.re → HasMellin (realProfile(f, ε)) s (L s) := by
+  let G : 𝓢(ℝ, ℂ) := f + ((-1 : ℂ) ^ ε.val) •
+    SchwartzMap.compCLMOfContinuousLinearEquiv ℂ (ContinuousLinearEquiv.neg ℝ) f
+  have hG : realProfile(f, ε) = ⇑G := by
+    funext t
+    simp [G]
+  rw [hG]
+  exact realArchimedeanMellin_existsUnique_schwartz G
 
 /-- Paper: Proposition 5.3.3.4, p. 258.
 The real local Mellin transform is the meromorphic continuation of the weighted
@@ -1624,6 +1959,182 @@ theorem complexArchimedeanMellin_eq_integral (f : 𝓢(ℂ, ℂ)) (n : ℤ)
     complexArchimedeanMellin f n s = mellin (complexProfile(f, n)) s :=
   ((complexArchimedeanMellin_existsUnique f n).exists.choose_spec.2 s _hs).2.symm
 
+/-- Multiplicative Tamagawa integration in real coordinates is integration against dx/|x|. -/
+private theorem realArchimedeanMellin_eq_infiniteLocalIdelicZFunction_measure {F : Type*} [Field F] [NumberField F] (w : InfinitePlace F) (hw : w.IsReal) (H : ℝ → ℂ) :
+    let : MeasurableSpace w.Completion := borel _
+    (∫ u : w.Completionˣ, H ((InfinitePlace.Completion.ringEquivRealOfIsReal hw) u.val) ∂(infiniteLocalMultiplicativeTamagawaMeasure F w)) =
+      ∫ t : ℝ, (‖t‖ : ℂ)⁻¹ * H t := by
+  let : MeasurableSpace w.Completion := borel _
+  classical
+  let K := w.Completion
+  let : BorelSpace K := ⟨rfl⟩
+  let : BorelSpace Kˣ := borelSpace_units_of_continuousInv₀ K
+  let e := (InfinitePlace.Completion.ringEquivRealOfIsReal hw)
+  let j := InfinitePlace.Completion.isometryEquivRealOfIsReal hw
+  let μ := infiniteLocalAdditiveTamagawaMeasure F w
+  let D (x : K) : ENNReal := (↑(‖x‖₊ ^ w.mult) : ENNReal)⁻¹
+  let ι : Kˣ → K := Units.val
+  have hι : MeasurableEmbedding ι := (IsOpenUnits.isOpenEmbedding_unitsVal (M := K)).measurableEmbedding
+  have hμ : μ = (volume : Measure ℝ).map e.symm := by
+    exact dite_eq_left hw
+  have hj : MeasurableEmbedding (e.symm : ℝ → K) := j.symm.toHomeomorph.measurableEmbedding
+  have hμ₀ : μ {0} = 0 := by
+    rw [hμ, hj.map_apply]
+    have hpre : e.symm ⁻¹' ({0} : Set K) = {0} := by
+      ext x
+      exact e.symm.map_eq_zero_iff
+    rw [hpre, measure_singleton]
+  have hneμ : ∀ᵐ x ∂μ, x ≠ 0 := by
+    rw [ae_iff]
+    simpa only [not_not, ofPred_eq_eq_singleton] using hμ₀
+  have hν : ∀ᵐ x ∂μ.withDensity D, x ≠ 0 :=
+    (withDensity_absolutelyContinuous μ D).ae_le hneμ
+  have hmap : ((infiniteLocalMultiplicativeTamagawaMeasure F w)).map ι = μ.withDensity D := by
+    rw [infiniteLocalMultiplicativeTamagawaMeasure, hι.map_comap, Measure.restrict_eq_self_of_ae_mem]
+    exact hν.mono fun x hx ↦ ⟨Units.mk0 x hx, rfl⟩
+  have hD : Measurable D := (measurable_coe_nnreal_ennreal.comp ((continuous_nnNorm.pow w.mult).measurable)).inv
+  have hfinite : ∀ᵐ x ∂μ, D x < ⊤ := by
+    filter_upwards [hneμ] with x hx
+    change x ≠ 0 at hx
+    simpa [D, hw.mult_eq_one] using hx
+  calc
+    _ = ∫ x : K, H (e x) ∂(((infiniteLocalMultiplicativeTamagawaMeasure F w)).map ι) := (hι.integral_map (fun x ↦ H (e x))).symm
+    _ = ∫ x : K, (D x).toReal • H (e x) ∂μ := by rw [hmap, integral_withDensity_eq_integral_toReal_smul hD hfinite]
+    _ = _ := by
+      rw [hμ, hj.integral_map]
+      apply integral_congr_ae
+      filter_upwards with t
+      have hn : ‖e.symm t‖ = ‖t‖ := j.symm.isometry.norm_map_of_map_zero (map_zero e.symm) _
+      simp only [D, hw.mult_eq_one, pow_one, ENNReal.toReal_inv, ENNReal.coe_toReal, coe_nnNorm,
+        e.apply_symm_apply, hn, Complex.real_smul, Complex.ofReal_inv]
+
+/-- Splitting the real local integral into its positive and negative rays gives the Mellin integral. -/
+private theorem realArchimedeanMellin_eq_infiniteLocalIdelicZFunction_integral {F : Type*} [Field F] [NumberField F] (w : InfinitePlace F) (hw : w.IsReal)
+    (g : SchwartzMap ℝ ℂ) (c : QuasiCharacter w.Completionˣ) (z : ℂ) (a : Fin 2)
+    (hc : (∀ x : ℝˣ, c (Units.map (InfinitePlace.Completion.ringEquivRealOfIsReal hw).symm.toMonoidHom x) = (‖(x : ℝ)‖ : ℂ) ^ z * (if 0 < (x : ℝ) then 1 else (-1 : ℂ)) ^ a.val)) (hz : 0 < z.re) :
+    let : MeasurableSpace w.Completion := borel _
+    localIdelicZetaIntegral (infiniteLocalMultiplicativeTamagawaMeasure F w) (fun x ↦ g ((InfinitePlace.Completion.ringEquivRealOfIsReal hw) x)) c =
+      mellin (fun x : ℝ ↦ g x + (-1:ℂ)^a.val * g (-x)) z := by
+  let : MeasurableSpace w.Completion := borel _
+  let e := (InfinitePlace.Completion.ringEquivRealOfIsReal hw)
+  let H (t : ℝ) := g t * ((‖t‖:ℂ)^z * (if 0 < t then 1 else (-1:ℂ))^a.val)
+  let J (t : ℝ) := (‖t‖ : ℂ)⁻¹ * H t
+  have he (u : w.Completionˣ) : g (e u.val) * c u = H (e u.val) := by
+    let x := Units.map e.toMonoidHom u
+    have h := hc x
+    rw [show Units.map e.symm.toMonoidHom x = u from Units.ext (e.symm_apply_apply u.val)] at h
+    exact congrArg (g (e u.val) * ·) h
+  change (∫ u : w.Completionˣ, g (e u.val) * c u ∂(infiniteLocalMultiplicativeTamagawaMeasure F w)) = _
+  rw [integral_congr_ae (.of_forall he)]
+  rw [realArchimedeanMellin_eq_infiniteLocalIdelicZFunction_measure]
+  change (∫ x : ℝ, J x) = _
+  let P (t : ℝ) := (t : ℂ) ^ (z-1)
+  have hpos {t : ℝ} (ht : 0<t) : J t = P t * g t ∧ J (-t) = P t * ((-1:ℂ)^a.val * g (-t)) := by
+    have hne : (t : ℂ) ≠ 0 := Complex.ofReal_ne_zero.mpr ht.ne'
+    simp only [P, J, H, Real.norm_eq_abs, abs_neg, abs_of_pos ht, ite_eq_left ht, one_pow,
+      ite_eq_right (not_lt.mpr (neg_nonpos.mpr ht.le)), Complex.cpow_sub _ _ hne, Complex.cpow_one]
+    constructor <;> ring
+  have hconv (k : SchwartzMap ℝ ℂ) : MellinConvergent (fun t : ℝ ↦ k t) z := by
+    apply mellinConvergent_of_isBigO_rpow (a := z.re+1) (b := 0) (k.continuous.continuousOn.locallyIntegrableOn measurableSet_Ioi)
+    · have h := (k.isBigO_cocompact_rpow (-(z.re+1))).mono (atTop_le_cocompact (α := ℝ))
+      apply h.congr' .rfl
+      filter_upwards [eventually_ge_atTop (0:ℝ)] with t ht
+      simp [Real.norm_eq_abs, abs_of_nonneg ht]
+    · linarith
+    · simpa using ((k.continuous.continuousAt (x := 0)).isBigO_one ℝ).mono nhdsWithin_le_nhds
+    · exact hz
+  let k := SchwartzMap.compCLMOfContinuousLinearEquiv ℂ (ContinuousLinearEquiv.neg ℝ : ℝ ≃L[ℝ] ℝ) (F := ℂ) g
+  have hi₁ : IntegrableOn (fun x ↦ P x * g x) (Ioi (0:ℝ)) := hconv g
+  have hi₂ : IntegrableOn (fun x ↦ P x * ((-1:ℂ)^a.val * g (-x))) (Ioi (0:ℝ)) := by
+    apply ((hconv k).const_mul ((-1:ℂ)^a.val)).congr
+    filter_upwards with x
+    change (-1:ℂ)^a.val * (P x * g (-x)) = _
+    ring
+  have hiPos : IntegrableOn J (Ioi 0) := hi₁.congr (ae_restrict_mem measurableSet_Ioi |>.mono fun t ht ↦ (hpos ht).1.symm)
+  have hiNeg : IntegrableOn (fun t ↦ J (-t)) (Ioi 0) := hi₂.congr (ae_restrict_mem measurableSet_Ioi |>.mono fun t ht ↦ (hpos ht).2.symm)
+  have hiLeft : IntegrableOn J (Iic 0) := by
+    rw [integrableOn_Iic_iff_integrableOn_Iio]
+    simpa using hiNeg.comp_neg
+  have hneg : (∫ x in Iic (0:ℝ), J x) = ∫ x in Ioi (0:ℝ), J (-x) := by
+    simpa only [neg_zero] using (integral_comp_neg_Ioi 0 J).symm
+  rw [← intervalIntegral.integral_Iic_add_Ioi hiLeft hiPos, hneg]
+  rw [setIntegral_congr_fun (f := fun t ↦ J (-t)) measurableSet_Ioi (fun t ht ↦ (hpos ht).2),
+    setIntegral_congr_fun (f := J) measurableSet_Ioi (fun t ht ↦ (hpos ht).1), add_comm, ← integral_add hi₁ hi₂]
+  apply setIntegral_congr_fun measurableSet_Ioi
+  intro t _
+  change (P t * g t + P t * _) = P t * _
+  ring
+
+/-- Uniqueness of continuation identifies the Mellin transform with the local zeta function. -/
+private theorem realArchimedeanMellin_eq_infiniteLocalIdelicZFunction_compare
+    {F : Type*} [Field F] [NumberField F] (w : InfinitePlace F) (hw : w.IsReal)
+    (f : SchwartzBruhat (Multiplicative w.Completion)) (g : 𝓢(ℝ, ℂ))
+    (hg : ∀ x : w.Completion,
+      g (InfinitePlace.Completion.ringEquivRealOfIsReal hw x) = f (Multiplicative.ofAdd x)) :
+    ∀ c : QuasiCharacter w.Completionˣ,
+      infiniteLocalIdelicZFunction w f c =
+        realArchimedeanMellin g (realLocalEulerParameters w hw c).exists.choose.2
+          (realLocalEulerParameters w hw c).exists.choose.1 := by
+  let Z (c : QuasiCharacter w.Completionˣ) :=
+    realArchimedeanMellin g (realLocalEulerParameters w hw c).exists.choose.2
+      (realLocalEulerParameters w hw c).exists.choose.1
+  have hZ : Z = infiniteLocalIdelicZFunction w f := by
+    apply (infiniteLocalIdelicZFunction_existsUnique w f).unique
+    · intro χ
+      let e := InfinitePlace.Completion.ringEquivRealOfIsReal hw
+      let i : ℝˣ →ₜ* w.Completionˣ := ⟨Units.map e.symm.toMonoidHom,
+        (InfinitePlace.Completion.isometryEquivRealOfIsReal hw).symm.continuous.units_map _⟩
+      let unit : QuasiCharacter w.Completionˣ :=
+        (⟨Circle.coeHom, continuous_subtype_val⟩ : Circle →ₜ* ℂ).comp χ
+      obtain ⟨p, ht, hp⟩ :=
+        (existsUnique_realUnits_character_parameters (unit.comp i)
+          (fun _ ↦ Circle.norm_coe _)).exists
+      let chart := quasiCharacterNormTwist
+        (Units.map nnNormHom.toMonoidHom ^ w.mult) (continuous_infiniteLocalModule w) unit
+      have hshape (s : ℂ) (x : ℝˣ) :
+          chart s (Units.map e.symm.toMonoidHom x) =
+            (‖(x : ℝ)‖ : ℂ) ^ (s + p.1) *
+              (if 0 < (x : ℝ) then 1 else (-1 : ℂ)) ^ p.2.val := by
+        have hn : ‖e.symm x.val‖ = ‖x.val‖ :=
+          (InfinitePlace.Completion.isometryEquivRealOfIsReal hw).symm.isometry.norm_map_of_map_zero
+            (map_zero e.symm) x.val
+        change unit (Units.map e.symm.toMonoidHom x) *
+          ((‖e.symm x.val‖ ^ w.mult : ℝ) : ℂ) ^ s = _
+        have hx := hp x
+        change unit (Units.map e.symm.toMonoidHom x) = _ at hx
+        rw [hx, hn, hw.mult_eq_one, pow_one,
+          Complex.cpow_add _ _ (Complex.ofReal_ne_zero.mpr (norm_ne_zero_iff.mpr x.ne_zero))]
+        ring
+      have hparam (s : ℂ) :
+          (realLocalEulerParameters w hw (chart s)).exists.choose = (s + p.1, p.2) :=
+        (realLocalEulerParameters w hw (chart s)).unique
+          (realLocalEulerParameters w hw (chart s)).exists.choose_spec (hshape s)
+      have he : (Z ∘ chart) = fun s ↦ realArchimedeanMellin g p.2 (s + p.1) := by
+        funext s
+        dsimp only [Function.comp_def, Z]
+        rw [hparam]
+      change MeromorphicNFOn (Z ∘ chart) univ ∧ _
+      constructor
+      · rw [he]
+        intro s _
+        exact (meromorphicNFAt_comp_add_const_iff_meromorphicNFAt
+          (f := realArchimedeanMellin g p.2)).mpr
+          ((realArchimedeanMellin_existsUnique g p.2).exists.choose_spec.1 (mem_univ _))
+      · intro s hs
+        change (Z ∘ chart) s = _
+        rw [he]
+        dsimp only
+        have hz : 0 < (s + p.1).re := by simpa [Complex.add_re, ht] using hs
+        rw [realArchimedeanMellin_eq_integral g p.2 _ hz]
+        have hf : (fun x ↦ f (Multiplicative.ofAdd x)) = fun x ↦ g (e x) :=
+          funext fun x ↦ (hg x).symm
+        rw [hf]
+        exact (realArchimedeanMellin_eq_infiniteLocalIdelicZFunction_integral
+          w hw g (chart s) (s + p.1) p.2 (hshape s) hz).symm
+    · exact (infiniteLocalIdelicZFunction_existsUnique w f).exists.choose_spec
+  intro c
+  exact congrFun hZ.symm c
+
 /-- Paper: Proposition 5.3.3.4, p. 258.
 In the real field model the local zeta function of §3.3 is the two-sign Mellin transform
 at the radial exponent and parity of the given quasi-character. -/
@@ -1634,7 +2145,397 @@ theorem realArchimedeanMellin_eq_infiniteLocalIdelicZFunction
       g (InfinitePlace.Completion.ringEquivRealOfIsReal hw x) = f (Multiplicative.ofAdd x)) ∧
       ∀ c : QuasiCharacter w.Completionˣ,
         let p := (realLocalEulerParameters w hw c).exists.choose
-        infiniteLocalIdelicZFunction w f c = realArchimedeanMellin g p.2 p.1 := by sorry
+        infiniteLocalIdelicZFunction w f c = realArchimedeanMellin g p.2 p.1 := by
+  let e : Multiplicative w.Completion ≃ₜ* Multiplicative ℝ :=
+    { (InfinitePlace.Completion.ringEquivRealOfIsReal hw).toAddEquiv.toMultiplicative with
+      continuous_toFun := (InfinitePlace.Completion.isometryEquivRealOfIsReal hw).continuous
+      continuous_invFun := (InfinitePlace.Completion.isometryEquivRealOfIsReal hw).symm.continuous }
+  obtain ⟨E, hE⟩ := schwartzBruhat_realCoordinate_equiv e
+  let g := E.symm f
+  have hg : ∀ x : w.Completion,
+      g (InfinitePlace.Completion.ringEquivRealOfIsReal hw x) = f (Multiplicative.ofAdd x) := by
+    intro x
+    have h := hE (E.symm f) (Multiplicative.ofAdd x)
+    rw [E.apply_symm_apply] at h
+    exact h.symm
+  refine ⟨g, hg, ?_⟩
+  intro c
+  exact realArchimedeanMellin_eq_infiniteLocalIdelicZFunction_compare w hw f g hg c
+
+/-- Euclidean coordinates identify Schwartz–Bruhat functions with classical Schwartz functions. -/
+private theorem complexArchimedeanMellin_eq_infiniteLocalIdelicZFunction_euclidean
+    {A : Type*} [CommGroup A] [TopologicalSpace A] [IsTopologicalGroup A] [T2Space A]
+    [LocallyCompactSpace A] {n : ℕ}
+    (v : A ≃ₜ* Multiplicative (EuclideanSpace ℝ (Fin n))) (g : A → ℂ) :
+    g ∈ schwartzBruhatSubmodule A ↔
+      ∃ s : SchwartzMap (EuclideanSpace ℝ (Fin n)) ℂ, ∀ x, s (v x).toAdd = g x := by
+  classical
+  let E := EuclideanSpace ℝ (Fin n)
+  let P := ElementaryLieGroup n 0 0 PUnit
+  let D := (Fin 0 → AddCircle (1 : ℝ)) × (Fin 0 → ℤ) × PUnit
+  let : Unique D := uniqueOfSubsingleton 0
+  let p : Multiplicative E ≃ₜ* Multiplicative P :=
+    { toMulEquiv := (AddEquiv.prodUnique (M := E) (N := D)).symm.toMultiplicative
+      continuous_toFun := (continuous_id.prodMk continuous_const :
+        Continuous (fun x : E ↦ (x, (default : D))))
+      continuous_invFun := (continuous_fst : Continuous (Prod.fst : E × D → E)) }
+  let e : ElementaryLCAPresentation A :=
+    { realDim := n, torusDim := 0, latticeRank := 0, finiteFactor := PUnit, equiv := v.trans p }
+  have hA := (lca_elementary_iff (G := A)).mpr ⟨e⟩
+  let i : (⊤ : Subgroup A) ≃ₜ* A :=
+    { Subgroup.topEquiv with
+      continuous_toFun := continuous_subtype_val
+      continuous_invFun := continuous_id.subtype_mk _ }
+  let a : BruhatStructuralPair A := ⟨(⊤, OrderDual.toDual ⊥), by simp,
+    isCompactlyGeneratedGroup_of_continuousMulEquiv i.symm hA.1,
+    isBruhatGoodSubgroup_bot_iff.mpr hA.2, bot_le⟩
+  let q₀ : A →* a.quotient := (QuotientGroup.mk' _).comp i.symm.toMulEquiv.toMonoidHom
+  have hq₀ : IsOpenQuotientMap q₀ :=
+    QuotientGroup.isOpenQuotientMap_mk.comp i.symm.toHomeomorph.isOpenQuotientMap
+  have hinj : Injective q₀ := (MonoidHom.ker_eq_bot_iff q₀).mp (eq_bot_iff.mpr fun x hx ↦ by
+    exact (a.quotient_mk_eq_one (i.symm x)).mp hx)
+  let q := (MulEquiv.ofBijective q₀ ⟨hinj, hq₀.surjective⟩).toContinuousMulEquiv
+    (fun _ ↦ hq₀.isQuotientMap.isOpen_preimage)
+  let e₀ : ElementaryLCAPresentation a.quotient := { e with equiv := q.symm.trans e.equiv }
+  have hreal (s : SchwartzBruhatStage e₀) (x : A) :
+      schwartzBruhatStageRealization a e₀ s x = s ((v x).toAdd, 0, 0, PUnit.unit) := by
+    have hx : x ∈ a.val.1 := Subgroup.mem_top x
+    rw [schwartzBruhatStageRealization_apply, dite_eq_left hx]
+    change s ((e₀.equiv (q x)).toAdd) = _
+    change s ((e.equiv (q.symm (q x))).toAdd) = _
+    rw [q.symm_apply_apply]
+    rfl
+  have hrange : schwartzBruhatSubmodule A = (schwartzBruhatStageRealization a e₀).range := by
+    refine le_antisymm (iSup_le fun b ↦ iSup_le fun eb ↦ ?_) ?_
+    · rintro _ ⟨sb, rfl⟩
+      obtain ⟨j, hj, _⟩ := schwartzBruhatStage_transition (show b ≤ a from ⟨le_top, le_top⟩) eb e₀
+      exact ⟨j sb, hj sb⟩
+    · exact le_iSup_of_le a (le_iSup (fun e ↦ (schwartzBruhatStageRealization a e).range) e₀)
+  rw [hrange, LinearMap.mem_range]
+  constructor
+  · rintro ⟨s, hs⟩
+    let f : E → ℂ := fun x ↦ s (x, 0, 0, PUnit.unit)
+    have hs' (y : P) : f y.1 = s y :=
+      congrArg (fun z : P ↦ s z) (Prod.ext rfl (Subsingleton.elim _ _))
+    have hf : (fun y : P ↦ f y.1) ∈ elementarySchwartzSubmodule n 0 0 PUnit :=
+      (funext hs').symm ▸ s.property
+    obtain ⟨S, hS⟩ := (elementarySchwartzSubmodule_real_iff f).mp hf
+    refine ⟨S, fun x ↦ ?_⟩
+    exact (congrFun hS (v x).toAdd).trans
+      ((hreal s x).symm.trans (congrFun hs x))
+  · rintro ⟨s, hs⟩
+    let t : SchwartzBruhatStage e₀ :=
+      ⟨fun y : P ↦ s y.1, (elementarySchwartzSubmodule_real_iff _).mpr ⟨s, rfl⟩⟩
+    exact ⟨t, funext fun x ↦ (hreal t x).trans (hs x)⟩
+
+/-- The complex coordinate model of a local Schwartz–Bruhat function is a Schwartz function. -/
+private theorem complexArchimedeanMellin_eq_infiniteLocalIdelicZFunction_coordinates
+    {F : Type*} [Field F] [NumberField F] (w : InfinitePlace F) (hw : w.IsComplex)
+    (f : SchwartzBruhat (Multiplicative w.Completion)) :
+    ∃ g : 𝓢(ℂ, ℂ), ∀ x : w.Completion,
+      g (InfinitePlace.Completion.ringEquivComplexOfIsComplex hw x) = f (Multiplicative.ofAdd x) := by
+  let e := InfinitePlace.Completion.ringEquivComplexOfIsComplex hw
+  let j := InfinitePlace.Completion.isometryEquivComplexOfIsComplex hw
+  let L : ℂ ≃L[ℝ] EuclideanSpace ℝ (Fin (Module.finrank ℝ ℂ)) :=
+    ContinuousLinearEquiv.ofFinrankEq finrank_euclideanSpace_fin.symm
+  let v : Multiplicative w.Completion ≃ₜ*
+      Multiplicative (EuclideanSpace ℝ (Fin (Module.finrank ℝ ℂ))) :=
+    { toMulEquiv := (e.toAddEquiv.trans L.toLinearEquiv.toAddEquiv).toMultiplicative
+      continuous_toFun := L.continuous.comp j.continuous
+      continuous_invFun := j.symm.continuous.comp L.symm.continuous }
+  obtain ⟨G, hG⟩ :=
+    (complexArchimedeanMellin_eq_infiniteLocalIdelicZFunction_euclidean v f).mp f.property
+  exact ⟨SchwartzMap.compCLMOfContinuousLinearEquiv ℂ L G,
+    fun x ↦ hG (Multiplicative.ofAdd x)⟩
+
+/-- Multiplicative Tamagawa integration in complex coordinates uses twice Lebesgue measure divided by the squared norm. -/
+private theorem complexArchimedeanMellin_eq_infiniteLocalIdelicZFunction_complexLocalIntegral_model {F : Type*} [Field F] [NumberField F] (w : InfinitePlace F) (hw : w.IsComplex) (H : ℂ → ℂ) :
+    let : MeasurableSpace w.Completion := borel _
+    (∫ u : w.Completionˣ, H ((InfinitePlace.Completion.ringEquivComplexOfIsComplex hw) u.val) ∂(infiniteLocalMultiplicativeTamagawaMeasure F w)) =
+      (2:ℂ) * ∫ t : ℂ, ((‖t‖ : ℂ)^2)⁻¹ * H t := by
+  let : MeasurableSpace w.Completion := borel _
+  classical
+  let K := w.Completion
+  let : BorelSpace K := ⟨rfl⟩
+  let : BorelSpace Kˣ := borelSpace_units_of_continuousInv₀ K
+  let e := (InfinitePlace.Completion.ringEquivComplexOfIsComplex hw)
+  let j := InfinitePlace.Completion.isometryEquivComplexOfIsComplex hw
+  let μ := infiniteLocalAdditiveTamagawaMeasure F w
+  let D (x : K) : ENNReal := (↑(‖x‖₊ ^ w.mult) : ENNReal)⁻¹
+  let ι : Kˣ → K := Units.val
+  have hι : MeasurableEmbedding ι := (IsOpenUnits.isOpenEmbedding_unitsVal (M := K)).measurableEmbedding
+  have hμ : μ = (2 • (volume : Measure ℂ)).map e.symm := by
+    exact dite_eq_right (InfinitePlace.not_isReal_iff_isComplex.mpr hw)
+  have hj : MeasurableEmbedding (e.symm : ℂ → K) := j.symm.toHomeomorph.measurableEmbedding
+  have hμ₀ : μ {0} = 0 := by
+    rw [hμ, hj.map_apply]
+    have hpre : e.symm ⁻¹' ({0} : Set K) = {0} := by
+      ext x
+      exact e.symm.map_eq_zero_iff
+    simp [hpre]
+  have hneμ : ∀ᵐ x ∂μ, x ≠ 0 := by
+    rw [ae_iff]
+    simpa only [not_not, ofPred_eq_eq_singleton] using hμ₀
+  have hν : ∀ᵐ x ∂μ.withDensity D, x ≠ 0 :=
+    (withDensity_absolutelyContinuous μ D).ae_le hneμ
+  have hmap : ((infiniteLocalMultiplicativeTamagawaMeasure F w)).map ι = μ.withDensity D := by
+    rw [infiniteLocalMultiplicativeTamagawaMeasure, hι.map_comap, Measure.restrict_eq_self_of_ae_mem]
+    exact hν.mono fun x hx ↦ ⟨Units.mk0 x hx, rfl⟩
+  have hD : Measurable D := (measurable_coe_nnreal_ennreal.comp ((continuous_nnNorm.pow w.mult).measurable)).inv
+  have hfinite : ∀ᵐ x ∂μ, D x < ⊤ := by
+    filter_upwards [hneμ] with x hx
+    change x ≠ 0 at hx
+    simp [D, hw.mult_eq_two]
+    exact bot_lt_iff_ne_bot.mpr (pow_ne_zero _ (ENNReal.coe_ne_zero.mpr (nnNorm_ne_zero_iff.mpr hx)))
+  calc
+    _ = ∫ x : K, H (e x) ∂(((infiniteLocalMultiplicativeTamagawaMeasure F w)).map ι) := (hι.integral_map (fun x ↦ H (e x))).symm
+    _ = ∫ x : K, (D x).toReal • H (e x) ∂μ := by rw [hmap, integral_withDensity_eq_integral_toReal_smul hD hfinite]
+    _ = _ := by
+      rw [hμ, hj.integral_map, show (2 • (volume : Measure ℂ)) = (2 : ENNReal) • volume by simp [two_smul], integral_smul_measure]
+      simp only [ENNReal.toReal_ofNat, Complex.real_smul, Complex.ofReal_ofNat]
+      congr 1
+      apply integral_congr_ae
+      filter_upwards with t
+      have hn : ‖e.symm t‖ = ‖t‖ := j.symm.isometry.norm_map_of_map_zero (map_zero e.symm) _
+      simp only [D, hw.mult_eq_two, ENNReal.toReal_inv, ENNReal.coe_toReal, coe_nnNorm,
+        e.apply_symm_apply, hn, Complex.ofReal_inv, Complex.ofReal_pow, NNReal.coe_pow]
+
+/-- Integral angular weights have unit norm. -/
+private theorem complexArchimedeanMellin_eq_infiniteLocalIdelicZFunction_angularWeight_norm (r : ℤ) (θ : ℝ) : ‖(fun (r : ℤ) (θ : ℝ) ↦ Complex.exp ((r : ℂ) * (θ : ℂ) * Complex.I)) r θ‖ = 1 := by
+  simp [Complex.norm_exp, Complex.mul_re, Complex.mul_im]
+
+/-- Integral angular weights are smooth. -/
+private theorem complexArchimedeanMellin_eq_infiniteLocalIdelicZFunction_angularWeight_smooth (r : ℤ) : ContDiff (ℝ) (∞) ((fun (r : ℤ) (θ : ℝ) ↦ Complex.exp ((r : ℂ) * (θ : ℂ) * Complex.I)) r) := by
+  exact (Complex.contDiff_exp (𝕜 := ℝ)).comp ((contDiff_const.mul Complex.ofRealCLM.contDiff).mul contDiff_const)
+
+/-- Angular averaging preserves rapid decay on the positive ray. -/
+private theorem complexArchimedeanMellin_eq_infiniteLocalIdelicZFunction_angularProfile_decay {g : ℂ → ℂ} {f : SchwartzMap ℂ ℂ}
+    (h : ∀ z, ‖g z‖ ≤ ‖f z‖) (r : ℤ) (p : ℝ) :
+    (fun (g : ℂ → ℂ) (r : ℤ) (t : ℝ) ↦ ∫ θ in Ioo (-Real.pi) Real.pi, Complex.exp ((r : ℂ) * (θ : ℂ) * Complex.I) * g ((t : ℂ) * Complex.exp (((1 : ℤ) : ℂ) * (θ : ℂ) * Complex.I))) g r =O[atTop] (fun x : ℝ ↦ x^p) := by
+  obtain ⟨C,hC⟩ := (f.isBigO_cocompact_rpow p).bound
+  obtain ⟨R,hR⟩ := (Metric.mem_cocompact_iff_closedBall_compl_subset (0:ℂ)).mp hC
+  refine Asymptotics.isBigO_iff.mpr ⟨C * volume.real (Ioo (-Real.pi) Real.pi), ?_⟩
+  filter_upwards [eventually_gt_atTop (max R 0)] with t ht
+  have ht₀ : 0<t := (le_max_right _ _).trans_lt ht
+  have hn (θ : ℝ) : ‖(t:ℂ) * (fun (r : ℤ) (θ : ℝ) ↦ Complex.exp ((r : ℂ) * (θ : ℂ) * Complex.I)) 1 θ‖ = t := by
+    simp [abs_of_pos ht₀]
+  have hnorm (θ : ℝ) : ‖(fun (r : ℤ) (θ : ℝ) ↦ Complex.exp ((r : ℂ) * (θ : ℂ) * Complex.I)) r θ * g ((t:ℂ)*(fun (r : ℤ) (θ : ℝ) ↦ Complex.exp ((r : ℂ) * (θ : ℂ) * Complex.I)) 1 θ)‖ ≤ C * ‖t^p‖ := by
+    rw [norm_mul, complexArchimedeanMellin_eq_infiniteLocalIdelicZFunction_angularWeight_norm, one_mul]
+    have hx : (t:ℂ)*(fun (r : ℤ) (θ : ℝ) ↦ Complex.exp ((r : ℂ) * (θ : ℂ) * Complex.I)) 1 θ ∉ Metric.closedBall 0 R := by
+      rw [Metric.mem_closedBall, dist_zero_right, hn]
+      exact not_le.mpr ((le_max_left _ _).trans_lt ht)
+    have hb : ‖f ((t:ℂ)*(fun (r : ℤ) (θ : ℝ) ↦ Complex.exp ((r : ℂ) * (θ : ℂ) * Complex.I)) 1 θ)‖ ≤ C * ‖‖(t:ℂ)*(fun (r : ℤ) (θ : ℝ) ↦ Complex.exp ((r : ℂ) * (θ : ℂ) * Complex.I)) 1 θ‖^p‖ := hR hx
+    rw [hn θ] at hb
+    exact (h _).trans hb
+  exact (norm_setIntegral_le_of_norm_le_const (measure_mono Ioo_subset_Icc_self |>.trans_lt
+    (isCompact_Icc.measure_lt_top (μ := volume))) (fun θ _ ↦ hnorm θ)).trans_eq (by ring)
+
+/-- Absolute integrability permits angular integration before the radial Mellin transform. -/
+private theorem complexArchimedeanMellin_eq_infiniteLocalIdelicZFunction_angularMellin_fubini (g : SchwartzMap ℂ ℂ) (r : ℤ) (z : ℂ) (hz : 0 < z.re) :
+    (∫ p in Ioi (0 : ℝ) ×ˢ (Ioo (-Real.pi) Real.pi), (p.1:ℂ)^(z-1) * ((fun (r : ℤ) (θ : ℝ) ↦ Complex.exp ((r : ℂ) * (θ : ℂ) * Complex.I)) r p.2 *
+      g ((p.1:ℂ)*(fun (r : ℤ) (θ : ℝ) ↦ Complex.exp ((r : ℂ) * (θ : ℂ) * Complex.I)) 1 p.2))) = mellin ((fun (g : ℂ → ℂ) (r : ℤ) (t : ℝ) ↦ ∫ θ in Ioo (-Real.pi) Real.pi, Complex.exp ((r : ℂ) * (θ : ℂ) * Complex.I) * g ((t : ℂ) * Complex.exp (((1 : ℤ) : ℂ) * (θ : ℂ) * Complex.I))) g r) z := by
+  let J := fun p : ℝ × ℝ ↦ (p.1:ℂ)^(z-1) * ((fun (r : ℤ) (θ : ℝ) ↦ Complex.exp ((r : ℂ) * (θ : ℂ) * Complex.I)) r p.2 * g ((p.1:ℂ)*(fun (r : ℤ) (θ : ℝ) ↦ Complex.exp ((r : ℂ) * (θ : ℂ) * Complex.I)) 1 p.2))
+  let B (t : ℝ) := ∫ θ in (Ioo (-Real.pi) Real.pi), ‖g ((t:ℂ)*(fun (r : ℤ) (θ : ℝ) ↦ Complex.exp ((r : ℂ) * (θ : ℂ) * Complex.I)) 1 θ)‖
+  let Bc (t : ℝ) : ℂ := B t
+  have hω (j : ℤ) := (complexArchimedeanMellin_eq_infiniteLocalIdelicZFunction_angularWeight_smooth j).continuous
+  have hfin : volume (Ioo (-Real.pi) Real.pi) < ⊤ := (measure_mono Ioo_subset_Icc_self).trans_lt isCompact_Icc.measure_lt_top
+  have hc : Continuous B := by
+    apply continuous_of_dominated (bound := fun _ ↦ SchwartzMap.seminorm ℝ 0 0 g)
+    · intro x
+      exact (g.continuous.comp (continuous_const.mul (hω 1))).norm.aestronglyMeasurable
+    · intro x
+      exact .of_forall fun θ ↦ (Real.norm_of_nonneg (norm_nonneg _)).le.trans (g.norm_le_seminorm ℝ _)
+    · exact integrableOn_const hfin.ne
+    · exact .of_forall fun θ ↦ (g.continuous.comp (Complex.continuous_ofReal.mul continuous_const)).norm
+  have he : Bc = (fun (g : ℂ → ℂ) (r : ℤ) (t : ℝ) ↦ ∫ θ in Ioo (-Real.pi) Real.pi, Complex.exp ((r : ℂ) * (θ : ℂ) * Complex.I) * g ((t : ℂ) * Complex.exp (((1 : ℤ) : ℂ) * (θ : ℂ) * Complex.I))) (fun x ↦ (‖g x‖ : ℂ)) 0 := by
+    funext t
+    simp [Bc, B, integral_complex_ofReal]
+  have hbc : Continuous Bc := Complex.continuous_ofReal.comp hc
+  have hdec (p : ℝ) : Bc =O[atTop] fun t : ℝ ↦ t^p := by
+    rw [he]
+    exact complexArchimedeanMellin_eq_infiniteLocalIdelicZFunction_angularProfile_decay (g := fun x ↦ (‖g x‖ : ℂ)) (f := g) (fun x ↦ by simp) 0 p
+  have hconv : MellinConvergent Bc z := mellinConvergent_of_isBigO_rpow
+    (hbc.continuousOn.locallyIntegrableOn measurableSet_Ioi) (hdec _) (lt_add_one z.re)
+    (b := 0) (by simpa using (hbc.continuousAt (x := 0)).isBigO_one ℝ |>.mono nhdsWithin_le_nhds) hz
+  let μ := (volume : Measure ℝ).restrict (Ioi 0)
+  let ν := (volume : Measure ℝ).restrict (Ioo (-Real.pi) Real.pi)
+  have hmeas : Measurable J := by
+    exact ((Complex.continuous_ofReal.comp continuous_fst).measurable.pow measurable_const).mul
+      (((hω r).comp continuous_snd).mul (g.continuous.comp
+        ((Complex.continuous_ofReal.comp continuous_fst).mul ((hω 1).comp continuous_snd)))).measurable
+  have hInt : Integrable J (μ.prod ν) := by
+    apply (integrable_prod_iff hmeas.aestronglyMeasurable).mpr
+    constructor
+    · apply Eventually.of_forall
+      intro t
+      have ht : Continuous (fun θ : ℝ ↦ J (t,θ)) :=
+        (continuous_const (y := (t:ℂ)^(z-1))).mul ((hω r).mul (g.continuous.comp
+          ((continuous_const (y := (t:ℂ))).mul (hω 1))))
+      exact (ht.continuousOn.integrableOn_compact (K := Icc (-Real.pi) Real.pi) isCompact_Icc).mono_set Ioo_subset_Icc_self
+    · apply hconv.norm.congr
+      filter_upwards with t
+      change ‖(t:ℂ)^(z-1) * Bc t‖ = ∫ θ in (Ioo (-Real.pi) Real.pi), ‖J (t,θ)‖
+      simp only [J, norm_mul, complexArchimedeanMellin_eq_infiniteLocalIdelicZFunction_angularWeight_norm, one_mul, integral_const_mul, Bc, Complex.norm_real,
+        Real.norm_of_nonneg (show 0 ≤ B t from integral_nonneg fun _ ↦ norm_nonneg _)]
+      rfl
+  change (∫ p in Ioi (0:ℝ) ×ˢ (Ioo (-Real.pi) Real.pi), J p) = _
+  rw [Measure.volume_eq_prod, ← Measure.prod_restrict, integral_prod J hInt]
+  apply setIntegral_congr_fun measurableSet_Ioi
+  intro t _
+  exact integral_const_mul (μ := ν) ((t:ℂ)^(z-1)) (fun θ ↦ (fun (r : ℤ) (θ : ℝ) ↦ Complex.exp ((r : ℂ) * (θ : ℂ) * Complex.I)) r θ * g ((t:ℂ)*(fun (r : ℤ) (θ : ℝ) ↦ Complex.exp ((r : ℂ) * (θ : ℂ) * Complex.I)) 1 θ))
+
+/-- Polar coordinates express the complex local integral as twice a radial Mellin transform. -/
+private theorem complexArchimedeanMellin_eq_infiniteLocalIdelicZFunction_complexIntegral_shape {F : Type*} [Field F] [NumberField F] (w : InfinitePlace F) (hw : w.IsComplex)
+    (g : SchwartzMap ℂ ℂ) (c : QuasiCharacter w.Completionˣ) (z : ℂ) (r : ℤ)
+    (hc : (∀ x : ℂˣ, c (Units.map (InfinitePlace.Completion.ringEquivComplexOfIsComplex hw).symm.toMonoidHom x) = ((‖(x : ℂ)‖ ^ 2 : ℝ) : ℂ) ^ z * ((x : ℂ) / (‖(x : ℂ)‖ : ℂ)) ^ r)) (hz : 0 < z.re) :
+    let : MeasurableSpace w.Completion := borel _
+    localIdelicZetaIntegral (infiniteLocalMultiplicativeTamagawaMeasure F w) (fun x ↦ g ((InfinitePlace.Completion.ringEquivComplexOfIsComplex hw) x)) c =
+      2 * mellin ((fun (g : ℂ → ℂ) (r : ℤ) (t : ℝ) ↦ ∫ θ in Ioo (-Real.pi) Real.pi, Complex.exp ((r : ℂ) * (θ : ℂ) * Complex.I) * g ((t : ℂ) * Complex.exp (((1 : ℤ) : ℂ) * (θ : ℂ) * Complex.I))) g r) (2*z) := by
+  let : MeasurableSpace w.Completion := borel _
+  let e := (InfinitePlace.Completion.ringEquivComplexOfIsComplex hw)
+  let H (t : ℂ) := g t * (((‖t‖^2:ℝ):ℂ)^z * (t / (‖t‖:ℂ))^r)
+  have he (u : w.Completionˣ) : g (e u.val) * c u = H (e u.val) := by
+    let x := Units.map e.toMonoidHom u
+    have h := hc x
+    rw [show Units.map e.symm.toMonoidHom x = u from Units.ext (e.symm_apply_apply u.val)] at h
+    exact congrArg (g (e u.val) * ·) h
+  change (∫ u : w.Completionˣ, g (e u.val) * c u ∂(infiniteLocalMultiplicativeTamagawaMeasure F w)) = _
+  rw [integral_congr_ae (.of_forall he)]
+  rw [complexArchimedeanMellin_eq_infiniteLocalIdelicZFunction_complexLocalIntegral_model, ← Complex.integral_comp_polarCoord_symm, polarCoord_target]
+  congr 1
+  rw [← complexArchimedeanMellin_eq_infiniteLocalIdelicZFunction_angularMellin_fubini g r (2*z) (by simpa using mul_pos (by norm_num : (0:ℝ)<2) hz)]
+  apply setIntegral_congr_fun (measurableSet_Ioi.prod measurableSet_Ioo)
+  intro p hp
+  obtain ⟨t,θ⟩ := p
+  have ht : 0<t := hp.1
+  have ht' : (t:ℂ) ≠ 0 := Complex.ofReal_ne_zero.mpr ht.ne'
+  have hn : ‖Complex.polarCoord.symm (t,θ)‖ = t := (Complex.norm_polarCoord_symm _).trans (abs_of_pos ht)
+  have ha : Complex.polarCoord.symm (t,θ) = (t:ℂ)*(fun (r : ℤ) (θ : ℝ) ↦ Complex.exp ((r : ℂ) * (θ : ℂ) * Complex.I)) 1 θ := by
+    simp [Complex.polarCoord_symm_apply, Complex.exp_mul_I]
+  have hpow : (((t:ℂ)^2)^z) = (t:ℂ)^(2*z) := by
+    rw [pow_two, Complex.mul_cpow_ofReal_nonneg ht.le ht.le]
+    rw [show (2:ℂ)*z = z+z by ring, Complex.cpow_add _ _ ht']
+  have hr : ((fun (r : ℤ) (θ : ℝ) ↦ Complex.exp ((r : ℂ) * (θ : ℂ) * Complex.I)) 1 θ)^r = (fun (r : ℤ) (θ : ℝ) ↦ Complex.exp ((r : ℂ) * (θ : ℂ) * Complex.I)) r θ := by
+    simp only [Int.cast_one, one_mul, ← Complex.exp_int_mul]
+    congr 1
+    ring
+  dsimp only [H, Prod.fst, Prod.snd]
+  rw [hn, ha, Complex.real_smul, mul_div_cancel_left₀ _ ht', hr, Complex.ofReal_pow, hpow, Complex.cpow_sub _ _ ht', Complex.cpow_one]
+  field_simp
+
+/-- Changing the angular interval and substituting the squared radius gives the complex Mellin profile. -/
+private theorem complexArchimedeanMellin_eq_infiniteLocalIdelicZFunction_change (g : ℂ → ℂ) (n : ℤ) (s : ℂ) :
+    mellin (fun t : ℝ ↦ ∫ θ in (0 : ℝ)..(2 * Real.pi),
+      (Complex.exp ((θ : ℂ) * Complex.I)) ^ n *
+        g ((Real.sqrt t : ℂ) * Complex.exp ((θ : ℂ) * Complex.I))) s =
+    2 * mellin (fun t : ℝ ↦ ∫ θ in Set.Ioo (-Real.pi) Real.pi,
+      Complex.exp ((n : ℂ) * (θ : ℂ) * Complex.I) *
+        g ((t : ℂ) * Complex.exp ((θ : ℂ) * Complex.I))) (2 * s) := by
+  let A (t : ℝ) := ∫ θ in Set.Ioo (-Real.pi) Real.pi,
+    Complex.exp ((n : ℂ) * (θ : ℂ) * Complex.I) *
+      g ((t : ℂ) * Complex.exp ((θ : ℂ) * Complex.I))
+  have hp (t : ℝ) : (∫ θ in (0 : ℝ)..(2 * Real.pi),
+      (Complex.exp ((θ : ℂ) * Complex.I)) ^ n *
+        g ((t : ℂ) * Complex.exp ((θ : ℂ) * Complex.I))) = A t := by
+    let H (θ : ℝ) := (Complex.exp ((θ : ℂ) * Complex.I)) ^ n *
+      g ((t : ℂ) * Complex.exp ((θ : ℂ) * Complex.I))
+    have hper : Function.Periodic H (2 * Real.pi) := by
+      intro θ
+      have he : Complex.exp (((θ + 2 * Real.pi : ℝ) : ℂ) * Complex.I) =
+          Complex.exp ((θ : ℂ) * Complex.I) := by
+        rw [Complex.ofReal_add, add_mul, Complex.exp_add]
+        simp [Complex.ofReal_mul, Complex.exp_two_pi_mul_I]
+      simp only [H, he]
+    have h := hper.intervalIntegral_add_eq 0 (-Real.pi)
+    rw [zero_add, show -Real.pi + 2 * Real.pi = Real.pi by ring] at h
+    rw [h, intervalIntegral.integral_of_le (by linarith [Real.pi_pos] : -Real.pi ≤ Real.pi),
+      integral_Ioc_eq_integral_Ioo]
+    apply setIntegral_congr_fun measurableSet_Ioo
+    intro θ _
+    dsimp [H, A]
+    rw [← Complex.exp_int_mul]
+    congr 2
+    ring
+  have hprofile : (fun t : ℝ ↦ ∫ θ in (0 : ℝ)..(2 * Real.pi),
+      (Complex.exp ((θ : ℂ) * Complex.I)) ^ n *
+        g ((Real.sqrt t : ℂ) * Complex.exp ((θ : ℂ) * Complex.I))) =
+      fun t : ℝ ↦ A (t ^ (1 / 2 : ℝ)) := by
+    funext t
+    rw [hp, Real.sqrt_eq_rpow]
+  rw [hprofile, mellin_comp_rpow]
+  norm_num [Complex.real_smul, smul_eq_mul, div_eq_mul_inv]
+  congr 1
+  ring
+
+/-- Uniqueness of continuation identifies the complex Mellin transform with the local zeta function. -/
+private theorem complexArchimedeanMellin_eq_infiniteLocalIdelicZFunction_compare
+    {F : Type*} [Field F] [NumberField F] (w : InfinitePlace F) (hw : w.IsComplex)
+    (f : SchwartzBruhat (Multiplicative w.Completion)) (g : 𝓢(ℂ, ℂ))
+    (hg : ∀ x : w.Completion,
+      g (InfinitePlace.Completion.ringEquivComplexOfIsComplex hw x) = f (Multiplicative.ofAdd x)) :
+    ∀ c : QuasiCharacter w.Completionˣ,
+      infiniteLocalIdelicZFunction w f c =
+        complexArchimedeanMellin g (complexLocalEulerParameters w hw c).exists.choose.2
+          (complexLocalEulerParameters w hw c).exists.choose.1 := by
+  let Z (c : QuasiCharacter w.Completionˣ) :=
+    complexArchimedeanMellin g (complexLocalEulerParameters w hw c).exists.choose.2
+      (complexLocalEulerParameters w hw c).exists.choose.1
+  have hZ : Z = infiniteLocalIdelicZFunction w f := by
+    apply (infiniteLocalIdelicZFunction_existsUnique w f).unique
+    · intro χ
+      let e := InfinitePlace.Completion.ringEquivComplexOfIsComplex hw
+      let i : ℂˣ →ₜ* w.Completionˣ := ⟨Units.map e.symm.toMonoidHom,
+        (InfinitePlace.Completion.isometryEquivComplexOfIsComplex hw).symm.continuous.units_map _⟩
+      let unit : QuasiCharacter w.Completionˣ :=
+        (⟨Circle.coeHom, continuous_subtype_val⟩ : Circle →ₜ* ℂ).comp χ
+      obtain ⟨p, ht, hp⟩ :=
+        (existsUnique_complexUnits_character_parameters (unit.comp i)
+          (fun _ ↦ Circle.norm_coe _)).exists
+      let chart := quasiCharacterNormTwist
+        (Units.map nnNormHom.toMonoidHom ^ w.mult) (continuous_infiniteLocalModule w) unit
+      have hshape (s : ℂ) (x : ℂˣ) :
+          chart s (Units.map e.symm.toMonoidHom x) =
+            ((‖(x : ℂ)‖ ^ 2 : ℝ) : ℂ) ^ (s + p.1) *
+              ((x : ℂ) / (‖(x : ℂ)‖ : ℂ)) ^ p.2 := by
+        have hn : ‖e.symm x.val‖ = ‖x.val‖ :=
+          (InfinitePlace.Completion.isometryEquivComplexOfIsComplex hw).symm.isometry.norm_map_of_map_zero
+            (map_zero e.symm) x.val
+        change unit (Units.map e.symm.toMonoidHom x) *
+          ((‖e.symm x.val‖ ^ w.mult : ℝ) : ℂ) ^ s = _
+        have hx := hp x
+        change unit (Units.map e.symm.toMonoidHom x) = _ at hx
+        rw [hx, hn, hw.mult_eq_two,
+          Complex.cpow_add _ _ (Complex.ofReal_ne_zero.mpr (pow_ne_zero 2 (norm_ne_zero_iff.mpr x.ne_zero)))]
+        ring
+      have hparam (s : ℂ) :
+          (complexLocalEulerParameters w hw (chart s)).exists.choose = (s + p.1, p.2) :=
+        (complexLocalEulerParameters w hw (chart s)).unique
+          (complexLocalEulerParameters w hw (chart s)).exists.choose_spec (hshape s)
+      have he : (Z ∘ chart) = fun s ↦ complexArchimedeanMellin g p.2 (s + p.1) := by
+        funext s
+        dsimp only [Function.comp_def, Z]
+        rw [hparam]
+      change MeromorphicNFOn (Z ∘ chart) univ ∧ _
+      constructor
+      · rw [he]
+        intro s _
+        exact (meromorphicNFAt_comp_add_const_iff_meromorphicNFAt
+          (f := complexArchimedeanMellin g p.2)).mpr
+          ((complexArchimedeanMellin_existsUnique g p.2).exists.choose_spec.1 (mem_univ _))
+      · intro s hs
+        change (Z ∘ chart) s = _
+        rw [he]
+        dsimp only
+        have hz : 0 < (s + p.1).re := by simpa [Complex.add_re, ht] using hs
+        rw [complexArchimedeanMellin_eq_integral g p.2 _ hz, complexArchimedeanMellin_eq_infiniteLocalIdelicZFunction_change]
+        have hf : (fun x ↦ f (Multiplicative.ofAdd x)) = fun x ↦ g (e x) :=
+          funext fun x ↦ (hg x).symm
+        rw [hf]
+        simpa only [Int.cast_one, one_mul] using (complexArchimedeanMellin_eq_infiniteLocalIdelicZFunction_complexIntegral_shape
+          w hw g (chart s) (s + p.1) p.2 (hshape s) hz).symm
+    · exact (infiniteLocalIdelicZFunction_existsUnique w f).exists.choose_spec
+  intro c
+  exact congrFun hZ.symm c
 
 /-- Paper: Proposition 5.3.3.4, p. 258.
 In the complex field model the local zeta function of §3.3 is the angular Mellin transform
@@ -1646,7 +2547,9 @@ theorem complexArchimedeanMellin_eq_infiniteLocalIdelicZFunction
       g (InfinitePlace.Completion.ringEquivComplexOfIsComplex hw x) = f (Multiplicative.ofAdd x)) ∧
       ∀ c : QuasiCharacter w.Completionˣ,
         let p := (complexLocalEulerParameters w hw c).exists.choose
-        infiniteLocalIdelicZFunction w f c = complexArchimedeanMellin g p.2 p.1 := by sorry
+        infiniteLocalIdelicZFunction w f c = complexArchimedeanMellin g p.2 p.1 := by
+  obtain ⟨g, hg⟩ := complexArchimedeanMellin_eq_infiniteLocalIdelicZFunction_coordinates w hw f
+  exact ⟨g, hg, complexArchimedeanMellin_eq_infiniteLocalIdelicZFunction_compare w hw f g hg⟩
 
 local notation "realMonomial(" n ")" => SchwartzMap.smulLeftCLM ℂ (fun x : ℝ ↦ (x : ℂ) ^ n)
 local notation "complexMonomial(" p ", " q ")" =>
@@ -2219,6 +3122,279 @@ theorem sLocalIdelicZFunction_entire_iff_theta_exponentialDecay (χ : Pontryagin
       (⇑(thetaAt(χ₁(χ)) f) : Jₛ → ℂ) ∈ modulatedExponentialDecaySubmodule
         ⟨mₛ, (isProperMap_sIdeleQuotientNorm F S).continuous⟩ univ := by sorry
 
+/-- Mellin integration turns a compact unit average followed by dilation into the
+average of the character times the scalar dilation. -/
+private theorem sLocalIdelicZFunction_principalValue_average {G : Type*} [CommGroup G]
+    [TopologicalSpace G] [IsTopologicalGroup G] [SecondCountableTopology G]
+    [MeasurableSpace G] [BorelSpace G] (μ : Measure G) [μ.IsMulLeftInvariant] [SFinite μ]
+    (U : Subgroup G) (π : G) (f : G → ℂ) (hf : Continuous f) (c : G →ₜ* ℂ)
+    (hfc : Integrable (fun x ↦ f x * c x) μ) (hc : IntegrableOn c U μ) :
+    (∫ x, (f x - (μ.real U : ℂ)⁻¹ *
+      ∫ u in U, f (u⁻¹ * (π⁻¹ * x)) ∂μ) * c x ∂μ) =
+      (1 - (μ.real U : ℂ)⁻¹ * (∫ u in U, c u ∂μ) * c π) *
+        ∫ x, f x * c x ∂μ := by
+  let b (u x : G) := f (u⁻¹ * (π⁻¹ * x)) * c x
+  let h (x : G) := f x * c x
+  have hb (u x : G) : b u x = (c u * c π) * h ((π * u)⁻¹ * x) := by
+    have hx : x = (π * u) * ((π * u)⁻¹ * x) := by group
+    unfold b h
+    rw [← mul_assoc, ← mul_inv_rev, congrArg c hx, map_mul, map_mul]
+    ring
+  have hcont : Continuous (Function.uncurry b) := by
+    unfold Function.uncurry b
+    fun_prop
+  have hnorm (u : G) : (∫ x, ‖h ((π * u)⁻¹ * x)‖ ∂μ) = ∫ x, ‖h x‖ ∂μ :=
+    integral_mul_left_eq_self (μ := μ) (fun x ↦ ‖h x‖) _
+  have hh : Integrable h μ := hfc
+  have hi : Integrable (Function.uncurry b) ((μ.restrict U).prod μ) := by
+    refine (integrable_prod_iff hcont.aestronglyMeasurable).mpr ⟨.of_forall fun u ↦ ?_, ?_⟩
+    · simpa only [Function.uncurry_apply_pair, Function.comp_apply, hb] using
+        ((measurePreserving_mul_left μ (π * u)⁻¹).integrable_comp_of_integrable hh).const_mul (c u * c π)
+    · simp only [Function.uncurry_apply_pair, hb, norm_mul, integral_const_mul, hnorm]
+      exact (hc.norm.mul_const _).mul_const _
+  have hsub (x : G) : (f x - (μ.real U : ℂ)⁻¹ * ∫ u in U, f (u⁻¹ * (π⁻¹ * x)) ∂μ) * c x =
+      h x - (μ.real U : ℂ)⁻¹ * ∫ u in U, b u x ∂μ := by
+    rw [sub_mul, mul_assoc, ← integral_mul_const]
+  simp_rw [hsub]
+  have hbi : Integrable (fun x ↦ ∫ u in U, b u x ∂μ) μ := hi.integral_prod_right
+  rw [integral_sub hh (hbi.const_mul _), integral_const_mul,
+    ← integral_integral_swap hi]
+  simp_rw [hb, integral_const_mul, integral_mul_left_eq_self, integral_mul_const]
+  ring
+
+/-- The integral of a character over the integer units is zero unless the character
+is trivial there. -/
+private theorem sLocalIdelicZFunction_principalValue_units {G : Type*} [CommGroup G]
+    [MeasurableSpace G] [MeasurableMul G] [TopologicalSpace G]
+    (μ : Measure G) [μ.IsMulLeftInvariant] (U : Subgroup G) (hU : MeasurableSet (U : Set G))
+    (c : G →ₜ* ℂ) :
+    (∫ u in U, c u ∂μ) = if ∀ u ∈ U, c u = 1 then (μ.real U : ℂ) else 0 := by
+  classical
+  split_ifs with h
+  · rw [setIntegral_congr_fun hU h, setIntegral_const, Complex.real_smul, mul_one]
+  · obtain ⟨a, ha, hne⟩ := not_forall.mp h |>.imp fun a h ↦ not_imp.mp h
+    have he : (fun x : G ↦ a * x) ⁻¹' (U : Set G) = U := by
+      ext x
+      exact U.mul_mem_cancel_left ha
+    have hv := (measurePreserving_mul_left μ a).setIntegral_preimage_emb
+      (MeasurableEquiv.mulLeft a).measurableEmbedding (fun u ↦ c u) (U : Set G)
+    rw [he] at hv
+    simp only [map_mul, integral_const_mul] at hv
+    exact (mul_eq_zero.mp (show (c a - 1) * (∫ u in U, c u ∂μ) = 0 by linear_combination hv)).resolve_left
+      (sub_ne_zero.mpr hne)
+
+/-- Restricting the global norm chart to a finite component gives the local norm chart. -/
+private theorem sLocalIdelicZFunction_principalValue_chart (χ : PontryaginDual Jₛ) (v : S) :
+    ∃ η : PontryaginDual (v.val.adicCompletion F)ˣ, ∀ z, sLocalFiniteRestriction v (chartₛ(χ) z) =
+      quasiCharacterNormTwist _ (continuous_finiteLocalModule v.val) ((circleToComplex).comp η) z := by
+  let h := sLocalFiniteInsertion_properties v
+  let i : (v.val.adicCompletion F)ˣ →ₜ* Jₛ :=
+    ⟨{ toFun := fun g ↦ QuotientGroup.mk ((ContinuousMulEquiv.prodUnits (InfiniteAdeleRing F)
+          ((v : S) → v.val.adicCompletion F)).symm (1, ContinuousMulEquiv.piUnits.symm
+            (@Pi.mulSingle _ _ _ (Classical.decEq _) v g))),
+       map_one' := h.1, map_mul' := h.2.1 }, h.2.2⟩
+  refine ⟨χ.comp i, fun z ↦ ContinuousMonoidHom.ext fun g ↦ ?_⟩
+  have hn := sLocalFiniteRestriction_norm v g
+  change ((1 : PontryaginDual Jₛ) (i g) : ℂ) *
+    (((mₛ (i g) : ℝ≥0) : ℝ) : ℂ) ^ (1 : ℂ) = _ at hn
+  simp only [PontryaginDual.one_apply, Circle.coe_one, one_mul, Complex.cpow_one] at hn
+  exact congrArg (fun t : ℂ ↦ (χ (i g) : ℂ) * t ^ z) hn
+
+/-- The local principal value multiplies the zeta integral by the inverse Euler factor. -/
+private theorem sLocalIdelicZFunction_principalValue_finite (v : S) (f : ℬ(v.val.adicCompletion F))
+    (χ : PontryaginDual Jₛ) (z : ℂ) (hz : 0 < z.re) :
+    letI : MeasurableSpace (v.val.adicCompletion F)ˣ := borel _
+    let c := sLocalFiniteRestriction v (chartₛ(χ) z)
+    let μ := finiteLocalMultiplicativeTamagawaMeasure F v.val
+    localIdelicZetaIntegral μ (fun x ↦ finitePlacePrincipalValue v.val f (Multiplicative.ofAdd x)) c =
+      localIdelicZetaIntegral μ (fun x ↦ f (Multiplicative.ofAdd x)) c / finiteLocalEulerFactor v.val c := by
+  let : MeasurableSpace (v.val.adicCompletion F)ˣ := borel _
+  intro c μ
+  let K := v.val.adicCompletion F
+  let O := v.val.adicCompletionIntegers F
+  let : ProperSpace K := properSpace_adicCompletion v.val
+  let : SecondCountableTopology Kˣ := (Units.isEmbedding_val₀ (G₀ := K)).secondCountableTopology
+  let : BorelSpace Kˣ := ⟨rfl⟩
+  let : μ.IsHaarMeasure := finiteLocalMultiplicativeTamagawaMeasure_isHaarMeasure v.val
+  let hp := (Valued.v : Valuation K (WithZero (Multiplicative ℤ))).exists_isUniformizer_of_isCyclic_of_nontrivial
+  let π : Kˣ := Units.mk0 (hp.choose : K) hp.choose_spec.ne_zero
+  let h (u : Kˣ) := f (Multiplicative.ofAdd u.val)
+  have hcont : Continuous h := (schwartzBruhat_continuous f).comp (continuous_ofAdd.comp Units.continuous_val)
+  obtain ⟨η, hη⟩ := sLocalIdelicZFunction_principalValue_chart χ v
+  have hf : Integrable (fun u ↦ h u * c u) μ := by
+    dsimp only [c]
+    rw [hη]
+    exact finiteLocalIdelicZetaIntegral_integrable v.val f η hz
+  have hK : IsCompact (O.units : Set Kˣ) := Submonoid.units_isCompact
+    (isCompact_iff_compactSpace.mpr (compactSpace_adicCompletionIntegers v.val))
+  have hO : IsOpen (O.units : Set Kˣ) := Submonoid.isOpen_units (Valued.isOpen_valuationSubring _)
+  have hm : (μ.real O.units : ℂ) ≠ 0 := Complex.ofReal_ne_zero.mpr
+    (finitePlacePrincipalValue_integrable v.val π f (Multiplicative.ofAdd 0)).1.ne'
+  have hram : (∀ u : Oˣ, c (Units.map O.subtype.toMonoidHom u) = 1) ↔ ∀ u ∈ O.units, c u = 1 := by
+    constructor
+    · intro H u hu
+      let t : Oˣ := ⟨⟨u.val, hu.1⟩, ⟨u.inv, hu.2⟩, Subtype.ext u.val_inv, Subtype.ext u.inv_val⟩
+      exact H t
+    · intro H u
+      exact H _ ⟨u.val.property, u.inv.property⟩
+  let avg (x : Kˣ) := ∫ u in O.units, h (u⁻¹ * (π⁻¹ * x)) ∂μ
+  have hev (x : Kˣ) : finitePlacePrincipalValue v.val f (Multiplicative.ofAdd x.val) =
+      h x - (μ.real O.units : ℂ)⁻¹ * avg x :=
+    finitePlacePrincipalValue_spec v.val π hp.choose_spec f _
+  have hI := sLocalIdelicZFunction_principalValue_average μ O.units π h hcont c hf
+    (c.continuous.continuousOn.integrableOn_compact hK)
+  let Z := ∫ x, h x * c x ∂μ
+  have hF : 1 - (μ.real O.units : ℂ)⁻¹ * (∫ u in O.units, c u ∂μ) * c π =
+      (finiteLocalEulerFactor v.val c)⁻¹ := by
+    rw [sLocalIdelicZFunction_principalValue_units μ O.units hO.measurableSet c]
+    unfold finiteLocalEulerFactor
+    rw [hram]
+    split_ifs <;> simp only [inv_inv, inv_mul_cancel₀ hm, one_mul, mul_zero, zero_mul, sub_zero, inv_one]
+    rfl
+  calc
+    _ = ∫ x, (h x - (μ.real O.units : ℂ)⁻¹ * avg x) * c x ∂μ :=
+      integral_congr_ae (.of_forall fun x ↦ congrArg (· * c x) (hev x))
+    _ = (1 - (μ.real O.units : ℂ)⁻¹ * (∫ u in O.units, c u ∂μ) * c π) * Z := hI
+    _ = _ := (congrArg (· * Z) hF).trans (mul_comm _ _)
+
+/-- The product of finitely many local tests belongs to the Schwartz–Bruhat space
+of the product group. -/
+private theorem sLocalIdelicZFunction_principalValue_productTest {ι : Type*} [Fintype ι] (G : ι → Type*)
+    [∀ i, CommGroup (G i)] [∀ i, TopologicalSpace (G i)] [∀ i, IsTopologicalGroup (G i)]
+    [∀ i, T2Space (G i)] [∀ i, LocallyCompactSpace (G i)] [∀ i, SecondCountableTopology (G i)]
+    (f : ∀ i, SchwartzBruhat (G i)) : ∃ g : SchwartzBruhat (∀ i, G i),
+      ∀ x, g x = ∏ i, f i (x i) := by
+  classical
+  cases isEmpty_or_nonempty ι with
+  | inl _ =>
+    let : CompactSpace (∀ i, G i) := Finite.compactSpace
+    obtain ⟨g, hg⟩ := compact_schwartzBruhat_one (H := (i : ι) → G i)
+    exact ⟨g, fun x ↦ (hg x).trans (by simp)⟩
+  | inr hi =>
+    obtain ⟨i⟩ := hi
+    let J := {j : ι // j ≠ i}
+    obtain ⟨g, hg⟩ := sLocalIdelicZFunction_principalValue_productTest (ι := J) (fun j ↦ G j.val) (fun j ↦ f j.val)
+    let e : ((j : ι) → G j) ≃ₜ* (G i × ((j : J) → G j.val)) :=
+      { Homeomorph.piSplitAt i G with map_mul' := fun _ _ ↦ rfl }
+    obtain ⟨t, ht⟩ := schwartzBruhat_kernel_equiv (G := G i) (H := (j : J) → G j.val)
+    let q := t (UniformSpace.Completion.coe' (α := InductiveTensor (SchwartzBruhat (G i))
+      (SchwartzBruhat ((j : J) → G j.val))) ((f i) ⊗ₜ[ℂ] g))
+    refine ⟨⟨q.val ∘ e, schwartzBruhat_pullback_mem e q⟩, fun x ↦ ?_⟩
+    change q (x i, fun j ↦ x j.val) = _
+    rw [show q (x i, fun j ↦ x j.val) = _ from ht (f i) g _ _, hg, Fintype.prod_eq_mul_prod_compl i]
+    exact congrArg (_ * ·) (Finset.prod_subtype _ (fun j ↦ by simp) (fun j ↦ f j (x j))).symm
+termination_by Fintype.card ι
+decreasing_by
+  classical
+  exact Fintype.card_subtype_lt (x := i) (not_not_intro rfl)
+
+/-- Assemble the archimedean product in the test space of the infinite adeles. -/
+private theorem sLocalIdelicZFunction_principalValue_archTest
+    (a : (w : InfinitePlace F) → ℬ(w.Completion)) :
+    ∃ arch : ℬ(A∞), ∀ x : A∞, arch (Multiplicative.ofAdd x) =
+      ∏ w : InfinitePlace F, a w (Multiplicative.ofAdd (x w)) := by
+  let G (w : InfinitePlace F) := Multiplicative w.Completion
+  let (w : InfinitePlace F) : T2Space (G w) := (inferInstance : T2Space w.Completion)
+  let (w : InfinitePlace F) : LocallyCompactSpace (G w) := (inferInstance : LocallyCompactSpace w.Completion)
+  let (w : InfinitePlace F) : SecondCountableTopology (G w) :=
+    (InfinitePlace.Completion.isometry_extensionEmbedding w).isEmbedding.secondCountableTopology
+  obtain ⟨a₀, ha⟩ := sLocalIdelicZFunction_principalValue_productTest G a
+  let e : Multiplicative (InfiniteAdeleRing F) ≃ₜ* ((w : InfinitePlace F) → G w) :=
+    { toFun := fun x w ↦ Multiplicative.ofAdd (x.toAdd w)
+      invFun := fun x ↦ Multiplicative.ofAdd (fun w ↦ (x w).toAdd)
+      left_inv := fun _ ↦ rfl
+      right_inv := fun _ ↦ rfl
+      map_mul' := fun _ _ ↦ rfl
+      continuous_toFun := continuous_id
+      continuous_invFun := continuous_id }
+  exact ⟨⟨a₀.val ∘ e, schwartzBruhat_pullback_mem e a₀⟩, fun x ↦ ha (e (Multiplicative.ofAdd x))⟩
+
+/-- Tate's product formula and the tensor action of principal value give the identity on pure tests. -/
+private theorem sLocalIdelicZFunction_principalValue_pure (T : Finset V) (hT : T ⊆ S)
+    (χ : PontryaginDual Jₛ) (z : ℂ) (hz : 0 < z.re) (f : ℬₛ)
+    (a : (w : InfinitePlace F) → ℬ(w.Completion)) (b : (v : S) → ℬ(v.val.adicCompletion F))
+    (hf : ∀ x : Aₛ, f (Multiplicative.ofAdd x) =
+      (∏ w : InfinitePlace F, a w (Multiplicative.ofAdd (x.1 w))) *
+        ∏ v : S, b v (Multiplicative.ofAdd (x.2 v))) :
+    let c := chartₛ(χ) z
+    sLocalIdelicZetaIntegral (sAdelePrincipalValue F hT f) c = sLocalIdelicZetaIntegral f c /
+      ∏ v : S, if v.val ∈ T then finiteLocalEulerFactor v.val (sLocalFiniteRestriction v c) else 1 := by
+  classical
+  intro c
+  let (v : S) : MeasurableSpace (v.val.adicCompletion F)ˣ := borel _
+  obtain ⟨a₀, ha⟩ := sLocalIdelicZFunction_principalValue_archTest a
+  let e := (sAdeleSchwartz_inductiveTensor_equiv F S).choose
+  let b' (v : S) := if v.val ∈ T then finitePlacePrincipalValue v.val (b v) else b v
+  have hpack : f = e (a₀ ⊗ₜ[ℂ] (⨂ₜ[ℂ] v, b v)) := by
+    apply Subtype.ext
+    funext x
+    exact (hf x.toAdd).trans (((sAdeleSchwartz_inductiveTensor_equiv F S).choose_spec a₀ b x.toAdd).trans
+      (congrArg (· * _) (ha x.toAdd.1))).symm
+  have hpv (x : Aₛ) : sAdelePrincipalValue F hT f (Multiplicative.ofAdd x) =
+      (∏ w : InfinitePlace F, a w (Multiplicative.ofAdd (x.1 w))) *
+        ∏ v : S, b' v (Multiplicative.ofAdd (x.2 v)) := by
+    rw [hpack, sAdelePrincipalValue_tmul hT a₀ b]
+    exact ((sAdeleSchwartz_inductiveTensor_equiv F S).choose_spec a₀ b' x).trans
+      (congrArg (· * _) (ha x.1))
+  rw [sLocalIdelicZetaIntegral_pureTensor c ⟨χ, z, hz, rfl⟩ _ a b' hpv,
+    sLocalIdelicZetaIntegral_pureTensor c ⟨χ, z, hz, rfl⟩ f a b hf, mul_div_assoc]
+  apply congrArg (_ * ·)
+  rw [← Finset.prod_div_distrib]
+  apply Finset.prod_congr rfl
+  intro v _
+  by_cases hv : v.val ∈ T
+  · simp only [b', hv, ite_true]
+    exact sLocalIdelicZFunction_principalValue_finite v (b v) χ z hz
+  · simp only [b', hv, ite_false, div_one]
+
+/-- The reciprocal of a finite Euler factor is entire along a norm chart. -/
+private theorem sLocalIdelicZFunction_principalValue_analytic (χ : PontryaginDual Jₛ) (v : S) (t : ℂ) :
+    AnalyticAt ℂ (fun z ↦ (finiteLocalEulerFactor v.val (sLocalFiniteRestriction v (chartₛ(χ) z)))⁻¹) t := by
+  obtain ⟨η, hη⟩ := sLocalIdelicZFunction_principalValue_chart χ v
+  let K := v.val.adicCompletion F
+  let O := v.val.adicCompletionIntegers F
+  let c := quasiCharacterNormTwist _ (continuous_finiteLocalModule v.val) ((circleToComplex).comp η)
+  have hu (u : Oˣ) (z : ℂ) : c z (Units.map O.subtype.toMonoidHom u) =
+      (η (Units.map O.subtype.toMonoidHom u) : ℂ) := by
+    let g := Units.map O.subtype.toMonoidHom u
+    have hmem : g ∈ O.units := ⟨u.val.property, u.inv.property⟩
+    have hnorm := Valued.toNormedField.norm_eq_one_iff.mpr
+      (HeightOneSpectrum.adicCompletionIntegers.mem_units_iff_valued_eq_one.mp hmem)
+    change (η g : ℂ) * (‖g.val‖ : ℂ) ^ z = (η g : ℂ)
+    simp [hnorm]
+  let hp := (Valued.v : Valuation K (WithZero (Multiplicative ℤ))).exists_isUniformizer_of_isCyclic_of_nontrivial
+  let π : Kˣ := Units.mk0 (hp.choose : K) hp.choose_spec.ne_zero
+  have hc (z : ℂ) : (finiteLocalEulerFactor v.val (sLocalFiniteRestriction v (chartₛ(χ) z)))⁻¹ =
+      if ∀ u : Oˣ, (η (Units.map O.subtype.toMonoidHom u) : ℂ) = 1 then 1 - c z π else 1 := by
+    rw [hη]
+    change (finiteLocalEulerFactor v.val (c z))⁻¹ = _
+    have H : (∀ u : Oˣ, c z (Units.map O.subtype.toMonoidHom u) = 1) ↔
+        ∀ u : Oˣ, (η (Units.map O.subtype.toMonoidHom u) : ℂ) = 1 :=
+      forall_congr' fun u ↦ by rw [hu u z]
+    rw [finiteLocalEulerFactor, H]
+    split_ifs <;> simp only [inv_inv, inv_one]
+    rfl
+  simp_rw [hc]
+  split_ifs
+  · have hn : (‖π.val‖ : ℂ) ≠ 0 := Complex.ofReal_ne_zero.mpr (norm_ne_zero_iff.mpr π.ne_zero)
+    exact analyticAt_const.sub (analyticAt_const.mul ((differentiable_id.const_cpow (Or.inl hn)).analyticAt t))
+  · exact analyticAt_const
+
+/-- Equality on the positive half-plane continues to equality away from a discrete set. -/
+private theorem sLocalIdelicZFunction_principalValue_continue {f g : ℂ → ℂ}
+    (hf : MeromorphicOn f univ) (hg : MeromorphicOn g univ) (h : ∀ z : ℂ, 0 < z.re → f z = g z) :
+    f =ᶠ[codiscrete ℂ] g := by
+  have ho : meromorphicOrderAt (f - g) (1 : ℂ) = ⊤ := by
+    apply meromorphicOrderAt_eq_top_iff.mpr
+    have hn : ∀ᶠ z : ℂ in 𝓝 (1 : ℂ), 0 < z.re :=
+      (isOpen_lt continuous_const Complex.continuous_re).mem_nhds (by norm_num)
+    exact (hn.filter_mono nhdsWithin_le_nhds).mono fun z hz ↦ sub_eq_zero.mpr (h z hz)
+  apply eventuallyEq_codiscrete_iff_forall_eventuallyEq_nhdsNE.mpr
+  intro z
+  have hz := (hf.sub hg).meromorphicOrderAt_eq_top_of_isPreconnected isPreconnected_univ
+    (mem_univ (1 : ℂ)) (mem_univ z) ho
+  exact (meromorphicOrderAt_eq_top_iff.mp hz).mono fun _ he ↦ sub_eq_zero.mp he
+
 /-- Paper: Proposition 5.3.4.5(1), p. 264.
 Applying the principal value at selected finite places divides the zeta function
 by their Euler factors as a meromorphic identity. -/
@@ -2229,7 +3405,49 @@ theorem sLocalIdelicZFunction_principalValue (T : Finset V) (hT : T ⊆ S)
       sLocalIdelicZFunction (sAdelePrincipalValue F hT f) c =
         sLocalIdelicZFunction f c /
           ∏ v : S, if v.val ∈ T then finiteLocalEulerFactor v.val (sLocalFiniteRestriction v c)
-            else 1 := by sorry
+            else 1 := by
+  classical
+  let d (z : ℂ) := ∏ v : S, if v.val ∈ T then
+    (finiteLocalEulerFactor v.val (sLocalFiniteRestriction v (chartₛ(χ) z)))⁻¹ else 1
+  have hd (z : ℂ) : d z = (∏ v : S, if v.val ∈ T then
+      finiteLocalEulerFactor v.val (sLocalFiniteRestriction v (chartₛ(χ) z)) else 1)⁻¹ := by
+    rw [← Finset.prod_inv_distrib]
+    apply Finset.prod_congr rfl
+    intro v _
+    split_ifs <;> simp only [inv_one]
+  have ha (z : ℂ) : AnalyticAt ℂ d z := by
+    dsimp only [d]
+    apply Finset.analyticAt_fun_prod
+    intro v _
+    by_cases h : v.val ∈ T
+    · simpa only [h, ite_true] using sLocalIdelicZFunction_principalValue_analytic χ v z
+    · simp only [h, ite_false]
+      exact analyticAt_const
+  let P : ℬₛ →L[ℂ] ℬₛ := ⟨sAdelePrincipalValue F hT, (sAdelePrincipalValue_isClosedEmbedding hT).continuous⟩
+  have hright (z : ℂ) (hz : 0 < z.re) : sLocalIdelicZetaIntegral (P f) (chartₛ(χ) z) =
+      sLocalIdelicZetaIntegral f (chartₛ(χ) z) * d z := by
+    let c := chartₛ(χ) z
+    obtain ⟨L, hL⟩ := sLocalIdelicZetaIntegral_tempered c ⟨χ, z, hz, rfl⟩
+    let Λ := L.comp P - d z • L + L
+    have he := sLocalIdelicZetaIntegral_eq_of_pureTensor c ⟨χ, z, hz, rfl⟩ Λ (fun g a b hg ↦ by
+      change L (P g) - d z * L g + L g = _
+      have hpure : sLocalIdelicZetaIntegral (P g) c = sLocalIdelicZetaIntegral g c * d z := by
+        rw [hd, ← div_eq_mul_inv]
+        exact sLocalIdelicZFunction_principalValue_pure T hT χ z hz g a b hg
+      rw [hL, hL, hpure]
+      ring) f
+    change L (P f) - d z * L f + L f = _ at he
+    rw [← hL f] at he
+    rw [← hL, ← hL]
+    linear_combination he
+  have hmer := sLocalIdelicZFunction_principalValue_continue
+    (sLocalIdelicZFunction_meromorphic (P f) χ).meromorphicOn
+    ((sLocalIdelicZFunction_meromorphic f χ).meromorphicOn.mul (fun z _ ↦ (ha z).meromorphicAt))
+    (fun z hz ↦ (sLocalIdelicZFunction_eq_integral (P f) ⟨χ, z, hz, rfl⟩).trans
+      ((hright z hz).trans (congrArg (· * d z) (sLocalIdelicZFunction_eq_integral f ⟨χ, z, hz, rfl⟩).symm)))
+  filter_upwards [hmer] with z hz
+  change sLocalIdelicZFunction (P f) (chartₛ(χ) z) = sLocalIdelicZFunction f (chartₛ(χ) z) * d z at hz
+  exact hz.trans (by rw [div_eq_mul_inv, hd])
 
 -- TODO(paper-gap): (5.3.4.14) gives the allowed pole multiplicity, which can exceed
 -- the actual order. A local gamma factor contributes a positive multiplicity at a pole.
@@ -2498,7 +3716,212 @@ theorem sLocalIdelicZFunction_principalValue_pole_bound (f : ℬₛ)
     (χ : PontryaginDual Jₛ) (s : ℂ) :
     (↑(-(sLocalArchimedeanPoleMultiplicity χ s : ℤ)) : WithTop ℤ) ≤
       meromorphicOrderAt (fun z ↦ sLocalIdelicZFunction
-        (sAdelePrincipalValue F (Finset.Subset.refl S) f) (chartₛ(χ) z)) s := by sorry
+        (sAdelePrincipalValue F (Finset.Subset.refl S) f) (chartₛ(χ) z)) s := by
+  classical
+  let E (w : InfinitePlace F) (z : ℂ) := infiniteLocalEulerFactor w
+    (sLocalInfiniteRestriction w (chartₛ(χ) z))
+  let A (z : ℂ) := ∏ w : InfinitePlace F, E w z
+  let G (z : ℂ) := sLocalNormalizedZFunction f (chartₛ(χ) z)
+  let Z (z : ℂ) := sLocalIdelicZFunction (sAdelePrincipalValue F (Finset.Subset.refl S) f) (chartₛ(χ) z)
+  have hw (w : InfinitePlace F) : Meromorphic (E w) ∧
+      ∃ d : ℝ, ∀ z : ℂ, d < z.re → E w z ≠ 0 := by
+    by_cases hr : w.IsReal
+    · obtain ⟨b, hb⟩ := infiniteLocalEulerFactor_chart_real χ w hr
+      have hi : (E w)⁻¹ = fun z : ℂ ↦ (Complex.Gammaℝ (z + b))⁻¹ :=
+        funext fun z ↦ congrArg Inv.inv (hb z)
+      have hd : Differentiable ℂ ((E w)⁻¹) := hi ▸
+        (Complex.differentiable_Gammaℝ_inv.comp (show Differentiable ℂ (fun z : ℂ ↦ z + b) by fun_prop))
+      refine ⟨fun z ↦ by simpa only [inv_inv] using (hd.analyticAt z).meromorphicAt.inv, -b.re, ?_⟩
+      intro z hz
+      rw [show E w z = _ from hb z]
+      exact Complex.Gammaℝ_ne_zero_of_re_pos (by simpa only [Complex.add_re] using
+        (show 0 < z.re + b.re by linarith))
+    · obtain ⟨b, hb⟩ := infiniteLocalEulerFactor_chart_complex χ w (InfinitePlace.not_isReal_iff_isComplex.mp hr)
+      have hi : (E w)⁻¹ = fun z : ℂ ↦ 2 * (Complex.Gammaℂ (z + b))⁻¹ := by
+        funext z
+        rw [Pi.inv_apply, show E w z = _ from hb z, inv_div, div_eq_mul_inv]
+      have hd : Differentiable ℂ ((E w)⁻¹) := by
+        rw [hi]
+        exact (Complex.differentiable_Gammaℂ_inv.comp
+          (show Differentiable ℂ (fun z : ℂ ↦ z + b) by fun_prop)).const_mul 2
+      refine ⟨fun z ↦ by simpa only [inv_inv] using (hd.analyticAt z).meromorphicAt.inv, -b.re, ?_⟩
+      intro z hz
+      rw [show E w z = _ from hb z]
+      apply div_ne_zero _ two_ne_zero
+      rw [Complex.Gammaℂ_def]
+      have hpi : (2 * (Real.pi : ℂ)) ≠ 0 := mul_ne_zero two_ne_zero (Complex.ofReal_ne_zero.mpr Real.pi_ne_zero)
+      exact mul_ne_zero (mul_ne_zero two_ne_zero (fun h ↦ hpi ((Complex.cpow_eq_zero_iff _ _).mp h).1))
+        (Complex.Gamma_ne_zero_of_re_pos (by simp only [Complex.add_re]; linarith))
+  choose d hd using fun w ↦ (hw w).2
+  let R := ∑ w : InfinitePlace F, |d w|
+  have hR : 0 ≤ R := Finset.sum_nonneg fun _ _ ↦ abs_nonneg _
+  have hA : Meromorphic A := fun z ↦ MeromorphicAt.fun_prod fun w _ ↦ (hw w).1 z
+  have hG : ∀ z, AnalyticAt ℂ G z := fun z ↦ (sLocalNormalizedZFunction_entire f χ) z (mem_univ z)
+  have hZ : Meromorphic Z := fun z ↦ (sLocalIdelicZFunction_meromorphic _ χ).meromorphicOn z (mem_univ z)
+  have hloc : Z =ᶠ[𝓝[≠] ((R + 1 : ℝ) : ℂ)] G * A := by
+    have hs' : ∀ᶠ z : ℂ in 𝓝[≠] ((R + 1 : ℝ) : ℂ), R < z.re := nhdsWithin_le_nhds
+      ((isOpen_lt continuous_const Complex.continuous_re).mem_nhds (by simp))
+    filter_upwards [hs', nhdsNE_le_codiscrete _ (sLocalIdelicZFunction_principalValue S (Finset.Subset.refl S) f χ)]
+      with z hz hpv
+    have ha : A z ≠ 0 := Finset.prod_ne_zero_iff.mpr fun w _ ↦ hd w z <|
+      ((le_abs_self _).trans (Finset.single_le_sum (fun v _ ↦ abs_nonneg (d v)) (Finset.mem_univ w))).trans_lt hz
+    have hpos := hR.trans_lt hz
+    change sLocalIdelicZFunction _ _ = sLocalNormalizedZFunction f _ * A z
+    rw [hpv, sLocalNormalizedZFunction_eq_div f χ hpos, ← sLocalIdelicZFunction_eq_integral f ⟨χ, z, hpos, rfl⟩]
+    have hmem (v : S) : v.val ∈ S := v.property
+    simp only [hmem, ite_true, sLocalHeckeL]
+    change _ / _ = _ / (A z * _) * A z
+    simp only [div_eq_mul_inv, mul_inv]
+    field_simp [ha]
+  have hdiff : Meromorphic (Z - G * A) := fun z ↦ (hZ z).sub ((hG z).meromorphicAt.mul (hA z))
+  have hall := hdiff.exists_meromorphicOrderAt_eq_top_iff_eventually_zero.mp
+    ⟨_, meromorphicOrderAt_eq_top_iff.mpr (hloc.mono fun _ hz ↦ sub_eq_zero.mpr hz)⟩
+  have he : Z =ᶠ[𝓝[≠] s] G * A := nhdsNE_le_codiscrete s
+    (hall.mono fun _ hz ↦ sub_eq_zero.mp hz)
+  change _ ≤ meromorphicOrderAt Z s
+  rw [sLocalArchimedeanPoleMultiplicity_eq_sum, meromorphicOrderAt_congr he,
+    meromorphicOrderAt_mul (hG s).meromorphicAt (hA s)]
+  apply le_trans _ (le_add_of_nonneg_left (hG s).meromorphicOrderAt_nonneg)
+  change _ ≤ meromorphicOrderAt (fun z ↦ ∏ w : InfinitePlace F, E w z) s
+  rw [meromorphicOrderAt_fun_prod fun w _ ↦ (hw w).1 s]
+  exact Finset.sum_le_sum fun w _ ↦ min_le_right _ _
+
+/-- Extend the inverse unit character by zero as an additive Schwartz–Bruhat test. -/
+private theorem exists_sLocalIdelicZFunction_principalValue_attaining_poles_units (v : V)
+    (c : QuasiCharacter (v.adicCompletion F)ˣ) :
+    let U := (v.adicCompletionIntegers F).units
+    ∃ b : ℬ(v.adicCompletion F), b (Multiplicative.ofAdd 0) = 0 ∧ ∀ g : (v.adicCompletion F)ˣ,
+      b (Multiplicative.ofAdd g.val) = if g ∈ U then (c g)⁻¹ else 0 := by
+  classical
+  intro U
+  let K := v.adicCompletion F
+  have h0 : (0 : K) ∉ Units.val '' (U : Set Kˣ) := fun ⟨g, _, hg⟩ ↦ g.ne_zero hg
+  have hmem (g : Kˣ) : g.val ∈ Units.val '' (U : Set Kˣ) ↔ g ∈ U :=
+    ⟨fun ⟨u, hu, he⟩ ↦ (Units.ext he : u = g) ▸ hu, fun hg ↦ ⟨g, hg, rfl⟩⟩
+  by_cases h : ∀ g ∈ U, c g = 1
+  · let hp := (Valued.v : Valuation K (WithZero (Multiplicative ℤ))).exists_isUniformizer_of_isCyclic_of_nontrivial
+    let π : Kˣ := Units.mk0 (hp.choose : K) hp.choose_spec.ne_zero
+    refine ⟨finitePlaceDifference v π (finiteStandardGaussian v 1), ?_, fun g ↦ ?_⟩
+    · exact (finitePlaceDifference_integerIndicator v π hp.choose_spec 0).trans (indicator_of_notMem h0 _)
+    · rw [finitePlaceDifference_integerIndicator v π hp.choose_spec]
+      by_cases hg : g ∈ U
+      · rw [indicator_of_mem ((hmem g).mpr hg), ite_eq_left hg, h g hg, inv_one]
+      · rw [indicator_of_notMem (mt (hmem g).mp hg), ite_eq_right hg]
+  · refine ⟨finiteStandardGaussian v c, ?_, fun g ↦ ?_⟩
+    · change finiteStandardGaussianValue v c 0 = 0
+      rw [finiteStandardGaussianValue, ite_eq_right h, indicator_of_notMem h0]
+    · by_cases hg : g ∈ U
+      · exact (finiteStandardGaussian_integerUnit v c g hg).trans (ite_eq_left hg).symm
+      · rw [ite_eq_right hg]
+        change finiteStandardGaussianValue v c g.val = 0
+        rw [finiteStandardGaussianValue, ite_eq_right h, indicator_of_notMem (mt (hmem g).mp hg)]
+
+/-- A preimage of the inverse unit character contributes the positive unit mass at every exponent. -/
+private theorem exists_sLocalIdelicZFunction_principalValue_attaining_poles_finite
+    (χ : PontryaginDual Jₛ) (v : S) :
+    letI : MeasurableSpace (v.val.adicCompletion F)ˣ := borel _
+    let μ := finiteLocalMultiplicativeTamagawaMeasure F v.val
+    let U := (v.val.adicCompletionIntegers F).units
+    ∃ b : ℬ(v.val.adicCompletion F), (μ.real U : ℂ) ≠ 0 ∧ ∀ z : ℂ,
+      localIdelicZetaIntegral μ (fun x ↦ finitePlacePrincipalValue v.val b (Multiplicative.ofAdd x))
+        (sLocalFiniteRestriction v (chartₛ(χ) z)) = μ.real U := by
+  classical
+  let : MeasurableSpace (v.val.adicCompletion F)ˣ := borel _
+  intro μ U
+  let : BorelSpace (v.val.adicCompletion F)ˣ := ⟨rfl⟩
+  obtain ⟨η, hη⟩ := sLocalIdelicZFunction_principalValue_chart χ v
+  let c₀ := (circleToComplex).comp η
+  obtain ⟨b₀, h0, hb₀⟩ := exists_sLocalIdelicZFunction_principalValue_attaining_poles_units v.val c₀
+  obtain ⟨b, hb⟩ : b₀ ∈ Set.range (finitePlacePrincipalValue v.val) := by
+    rw [finitePlacePrincipalValue_range]
+    exact h0
+  refine ⟨b, Complex.ofReal_ne_zero.mpr
+    (finitePlacePrincipalValue_integrable v.val 1 b (Multiplicative.ofAdd 0)).1.ne', fun z ↦ ?_⟩
+  let hO : IsOpen (U : Set (v.val.adicCompletion F)ˣ) := Submonoid.isOpen_units (Valued.isOpen_valuationSubring _)
+  rw [hb, hη]
+  let c := quasiCharacterNormTwist _ (continuous_finiteLocalModule v.val) c₀ z
+  have hh (g : (v.val.adicCompletion F)ˣ) : b₀ (Multiplicative.ofAdd g.val) * c g =
+      (U : Set (v.val.adicCompletion F)ˣ).indicator (fun _ ↦ (1 : ℂ)) g := by
+    rw [hb₀]
+    by_cases hg : g ∈ U
+    · rw [ite_eq_left hg, indicator_of_mem hg]
+      have hn := Valued.toNormedField.norm_eq_one_iff.mpr
+        (HeightOneSpectrum.adicCompletionIntegers.mem_units_iff_valued_eq_one.mp hg)
+      change (η g : ℂ)⁻¹ * ((η g : ℂ) * (‖g.val‖ : ℂ) ^ z) = 1
+      simp [hn, Circle.coe_ne_zero]
+    · rw [ite_eq_right hg, indicator_of_notMem hg, zero_mul]
+  change (∫ g, b₀ (Multiplicative.ofAdd g.val) * c g ∂μ) = _
+  simp_rw [hh]
+  rw [integral_indicator_const _ hO.measurableSet, Complex.real_smul, mul_one]
+
+/-- The local standard Gaussian realizes the archimedean Euler factor on the entire positive half-plane. -/
+private theorem exists_sLocalIdelicZFunction_principalValue_attaining_poles_arch
+    (χ : PontryaginDual Jₛ) (w : InfinitePlace F) :
+    letI : MeasurableSpace w.Completion := borel _
+    ∃ a : ℬ(w.Completion), ∀ z : ℂ, 0 < z.re →
+      localIdelicZetaIntegral (infiniteLocalMultiplicativeTamagawaMeasure F w)
+        (fun x ↦ a (Multiplicative.ofAdd x)) (sLocalInfiniteRestriction w (chartₛ(χ) z)) =
+        infiniteLocalEulerFactor w (sLocalInfiniteRestriction w (chartₛ(χ) z)) := by
+  let : MeasurableSpace w.Completion := borel _
+  let h := sLocalInfiniteInsertion_properties (S := S) w
+  let i : w.Completionˣ →ₜ* Jₛ :=
+    ⟨{ toFun := fun g ↦ QuotientGroup.mk ((ContinuousMulEquiv.prodUnits (InfiniteAdeleRing F)
+          ((v : S) → v.val.adicCompletion F)).symm (ContinuousMulEquiv.piUnits.symm
+            (@Pi.mulSingle _ _ _ (Classical.decEq _) w g), 1)),
+       map_one' := h.1, map_mul' := h.2.1 }, h.2.2⟩
+  let η := χ.comp i
+  refine ⟨infiniteStandardGaussian w η, fun z hz ↦ ?_⟩
+  have hchart : sLocalInfiniteRestriction w (chartₛ(χ) z) =
+      quasiCharacterNormTwist _ (continuous_infiniteLocalModule w) ((circleToComplex).comp η) z := by
+    ext1 g
+    have hn := sLocalInfiniteRestriction_norm w (S := S) g
+    change ((1 : PontryaginDual Jₛ) (i g) : ℂ) * (((mₛ (i g) : ℝ≥0) : ℝ) : ℂ) ^ (1 : ℂ) = _ at hn
+    simp only [PontryaginDual.one_apply, Circle.coe_one, one_mul, Complex.cpow_one] at hn
+    exact congrArg (fun t : ℂ ↦ (χ (i g) : ℂ) * t ^ z) hn
+  rw [hchart, ← infiniteLocalIdelicZFunction_eq_integral w _ η hz]
+  exact infiniteLocalIdelicZFunction_standardGaussian w η z hz
+
+/-- A function with an entire reciprocal which is nonzero somewhere has meromorphic order at most zero. -/
+private theorem exists_sLocalIdelicZFunction_principalValue_attaining_poles_reciprocal (f : ℂ → ℂ)
+    (ha : Differentiable ℂ (fun z ↦ (f z)⁻¹)) (u : ℂ) (hu : f u ≠ 0) (s : ℂ) :
+    MeromorphicAt f s ∧ meromorphicOrderAt f s ≤ 0 := by
+  let g (z : ℂ) := (f z)⁻¹
+  have hm : MeromorphicOn g univ := fun z _ ↦ (ha.analyticAt z).meromorphicAt
+  have h₀ : meromorphicOrderAt g u = 0 :=
+    (ha.analyticAt u).meromorphicNFAt.meromorphicOrderAt_eq_zero_iff.mpr (inv_ne_zero hu)
+  have hfin := hm.meromorphicOrderAt_ne_top_of_isPreconnected isPreconnected_univ
+    (mem_univ u) (mem_univ s) (by rw [h₀]; exact WithTop.coe_ne_top)
+  have hf : (fun z ↦ (g z)⁻¹) = f := funext fun z ↦ inv_inv _
+  refine ⟨hf ▸ (hm s (mem_univ s)).inv, ?_⟩
+  rw [← hf]
+  change meromorphicOrderAt g⁻¹ s ≤ 0
+  rw [meromorphicOrderAt_inv]
+  have hn : 0 ≤ meromorphicOrderAt g s := (ha.analyticAt s).meromorphicOrderAt_nonneg
+  obtain ⟨k, hk⟩ := WithTop.ne_top_iff_exists.mp hfin
+  rw [← hk] at hn ⊢
+  exact_mod_cast neg_nonpos.mpr (show 0 ≤ k by exact_mod_cast hn)
+
+/-- Shifted real and complex Gamma factors have no zeros. Their orders therefore equal their negative parts. -/
+private theorem exists_sLocalIdelicZFunction_principalValue_attaining_poles_order
+    (χ : PontryaginDual Jₛ) (w : InfinitePlace F) (s : ℂ) :
+    let L := fun z ↦ infiniteLocalEulerFactor w (sLocalInfiniteRestriction w (chartₛ(χ) z))
+    MeromorphicAt L s ∧ meromorphicOrderAt L s ≤ 0 := by
+  intro L
+  by_cases hw : w.IsReal
+  · obtain ⟨b, hb⟩ := infiniteLocalEulerFactor_chart_real χ w hw
+    have h : L = fun z ↦ Complex.Gammaℝ (z + b) := funext hb
+    rw [h]
+    apply exists_sLocalIdelicZFunction_principalValue_attaining_poles_reciprocal _
+      (Complex.differentiable_Gammaℝ_inv.comp (differentiable_id.add_const b)) (1 - b)
+    simp [Complex.Gammaℝ_one]
+  · obtain ⟨b, hb⟩ := infiniteLocalEulerFactor_chart_complex χ w
+      (InfinitePlace.not_isReal_iff_isComplex.mp hw)
+    have h : L = fun z ↦ Complex.Gammaℂ (z + b) / 2 := funext hb
+    rw [h]
+    refine exists_sLocalIdelicZFunction_principalValue_attaining_poles_reciprocal _ ?_ (1 - b) ?_ s
+    · simp only [div_eq_mul_inv, mul_inv_rev, inv_inv]
+      exact (Complex.differentiable_Gammaℂ_inv.comp (differentiable_id.add_const b)).const_mul 2
+    · simp [Complex.Gammaℂ_one, Real.pi_ne_zero]
 
 /-- Paper: Proposition 5.3.4.5(2), p. 264.
 On each component a choice of test realizes the full allowed archimedean pole divisor.
@@ -2507,7 +3930,47 @@ theorem exists_sLocalIdelicZFunction_principalValue_attaining_poles (χ : Pontry
     ∃ f : ℬₛ, ∀ s : ℂ,
       meromorphicOrderAt (fun z ↦ sLocalIdelicZFunction
         (sAdelePrincipalValue F (Finset.Subset.refl S) f) (chartₛ(χ) z)) s =
-        (↑(-(sLocalArchimedeanPoleMultiplicity χ s : ℤ)) : WithTop ℤ) := by sorry
+        (↑(-(sLocalArchimedeanPoleMultiplicity χ s : ℤ)) : WithTop ℤ) := by
+  classical
+  let (w : InfinitePlace F) : MeasurableSpace w.Completion := borel _
+  let (v : S) : MeasurableSpace (v.val.adicCompletion F)ˣ := borel _
+  choose a ha using exists_sLocalIdelicZFunction_principalValue_attaining_poles_arch χ
+  choose b hmass hb using exists_sLocalIdelicZFunction_principalValue_attaining_poles_finite χ
+  obtain ⟨a₀, ha₀⟩ := sLocalIdelicZFunction_principalValue_archTest a
+  let e := (sAdeleSchwartz_inductiveTensor_equiv F S).choose
+  let f := e (a₀ ⊗ₜ[ℂ] (⨂ₜ[ℂ] v, b v))
+  let p := sAdelePrincipalValue F (Finset.Subset.refl S) f
+  let b' (v : S) := finitePlacePrincipalValue v.val (b v)
+  have hp (x : Aₛ) : p (Multiplicative.ofAdd x) =
+      (∏ w : InfinitePlace F, a w (Multiplicative.ofAdd (x.1 w))) *
+        ∏ v : S, b' v (Multiplicative.ofAdd (x.2 v)) := by
+    have H : p = e (a₀ ⊗ₜ[ℂ] (⨂ₜ[ℂ] v, b' v)) := by
+      simpa only [p, f, e, b', Finset.coe_mem, ite_true] using
+        sAdelePrincipalValue_tmul (F := F) (Finset.Subset.refl S) a₀ b
+    rw [H]
+    exact ((sAdeleSchwartz_inductiveTensor_equiv F S).choose_spec a₀ b' x).trans
+      (congrArg (· * _) (ha₀ x.1))
+  let L (w : InfinitePlace F) (z : ℂ) := infiniteLocalEulerFactor w (sLocalInfiniteRestriction w (chartₛ(χ) z))
+  let M := ∏ v : S, (((finiteLocalMultiplicativeTamagawaMeasure F v.val).real
+    (v.val.adicCompletionIntegers F).units : ℝ) : ℂ)
+  have hM : M ≠ 0 := Finset.prod_ne_zero_iff.mpr fun v _ ↦ hmass v
+  have hL (w : InfinitePlace F) (z : ℂ) : MeromorphicAt (L w) z ∧ meromorphicOrderAt (L w) z ≤ 0 :=
+    exists_sLocalIdelicZFunction_principalValue_attaining_poles_order χ w z
+  have hmer (z : ℂ) : MeromorphicAt (fun t ↦ M * ∏ w, L w t) z :=
+    MeromorphicAt.mul analyticAt_const.meromorphicAt (MeromorphicAt.fun_prod fun w _ ↦ (hL w z).1)
+  have H := sLocalIdelicZFunction_principalValue_continue (sLocalIdelicZFunction_meromorphic p χ).meromorphicOn
+    (fun z _ ↦ hmer z) (fun z hz ↦ by
+      rw [sLocalIdelicZFunction_eq_integral p ⟨χ, z, hz, rfl⟩,
+        sLocalIdelicZetaIntegral_pureTensor (chartₛ(χ) z) ⟨χ, z, hz, rfl⟩ p a b' hp]
+      exact (congrArg₂ (· * ·) (Finset.prod_congr rfl fun w _ ↦ ha w z hz)
+        (Finset.prod_congr rfl fun v _ ↦ hb v z)).trans (mul_comm _ _))
+  refine ⟨f, fun s ↦ ?_⟩
+  have hs := meromorphicOrderAt_congr (H.filter_mono (nhdsNE_le_codiscrete s))
+  refine hs.trans ?_
+  change meromorphicOrderAt ((fun _ : ℂ ↦ M) * (fun z ↦ ∏ w, L w z)) s = _
+  rw [meromorphicOrderAt_mul_of_ne_zero analyticAt_const hM,
+    meromorphicOrderAt_fun_prod (fun w _ ↦ (hL w s).1), sLocalArchimedeanPoleMultiplicity_eq_sum]
+  exact Finset.sum_congr rfl fun w _ ↦ (min_eq_right (hL w s).2).symm
 
 private theorem continuous_schwartzBruhat_pointEval {G : Type*} [CommGroup G]
     [TopologicalSpace G] (x : G) : Continuous (fun f : SchwartzBruhat G ↦ f x) := by
@@ -2561,7 +4024,21 @@ The principal value preserves the kernel of each homogeneous theta transform. -/
 theorem sAdelePrincipalValue_preserves_homogeneousThetaKernel {T : Finset V} (hT : T ⊆ S)
     (ψ : PontryaginDual J₁) :
     LinearMap.ker (thetaAt(ψ)) ≤
-      (LinearMap.ker (thetaAt(ψ))).comap (sAdelePrincipalValue F hT) := by sorry
+      (LinearMap.ker (thetaAt(ψ))).comap (sAdelePrincipalValue F hT) := by
+  let K := LinearMap.ker (thetaAt(ψ))
+  let A := (existsUnique_sLocalThetaIsotypicAverage (F := F) (S := S) ψ).exists.choose
+  obtain ⟨e, he⟩ := (sLocalThetaIsotypicAverage_equiv (F := F) (S := S) ψ).2
+  intro f hf
+  have hz : K.mkQ f = 0 := (Submodule.Quotient.mk_eq_zero K).mpr hf
+  have hA : A (Submodule.Quotient.mk f) = 0 := (he f).symm.trans
+    (congrArg Subtype.val ((congrArg e hz).trans e.map_zero))
+  have hcomm := sLocalThetaPrincipalValue_isotypicAverage (F := F) hT ψ (Submodule.Quotient.mk f)
+  have hzero : A (Submodule.Quotient.mk (sAdelePrincipalValue F hT f)) = 0 :=
+    hcomm.symm.trans ((congrArg (sLocalThetaPrincipalValue F hT) hA).trans (map_zero _))
+  apply (Submodule.Quotient.mk_eq_zero K).mp
+  apply e.injective
+  apply Subtype.ext
+  exact ((he _).trans hzero).trans (congrArg Subtype.val e.map_zero).symm
 
 /-- Paper: Proposition 5.3.4.5(3), p. 264.
 Weil's operator on homogeneous theta classes is induced by its action on tests. -/
@@ -2582,7 +4059,44 @@ The closed embedding of Lemma 5.3.1.5 restricts to the homogeneous theta quotien
 identified with its isotype by §5.2. -/
 theorem sLocalHomogeneousThetaPrincipalValue_isClosedEmbedding {T : Finset V} (hT : T ⊆ S)
     (ψ : PontryaginDual J₁) : IsClosedEmbedding (sLocalHomogeneousThetaPrincipalValue hT ψ) :=
-  by sorry
+  by
+  classical
+  let K := LinearMap.ker (thetaAt(ψ))
+  rcases T.eq_empty_or_nonempty with rfl | hn
+  · have conjugate {E G Y : Type _} [AddCommGroup E] [Module ℂ E] [TopologicalSpace E]
+        [AddCommGroup G] [Module ℂ G] [TopologicalSpace G]
+        [AddCommGroup Y] [Module ℂ Y] [TopologicalSpace Y]
+        (e : InductiveTensor E G ≃L[ℂ] Y) (P : G →ₗ[ℂ] G) (hp : ∀ x, P x = x) :
+        e.toLinearMap.comp ((TensorProduct.map (LinearMap.id : E →ₗ[ℂ] E) P).comp e.symm.toLinearMap)
+          = LinearMap.id := by
+      have he : P = LinearMap.id := LinearMap.ext hp
+      subst he
+      refine LinearMap.ext fun x ↦ ?_
+      have h := LinearMap.congr_fun (TensorProduct.map_id (R := ℂ) (M := E) (N := G)) (e.symm x)
+      exact (congrArg e h).trans (e.apply_symm_apply x)
+    have hP : sAdelePrincipalValue F hT = LinearMap.id := by
+      unfold sAdelePrincipalValue
+      refine conjugate _ _ fun x ↦ ?_
+      simp only [Finset.notMem_empty, ite_false, PiTensorProduct.map_id]
+      rfl
+    have hU : ⇑(sLocalHomogeneousThetaPrincipalValue hT ψ) = id := by
+      funext y
+      obtain ⟨f, rfl⟩ := K.mkQ_surjective y
+      exact congrArg K.mkQ (LinearMap.congr_fun hP f)
+    rw [hU]
+    exact IsClosedEmbedding.id
+  · obtain ⟨hs, e, he⟩ := sLocalThetaIsotypicAverage_equiv (F := F) (S := S) ψ
+    let j := Subtype.val ∘ e
+    have hj : IsClosedEmbedding j := hs.isClosedEmbedding_subtypeVal.comp e.toHomeomorph.isClosedEmbedding
+    have hcomp : j ∘ sLocalHomogeneousThetaPrincipalValue hT ψ = sLocalThetaPrincipalValue F hT ∘ j := by
+      funext y
+      obtain ⟨f, rfl⟩ := K.mkQ_surjective y
+      exact (he (sAdelePrincipalValue F hT f)).trans
+        ((sLocalThetaPrincipalValue_isotypicAverage (F := F) hT ψ (Submodule.Quotient.mk f)).symm.trans
+          (congrArg (sLocalThetaPrincipalValue F hT) (he f).symm))
+    apply hj.of_comp_iff.mp
+    rw [hcomp]
+    exact (sLocalThetaPrincipalValue_isClosedEmbedding (F := F) hT hn).comp hj
 
 /-- Paper: Proposition 5.3.4.5(3), p. 264.
 The principal value range in the homogeneous theta quotient is the image of tests

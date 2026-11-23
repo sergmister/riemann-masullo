@@ -875,6 +875,262 @@ theorem globalPrincipalValueConverse_nontrivial_exact (S : Finset V)
 -- evaluating at the two shifted poles. The factors are 1 - 1 and 1 - qᵥ⁻¹
 -- on a pure norm-twist component.
 
+/-- Insertion through the stage agrees with insertion at the chosen finite place. -/
+private theorem globalPrincipalValueConverse_mellin_insertion {T : Finset V}
+    (v : T) (x : (v.val.adicCompletion F)ˣ) :
+    sIdeleInsertion F T ((ContinuousMulEquiv.prodUnits (InfiniteAdeleRing F)
+        ((w : T) → w.val.adicCompletion F)).symm
+      (1, ContinuousMulEquiv.piUnits.symm (@Pi.mulSingle _ _ _ (Classical.decEq _) v x))) = IdeleGroup.ofAdicCompletion (𝓞 F) F v.val x := by
+  classical
+  let : DecidableEq T := Classical.decEq _
+  let g : (SAdeleRing F T)ˣ := (ContinuousMulEquiv.prodUnits (InfiniteAdeleRing F) _).symm
+    (1, ContinuousMulEquiv.piUnits.symm (@Pi.mulSingle _ _ _ (Classical.decEq _) v x))
+  obtain ⟨ha, hf, ho⟩ := sIdeleInsertion_apply F T g
+  apply Units.ext
+  apply Prod.ext
+  · exact ha
+  · apply RestrictedProduct.ext
+    intro u
+    change (sIdeleInsertion F T g).val.2 u =
+      RestrictedProduct.mulSingle (fun w : V ↦ w.adicCompletionIntegers F) v.val x.val u
+    by_cases hu : u = v.val
+    · subst u
+      rw [hf v, RestrictedProduct.mulSingle_eq_same]
+      change ((Pi.mulSingle (M := fun t : T ↦ (t.val.adicCompletion F)ˣ) v x v :
+        (v.val.adicCompletion F)ˣ) : v.val.adicCompletion F) = _
+      rw [Pi.mulSingle_eq_same]
+    · rw [RestrictedProduct.mulSingle_eq_of_ne _ _ hu]
+      by_cases hm : u ∈ T
+      · rw [hf ⟨u, hm⟩]
+        change ((Pi.mulSingle (M := fun t : T ↦ (t.val.adicCompletion F)ˣ) v x ⟨u, hm⟩ :
+          (u.adicCompletion F)ˣ) : u.adicCompletion F) = 1
+        rw [Pi.mulSingle_eq_of_ne (fun e ↦ hu (congrArg Subtype.val e)), Units.val_one]
+      · exact ho u hm
+
+/-- The finite Euler factors in the local and global conventions agree. -/
+private theorem globalPrincipalValueConverse_mellin_factor
+    (χ' : U) (v : V) (s : ℂ) :
+    finiteLocalEulerFactor v (finitePlaceRestriction F v (ideleClassNormTwist χ' s)) =
+      finiteHeckeEulerFactor χ' v s := by
+  classical
+  let c := finitePlaceRestriction F v (ideleClassNormTwist χ' s)
+  let c₀ := finitePlaceRestriction F v (ideleClassNormTwist χ' 0)
+  have htwist (x : (v.adicCompletion F)ˣ) :
+      c x = c₀ x * (‖x.val‖ : ℂ) ^ s := by
+    let g := IdeleClassGroup.ofAdicCompletion (𝓞 F) F v x
+    change (χ' g : ℂ) * (((ideleClassNorm F g : ℝ≥0) : ℝ) : ℂ) ^ s =
+      (χ' g : ℂ) * (((ideleClassNorm F g : ℝ≥0) : ℝ) : ℂ) ^ (0 : ℂ) * _
+    rw [Complex.cpow_zero, mul_one, ideleClassNorm_ofAdicCompletion]
+    rfl
+  have hrestrict (x : (v.adicCompletion F)ˣ) :
+      (ideleClassNormTwist χ' 0).restrict v x.val = c₀ x := by
+    rw [HeckeCharacter.restrict, MulChar.ofUnitHom_coe]
+    rfl
+  have hunram : (∀ u : (v.adicCompletionIntegers F)ˣ,
+      c (Units.map (v.adicCompletionIntegers F).subtype.toMonoidHom u) = 1) ↔ (ideleClassNormTwist χ' 0).IsUnramifiedAt v := by
+    rw [HeckeCharacter.isUnramifiedAt_iff]
+    refine forall_congr' fun u ↦ ?_
+    let x := Units.map (v.adicCompletionIntegers F).subtype.toMonoidHom u
+    change c x = 1 ↔ (ideleClassNormTwist χ' 0).restrict v x.val = 1
+    have hn : ‖x.val‖ = 1 :=
+      Valued.toNormedField.norm_eq_one_iff.mpr
+        ((HeightOneSpectrum.adicCompletionIntegers.mem_units_iff_valued_eq_one (a := x)).mp
+          ⟨u.val.property, u.inv.property⟩)
+    rw [htwist, hn, Complex.ofReal_one, Complex.one_cpow, mul_one, hrestrict]
+  change finiteLocalEulerFactor v c = finiteHeckeEulerFactor χ' v s
+  by_cases hv : (ideleClassNormTwist χ' 0).IsUnramifiedAt v
+  · rw [finiteLocalEulerFactor, ite_eq_left (hunram.mpr hv), finiteHeckeEulerFactor, ite_eq_left hv]
+    let val : Valuation (v.adicCompletion F) (WithZero (Multiplicative ℤ)) := Valued.v
+    let hπ := val.exists_isUniformizer_of_isCyclic_of_nontrivial.choose_spec
+    let π := Units.mk0 _ hπ.ne_zero
+    change (1 - c π)⁻¹ = _
+    have hn := norm_uniformizer_adicCompletion v π.val hπ
+    rw [htwist, hv.localValue_eq π.val hπ, hrestrict, hn,
+      Complex.ofReal_inv, Complex.inv_cpow_ofReal_nonneg (Nat.cast_nonneg _) s,
+      Complex.cpow_neg, Complex.ofReal_natCast]
+  · rw [finiteLocalEulerFactor, ite_eq_right (mt hunram.mp hv), finiteHeckeEulerFactor,
+      ite_eq_right hv]
+
+/-- Restriction to the local stage preserves each selected Euler factor. -/
+private theorem globalPrincipalValueConverse_mellin_localFactor {T : Finset V} (χ : U)
+    (hc : χ₀(χ) ∈ unramifiedOutside F T) (η : PontryaginDual (SIdeleQuotient F T))
+    (hχ : sIdeleRestriction F T ⟨χ₀(χ), hc⟩ = normChartₛ(η) 0) (v : T) (s : ℂ) :
+    finiteLocalEulerFactor v.val (sLocalFiniteRestriction v (normChartₛ(η) s)) =
+      finiteHeckeEulerFactor χ v.val s := by
+  have htwist (g : (SAdeleRing F T)ˣ) :
+      normChartₛ(η) s (QuotientGroup.mk g) =
+        ideleClassNormTwist χ s (QuotientGroup.mk (sIdeleInsertion F T g)) := by
+    have hbase := DFunLike.congr_fun hχ (QuotientGroup.mk g)
+    rw [sIdeleRestriction_mk] at hbase
+    change (χ (QuotientGroup.mk (sIdeleInsertion F T g)) : ℂ) * _ ^ (0 : ℂ) =
+      (η (QuotientGroup.mk g) : ℂ) * _ ^ (0 : ℂ) at hbase
+    simp only [Complex.cpow_zero, mul_one] at hbase
+    change (η (QuotientGroup.mk g) : ℂ) *
+        ((((sIdeleQuotientNorm F T) (QuotientGroup.mk g) : ℝ≥0) : ℝ) : ℂ) ^ s =
+      (χ (QuotientGroup.mk (sIdeleInsertion F T g)) : ℂ) * _ ^ s
+    rw [← hbase, sIdeleQuotientNorm_mk, ← ideleNorm_sIdeleInsertion]
+    rfl
+  have hfinite (v : T) : sLocalFiniteRestriction v (normChartₛ(η) s) =
+      finitePlaceRestriction F v.val (ideleClassNormTwist χ s) := by
+    ext1 x
+    change normChartₛ(η) s (QuotientGroup.mk ((ContinuousMulEquiv.prodUnits (InfiniteAdeleRing F)
+        ((w : T) → w.val.adicCompletion F)).symm
+      (1, ContinuousMulEquiv.piUnits.symm (@Pi.mulSingle _ _ _ (Classical.decEq _) v x)))) =
+      ideleClassNormTwist χ s (QuotientGroup.mk (IdeleGroup.ofAdicCompletion (𝓞 F) F v.val x))
+    rw [htwist, globalPrincipalValueConverse_mellin_insertion]
+  rw [hfinite, globalPrincipalValueConverse_mellin_factor]
+
+/-- The meromorphic Mellin transform only depends on the global theta class. -/
+private theorem globalPrincipalValueConverse_mellin_class (χ : U) (f g : ℬ)
+    (hq : (Submodule.Quotient.mk f : GlobalAdelicThetaSpace F) = Submodule.Quotient.mk g) :
+    (fun z ↦ Z(f, χ, z)) = (fun z ↦ Z(g, χ, z)) := by
+  have hf := globalIdelicZFunction_meromorphic f χ
+  have hg := globalIdelicZFunction_meromorphic g χ
+  rw [← toMeromorphicNFOn_eq_self.mpr hf, ← toMeromorphicNFOn_eq_self.mpr hg]
+  apply heckeEulerProductOutside_eq_finite_nf_eq _ _ hf.meromorphicOn hg.meromorphicOn
+  intro z hz
+  have h₀ : ideleClassNormTwist (1 : U) 0 = 1 := by
+    ext1 x
+    change (1 : ℂ) * _ ^ (0 : ℂ) = 1
+    simp
+  have hreg : 0 ≤ globalIdelicOrderBound (ideleClassNormTwist χ z) := by
+    rw [globalIdelicOrderBound, ite_eq_right]
+    rintro (h | h)
+    · rw [← h₀] at h
+      have he := quasiCharacterAbscissa_ideleClassNormTwist χ z
+      rw [h, quasiCharacterAbscissa_ideleClassNormTwist] at he
+      simp at he
+      linarith
+    · have he := quasiCharacterAbscissa_ideleClassNormTwist χ z
+      rw [h, quasiCharacterAbscissa_ideleClassNormTwist] at he
+      simp at he
+      linarith
+  exact congrArg (fun x : GlobalAdelicThetaSpace F ↦
+    (globalThetaMellin x).val ⟨ideleClassNormTwist χ z, hreg⟩) hq
+
+private theorem globalPrincipalValueConverse_mellin_tensor
+    {M N Y : Type*} [AddCommGroup M] [Module ℂ M] [TopologicalSpace M]
+    [AddCommGroup N] [Module ℂ N] [TopologicalSpace N]
+    [AddCommGroup Y] [Module ℂ Y] [TopologicalSpace Y] (e : InductiveTensor M N ≃L[ℂ] Y)
+    (f : M →ₗ[ℂ] M) (g : N →ₗ[ℂ] N) (hf : f = LinearMap.id) (hg : g = LinearMap.id) :
+    e.toLinearMap.comp ((TensorProduct.map f g).comp e.symm.toLinearMap) = LinearMap.id := by
+  subst f g
+  have H : TensorProduct.map (LinearMap.id (R := ℂ) (M := M)) (LinearMap.id (R := ℂ) (M := N)) =
+      LinearMap.id := TensorProduct.map_id
+  rw [H]
+  apply LinearMap.ext
+  exact e.apply_symm_apply
+
+open scoped TensorProduct in
+private theorem globalPrincipalValueConverse_mellin_emptyTensor
+    {ι M Y : Type*} {N : ι → Type*} [IsEmpty ι]
+    [AddCommGroup M] [Module ℂ M] [TopologicalSpace M]
+    [∀ i, AddCommGroup (N i)] [∀ i, Module ℂ (N i)] [AddCommGroup Y] [Module ℂ Y]
+    [TopologicalSpace Y] (e : InductiveTensor M (FinestLocallyConvex (⨂[ℂ] i, N i)) ≃L[ℂ] Y)
+    (L : ∀ i, N i →ₗ[ℂ] N i) :
+    let W := FinestLocallyConvex (⨂[ℂ] i, N i)
+    let op : W →ₗ[ℂ] W := PiTensorProduct.map L
+    e.toLinearMap.comp ((TensorProduct.map (LinearMap.id (R := ℂ) (M := M)) op).comp
+      e.symm.toLinearMap) = LinearMap.id := by
+  intro W op
+  have hp : op = LinearMap.id := (congrArg (PiTensorProduct.map (R := ℂ))
+    (Subsingleton.elim L (fun i ↦ (LinearMap.id : N i →ₗ[ℂ] N i)))).trans PiTensorProduct.map_id
+  exact globalPrincipalValueConverse_mellin_tensor e LinearMap.id op rfl hp
+
+private theorem globalPrincipalValueConverse_mellin_emptyTest :
+    adelePrincipalValue F ∅ = LinearMap.id := by
+  unfold adelePrincipalValue
+  with_reducible_and_instances
+    refine globalPrincipalValueConverse_mellin_tensor _ _ _ ?_ rfl
+  unfold sAdelePrincipalValue
+  with_reducible_and_instances
+    exact globalPrincipalValueConverse_mellin_emptyTensor (ι := ↥(∅ : Finset V)) _ _
+
+/-- Compare both global transforms at a stage containing the test, the conductor and the removed places. -/
+private theorem globalPrincipalValueConverse_mellin_stage (S : Finset V) (χ : U) (f : ℬ) :
+    (fun s ↦ Z(PV(S) f, χ, s)) =ᶠ[codiscrete ℂ] (fun s ↦ removal(χ, S) s * Z(f, χ, s)) := by
+  classical
+  rcases S.eq_empty_or_nonempty with rfl | hn
+  · simp [globalPrincipalValueConverse_mellin_emptyTest, reciprocalPartialHeckeEulerProduct]
+  obtain ⟨A, g, rfl⟩ := sAdeleSchwartzToGlobal_exhaustive F f
+  obtain ⟨U₀, hB⟩ : ∃ U₀ : Finset V, χ₀(χ) ∈ unramifiedOutside F U₀ := by
+    apply Set.mem_iUnion.mp
+    rw [iUnion_unramifiedOutside]
+    trivial
+  let T := A ∪ (U₀ ∪ S)
+  have hAT : A ⊆ T := Finset.subset_union_left
+  have hST : S ⊆ T := Finset.subset_union_right.trans Finset.subset_union_right
+  have hc : χ₀(χ) ∈ unramifiedOutside F T := fun v hv ↦
+    hB v (fun h ↦ hv (Finset.mem_union_right _ (Finset.mem_union_left _ h)))
+  let k := sAdeleSchwartzTransition F hAT g
+  have hk : sAdeleSchwartzToGlobal F T k = sAdeleSchwartzToGlobal F A g :=
+    LinearMap.congr_fun (sAdeleSchwartzToGlobal_comp F hAT) g
+  rw [← hk]
+  let p := sAdelePrincipalValue F hST k
+  have hq := LinearMap.congr_fun (sLocalThetaPrincipalValue_toGlobal (F := F) hST hn)
+    (Submodule.Quotient.mk k)
+  have hZ := globalPrincipalValueConverse_mellin_class χ
+    (sAdeleSchwartzToGlobal F T p) (PV(S) (sAdeleSchwartzToGlobal F T k)) hq
+  rw [← hZ]
+  obtain ⟨η, hη⟩ := heckeEulerProductOutside_eq_finite_unitary T χ hc
+  obtain ⟨L, hL, hLe⟩ := finiteHeckeL_exists_continuation χ
+  have hW := fun b ↦ weilIdentity_unramifiedOutside_meromorphic T b χ hc L hL (fun z hz ↦ hLe ⟨z, hz⟩)
+  have hbase : sIdeleRestriction F T ⟨χ₀(χ), hc⟩ =
+      (⟨Circle.coeHom, continuous_subtype_val⟩ : Circle →ₜ* ℂ).comp η := by
+    ext1 x
+    have hx := DFunLike.congr_fun hη x
+    change _ = (η x : ℂ) * _ ^ (0 : ℂ) at hx
+    change _ = (η x : ℂ)
+    simpa only [Complex.cpow_zero, mul_one] using hx
+  filter_upwards [hW p, hW k, sLocalIdelicZFunction_principalValue S hST k η] with z hp hkz hloc
+  dsimp only at hp hkz hloc ⊢
+  rw [hbase] at hp hkz
+  rw [hp, hkz]
+  dsimp only [p] at *
+  rw [hloc]
+  have hprod : (∏ v : T, if v.val ∈ S then
+      finiteLocalEulerFactor v.val (sLocalFiniteRestriction v (normChartₛ(η) z)) else 1) =
+      ∏ v ∈ S, finiteHeckeEulerFactor χ v z := by
+    simp_rw [globalPrincipalValueConverse_mellin_localFactor χ hc η hη]
+    rw [Finset.prod_coe_sort T (fun v : V ↦ if v ∈ S then finiteHeckeEulerFactor χ v z else 1)]
+    rw [← Finset.prod_filter]
+    congr 1
+    ext v
+    simp [and_iff_right_of_imp (fun h ↦ hST h)]
+  rw [hprod, div_eq_mul_inv, reciprocalPartialHeckeEulerProduct, ← Finset.prod_inv_distrib]
+  ring
+
+/-- A finite limit of the pole-cancelled transform gives its contour residue. -/
+private theorem globalPrincipalValueConverse_normTwist_residues_limit (M : ℂ → ℂ) (r c : ℂ)
+    (hm : MeromorphicAt M r)
+    (hl : Tendsto (fun z ↦ (z - r) * M z) (𝓝[≠] r) (𝓝 c)) : complexResidue M r = c := by
+  let H := fun z ↦ (z - r) * M z
+  have hH : MeromorphicAt H r := (analyticAt_id.sub analyticAt_const).meromorphicAt.mul hm
+  let G := toMeromorphicNFAt H r
+  have ha : AnalyticAt ℂ G r := hH.meromorphicOrderAt_nonneg_iff_analyticAt_toMeromorphicNFAt.mp
+    ((tendsto_nhds_iff_meromorphicOrderAt_nonneg hH).mp ⟨c, hl⟩)
+  have hG : H =ᶠ[𝓝[≠] r] G := hH.eq_nhdsNE_toMeromorphicNFAt
+  have hv : G r = c := tendsto_nhds_unique
+    (ha.continuousAt.tendsto.mono_left nhdsWithin_le_nhds) (hl.congr' hG)
+  have he : M =ᶠ[𝓝[≠] r] fun z ↦ G z / (z - r) := by
+    filter_upwards [hG, self_mem_nhdsWithin] with z hz hzr
+    rw [eq_div_iff (sub_ne_zero.mpr hzr)]
+    exact (mul_comm _ _).trans hz
+  calc complexResidue M r = complexResidue (fun z ↦ G z / (z - r)) r := by
+         obtain ⟨R, hR, hball⟩ := Metric.nhdsWithin_basis_ball.eventually_iff.mp he
+         unfold complexResidue Filter.limUnder
+         apply congrArg Filter.lim
+         apply Filter.map_congr
+         filter_upwards [Ioo_mem_nhdsGT hR] with d hd
+         congr 1
+         apply circleIntegral.integral_congr hd.1.le
+         intro z hz
+         have hdist := Metric.mem_sphere.mp hz
+         refine hball ⟨Metric.mem_ball.mpr (hdist.trans_lt hd.2), ?_⟩
+         rintro rfl
+         exact hd.1.ne (by simpa using hdist)
+       _ = c := (complexResidue_div_sub ha).trans hv
+
 /-- Paper: Theorem 6.3.2.2(2), p. 310, equation (6.3.2.22).
 The residues of a principal-value transform are the signed polar evaluations
 times the reciprocal partial Euler product at the respective poles.
@@ -886,7 +1142,44 @@ theorem globalPrincipalValueConverse_normTwist_residues (S : Finset V) (χ : U) 
       complexResidue (fun s ↦ Z(PV(S) f, χ, s)) (1 - shift(t))) =
       (removal(χ, S) (-shift(t)) * (-mass * f zeroAdele),
         removal(χ, S) (1 - shift(t)) * (mass * adeleSchwartzFourier f zeroAdele)) := by
-  sorry
+  have hM := globalPrincipalValueConverse_mellin_stage S χ f
+  have he : Continuous (removal(χ, S)) := by
+    classical
+    apply continuous_finsetProd
+    intro v _
+    unfold finiteHeckeEulerFactor
+    split_ifs
+    · simp only [inv_inv]
+      have hq : (v.asIdeal.absNorm : ℂ) ≠ 0 :=
+        Nat.cast_ne_zero.mpr ((Ideal.absNorm_eq_zero_iff).not.mpr v.ne_bot)
+      exact (continuous_const.sub (continuous_const.mul
+        (continuous_neg.const_cpow (Or.inl hq))))
+    · simpa only [inv_one] using (continuous_const : Continuous (fun _ : ℂ ↦ (1 : ℂ)))
+  have htw (z : ℂ) : ideleClassNormTwist χ z = ideleClassNormTwist (1 : U) (z + shift(t)) := by
+    simpa only [zero_add, add_comm (shift(t))] using ideleClassNormTwist_add_of_eq _hχ z
+  have hres (r c : ℂ) (hr : Tendsto (fun w ↦ (w - r) * Z(f, 1, w)) (𝓝[≠] r) (𝓝 c)) :
+      complexResidue (fun z ↦ Z(PV(S) f, χ, z)) (r - shift(t)) =
+        removal(χ, S) (r - shift(t)) * c := by
+    have hadd : Tendsto (fun z : ℂ ↦ z + shift(t)) (𝓝[≠] (r - shift(t))) (𝓝[≠] r) := by
+      apply tendsto_nhdsWithin_iff.mpr
+      refine ⟨?_, ?_⟩
+      · have hc : Continuous (fun z : ℂ ↦ z + shift(t)) := continuous_id.add continuous_const
+        simpa only [sub_add_cancel] using
+          (hc.continuousAt (x := r - shift(t))).tendsto.mono_left (nhdsWithin_le_nhds (s := {r - shift(t)}ᶜ))
+      · filter_upwards [self_mem_nhdsWithin] with z hz
+        exact fun h ↦ hz (eq_sub_iff_add_eq.mpr h)
+    apply globalPrincipalValueConverse_normTwist_residues_limit _ _ _
+      ((globalIdelicZFunction_meromorphic _ _) (mem_univ _)).meromorphicAt
+    apply ((he.continuousAt.tendsto.mono_left nhdsWithin_le_nhds).mul (hr.comp hadd)).congr'
+    filter_upwards [hM.filter_mono (nhdsNE_le_codiscrete _)] with z hz
+    change removal(χ, S) z * ((z + shift(t) - r) * Z(f, 1, z + shift(t))) =
+      (z - (r - shift(t))) * Z(PV(S) f, χ, z)
+    rw [hz, htw]
+    ring
+  apply Prod.ext
+  · simpa only [zero_sub, sub_zero] using hres 0 _ (by
+      simpa only [sub_zero] using globalIdelicZFunction_residue_zero f)
+  · exact hres 1 _ (globalIdelicZFunction_residue_one f)
 
 -- TODO(paper-gap): Equations (6.3.2.24)–(6.3.2.26) repeat the shift and entire
 -- middle-term errors of (6.3.2.8). Even with those corrected, at F = ℚ, χ = 1
@@ -899,7 +1192,7 @@ Euler product, as an identity of meromorphic functions.
 Deviation: Pointwise products are compared off a discrete set to allow for cancellation. -/
 theorem globalPrincipalValueConverse_mellin (S : Finset V) (χ : U) (f : ℬ) :
     (fun s ↦ Z(PV(S) f, χ, s)) =ᶠ[codiscrete ℂ] (fun s ↦ removal(χ, S) s * Z(f, χ, s)) := by
-  sorry
+  exact globalPrincipalValueConverse_mellin_stage S χ f
 
 /-- Paper: Theorem 6.3.2.2(2), p. 310, equations (6.3.2.21)–(6.3.2.26).
 On the principal-value theta image the two original residue coordinates are

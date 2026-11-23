@@ -7,7 +7,7 @@ import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.WithSeminorms
 import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.Barrelled
 import RiemannMasullo.ForMathlib.MeasureTheory.Integral.Bochner.Regular
 import all RiemannMasullo.Ch03_IdelicZeta.Sec3b
-import all RiemannMasullo.AppA_AlgebraicNT.Sec3
+import RiemannMasullo.AppA_AlgebraicNT.Sec3
 import all RiemannMasullo.Ch02_AdelicTheta.Sec3
 import Mathlib.NumberTheory.Harmonic.GammaDeriv
 

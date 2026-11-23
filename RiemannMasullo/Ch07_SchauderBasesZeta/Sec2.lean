@@ -733,7 +733,9 @@ theorem sLocalThetaPoleBound_isClosed (ω : PontryaginDual J₁) (m : Xₛ → �
       fun hx c hc hp k hk ↦ hx ⟨(c, k), hc, hp, hk⟩⟩
   exact (congrArg IsClosed h).mpr (isClosed_iInter fun i ↦ (T i).isClosed_ker)
 
-private theorem sLocalThetaPoleBound_annihilator_of_kernels {E : Type*} [AddCommGroup E]
+/-- In a Hausdorff polynormable Montel space, the annihilator of the common kernel
+of a family of functionals is their closed linear span in the strong dual. -/
+theorem strongDual_annihilator_eq_closedSpan_of_kernels {E : Type*} [AddCommGroup E]
     [Module ℂ E] [TopologicalSpace E] [IsTopologicalAddGroup E] [ContinuousSMul ℂ E]
     [T2Space E] [PolynormableSpace ℂ E] [MontelSpace ℂ E] (P : Submodule ℂ E)
     (A : Set (StrongDual ℂ E)) (hP : ∀ x : E, x ∈ P ↔ ∀ T ∈ A, T x = 0) :
@@ -773,7 +775,7 @@ theorem sLocalThetaPoleBound_annihilator (ω : PontryaginDual J₁) (m : Xₛ �
   let : T2Space (Θₛ(ω)) := hN.1
   let : PolynormableSpace ℂ (Θₛ(ω)) := hN.2.1
   let : MontelSpace ℂ (Θₛ(ω)) := (sLocalHomogeneousThetaSpace_montel (F := F) (S := S) ω).2
-  apply sLocalThetaPoleBound_annihilator_of_kernels
+  apply strongDual_annihilator_eq_closedSpan_of_kernels
   intro x
   rw [mem_sLocalThetaPoleBound_iff]
   constructor

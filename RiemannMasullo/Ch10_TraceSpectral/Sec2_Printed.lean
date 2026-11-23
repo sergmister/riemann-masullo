@@ -3,7 +3,7 @@ module
 public import RiemannMasullo.Ch10_TraceSpectral.Sec2
 
 import all RiemannMasullo.Ch03_IdelicZeta.Sec2
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
+import RiemannMasullo.Ch10_TraceSpectral.Sec1
 import Mathlib.Analysis.InnerProductSpace.l2Space
 import Mathlib.Logic.Equiv.Nat
 
@@ -54,12 +54,6 @@ def Printed.spectralLineMarkushevichBasis : Prop :=
         (x : J → Q) (Λ : J → StrongDual ℂ Q), IsSpectralMarkushevichBasis x Λ ∧
         ∀ j, D (Λ j) = (h j).toLp (η j)
 
-/-- Paper: Theorem 10.2.1.1, p. 440. The squared Artin factor of the
-splitting field of X³−2 supplies a double zero. At s = 3 its first
-derivative is among the printed jets and fails square integrability. -/
-theorem Printed.spectralLineMarkushevichBasis_false :
-    ¬ Printed.spectralLineMarkushevichBasis := by sorry
-
 /-- Paper: Theorem 10.2.1.1 and (10.2.1.6), p. 440. The printed floor cutoff
 makes each selected jet belong to the negative Sobolev space on the line. -/
 def Printed.spectralLineJet_memLp : Prop :=
@@ -75,6 +69,17 @@ two-dimensional Artin factor. That factor occurs squared in the Dedekind
 zeta function. The cutoff includes k = 1, whose squared norm has a 1/|x|
 tail in the log norm coordinate x. -/
 theorem Printed.spectralLineJet_memLp_false : ¬ Printed.spectralLineJet_memLp := by sorry
+
+/-- Paper: Theorem 10.2.1.1, p. 440. The squared Artin factor of the
+splitting field of X³−2 supplies a double zero. At s = 3 its first
+derivative is among the printed jets and fails square integrability. -/
+theorem Printed.spectralLineMarkushevichBasis_false :
+    ¬ Printed.spectralLineMarkushevichBasis := by
+  intro h
+  apply Printed.spectralLineJet_memLp_false
+  intro F _ _ χ hχ a s hs ω t k hk
+  obtain ⟨hh, _⟩ := (h F χ hχ a s hs).2
+  simpa only [neg_zero] using hh ⟨(ω, t, k), hk⟩
 
 /-- Paper: Proposition 10.2.1.3, p. 443. The printed annulus statement uses
 all derivative orders below the full zero multiplicity. -/

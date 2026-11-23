@@ -2,7 +2,7 @@ module
 
 public import RiemannMasullo.Ch10_TraceSpectral.Sec2
 import all RiemannMasullo.Ch03_IdelicZeta.Sec2
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
+import RiemannMasullo.Ch10_TraceSpectral.Sec1
 
 /-! # Printed assertions in the §10.3 proofs about the spectral constructions of §10.2 -/
 

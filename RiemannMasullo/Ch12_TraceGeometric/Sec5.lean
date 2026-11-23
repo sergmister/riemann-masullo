@@ -2,8 +2,10 @@ module
 
 public import RiemannMasullo.Ch12_TraceGeometric.Sec4
 public import RiemannMasullo.Ch10_TraceSpectral.Sec4b
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
-import all RiemannMasullo.AppB_AnalyticNT.Sec4b
+import RiemannMasullo.Ch10_TraceSpectral.Sec1
+import RiemannMasullo.AppB_AnalyticNT.Sec4b
+import RiemannMasullo.Ch12_TraceGeometric.Sec1b
+import RiemannMasullo.Ch10_TraceSpectral.Sec4a
 import all RiemannMasullo.Ch02_AdelicTheta.Sec2b
 import all RiemannMasullo.Ch03_IdelicZeta.Sec2
 import all RiemannMasullo.Ch09_HardySobolev.Sec3
@@ -233,6 +235,308 @@ theorem traceFormula (τ : ℝ≥0ˣ →ₜ* C𝔽) (hτ : RightInverse τ (idel
     traceIdentity(τ, φ, α) :=
   traceFormula_of_exteriorZeros τ hτ φ α (traceFormula_exteriorZeros τ hτ φ hφ hα)
 
+section StripDiagonalProof
+
+open Topology
+open scoped ENNReal Pointwise
+attribute [local instance] instSpectralQuotientPolynormableSec3
+local notation "logNorm" => (fun g : C𝔽 ↦ Real.log ((ideleClassNorm F g).val : ℝ))
+
+/-- Transfer the weighted smooth diagonal integral back to Haar measure. -/
+private theorem stripDiagonal_withDensity {G : Type*} [CommGroup G] [TopologicalSpace G]
+    [IsTopologicalGroup G] [T2Space G] [LocallyCompactSpace G] [SecondCountableTopology G]
+    [MeasurableSpace G] [BorelSpace G] {μ ν : Measure G} [μ.IsHaarMeasure]
+    [IsFiniteMeasureOnCompacts ν] [ν.InnerRegular] {U : ℕ → Set G}
+    (hU : IsDPrimeSequence μ U) (hBorel : ∀ n, MeasurableSet (U n))
+    {w : G → ℝ≥0} (hw : Continuous w) (hp : ∀ x, 0 < w x)
+    (hν : ν = μ.withDensity (fun x ↦ ↑(w x)))
+    {k : Lp ℂ 2 (ν.prod ν)} {κ K : G × G → ℂ}
+    (hκ : κ =ᵐ[ν.prod ν] k) (hK : ∀ p, K p = (w p.2 : ℂ) * κ p)
+    (hT : IsNuclearOperator (integralKernelOperator ν k).val) :
+    Integrable (fun x ↦ dSequenceKernelSmoothening μ U K (x, x)) μ ∧
+      (∫ x, dSequenceKernelSmoothening μ U K (x, x) ∂μ) =
+        hilbertTrace ⟨(integralKernelOperator ν k).val, hT⟩ := by
+  have hd := dSequenceKernelSmoothening_mul_continuous_snd_diagonal hU hBorel hw hp hν hκ hT
+    (fun x ↦ (w x : ℂ)) (Complex.continuous_ofReal.comp (NNReal.continuous_coe.comp hw))
+  rw [← funext hK] at hd
+  have hdiag : (fun x ↦ w x • dSequenceKernelSmoothening μ U κ (x, x)) =ᵐ[μ]
+      fun x ↦ dSequenceKernelSmoothening μ U K (x, x) := by
+    filter_upwards [hd] with x hx
+    rw [hx.2]
+    change (w x : ℝ) • dSequenceKernelSmoothening μ U κ (x, x) = _
+    rw [Complex.real_smul]
+  obtain ⟨hi, heq⟩ := integral_dSequenceKernelSmoothening_diagonal hκ hU hBorel hw hp hν hT
+  rw [hν, integrable_withDensity_iff_integrable_smul hw.measurable] at hi
+  have hchange : (∫ x, dSequenceKernelSmoothening μ U κ (x, x) ∂ν) =
+      ∫ x, w x • dSequenceKernelSmoothening μ U κ (x, x) ∂μ := by
+    rw [hν, integral_withDensity_eq_integral_smul hw.measurable]
+  exact ⟨hi.congr hdiag, (integral_congr_ae hdiag.symm).trans (hchange.symm.trans heq)⟩
+
+/-- Haar diagonal formula for the raw kernel of a nuclear weighted integral operator. -/
+private theorem stripDiagonal_of_weightedKernel {G : Type*} [CommGroup G] [TopologicalSpace G]
+    [IsTopologicalGroup G] [T2Space G] [LocallyCompactSpace G] [SecondCountableTopology G]
+    [MeasurableSpace G] [BorelSpace G] {μ ν : Measure G} [μ.IsHaarMeasure]
+    [IsFiniteMeasureOnCompacts ν] [ν.InnerRegular] {U : ℕ → Set G}
+    (hU : IsDPrimeSequence μ U) (hBorel : ∀ n, MeasurableSet (U n))
+    {w : G → ℝ≥0} (hw : Continuous w) (hp : ∀ x, 0 < w x)
+    (hν : ν = μ.withDensity (fun x ↦ ↑(w x)))
+    (K : G × G → ℂ) (T : Lp ℂ 2 ν →L[ℂ] Lp ℂ 2 ν) (hT : IsNuclearOperator T)
+    (hk : let κ := fun p : G × G ↦ ((w p.2 : ℝ)⁻¹ : ℝ) • K p
+      ∃ h : MemLp κ 2 (ν.prod ν), (integralKernelOperator ν (h.toLp κ)).val = T) :
+    Integrable (fun x ↦ dSequenceKernelSmoothening μ U K (x, x)) μ ∧
+      (∫ x, dSequenceKernelSmoothening μ U K (x, x) ∂μ) = hilbertTrace ⟨T, hT⟩ := by
+  let κ (p : G × G) := ((w p.2 : ℝ)⁻¹ : ℝ) • K p
+  have hκ : κ =ᵐ[ν.prod ν] hk.choose.toLp κ := hk.choose.coeFn_toLp.symm
+  have hN : IsNuclearOperator (integralKernelOperator ν (hk.choose.toLp κ)).val :=
+    (congrArg (fun L : Lp ℂ 2 ν →L[ℂ] Lp ℂ 2 ν ↦ IsNuclearOperator L) hk.choose_spec).mpr hT
+  have hK (p : G × G) : K p = (w p.2 : ℂ) * κ p := by
+    change K p = (w p.2 : ℂ) * (((w p.2 : ℝ)⁻¹ : ℝ) • K p)
+    rw [Complex.real_smul, Complex.ofReal_inv,
+      mul_inv_cancel_left₀ (Complex.ofReal_ne_zero.mpr (NNReal.coe_pos.mpr (hp p.2)).ne')]
+  obtain ⟨hi, heq⟩ := stripDiagonal_withDensity hU hBorel hw hp hν hκ hK hN
+  exact ⟨hi, heq.trans (congrArg hilbertTrace (Subtype.ext hk.choose_spec : (⟨_, hN⟩ :
+    nuclearEndomorphisms (Lp ℂ 2 ν)) = ⟨T, hT⟩))⟩
+
+/-- A nuclear operator factoring through a bounded section and quotient has its
+quotient compression's trace. -/
+private theorem stripDiagonal_quotient_compression {H Q : Type*}
+    [NormedAddCommGroup H] [InnerProductSpace ℂ H] [CompleteSpace H]
+    [NormedAddCommGroup Q] [InnerProductSpace ℂ Q] [CompleteSpace Q]
+    (q : H →L[ℂ] Q) (j : Q →L[ℂ] H) (hqj : q.comp j = ContinuousLinearMap.id ℂ Q)
+    (T : H →L[ℂ] H) (hT : IsNuclearOperator T) (hfac : (T.comp j).comp q = T) :
+    ∃ hQ : IsNuclearOperator (q.comp (T.comp j)),
+      hilbertTrace ⟨T, hT⟩ = hilbertTrace ⟨q.comp (T.comp j), hQ⟩ := by
+  have hj : Injective j := by
+    intro x y h
+    have h' : (q.comp j) x = (q.comp j) y := congrArg q h
+    simpa only [hqj, ContinuousLinearMap.id_apply] using h'
+  have hqt : IsNuclearOperator (q.comp T) := by
+    obtain ⟨a, l, y, ha, hl, hy, hs⟩ := (isNuclearOperator_iff_isBanachNuclear T).mp hT
+    apply (isNuclearOperator_iff_isBanachNuclear _).mpr
+    refine ⟨a, l, q ∘ y, ha, hl, ?_, fun x ↦ ?_⟩
+    · simpa only [map_zero] using (q.continuous.tendsto 0).comp hy
+    · simpa only [Function.comp_apply, ContinuousLinearMap.comp_apply, map_smul] using
+        q.hasSum (hs x)
+  let P := j.comp q
+  let N : nuclearEndomorphisms H := ⟨T, hT⟩
+  have hn := isNuclearOperator_factor_comps j hj (q.comp T) hqt
+  have htrace := nuclearTrace_factor_comps (hilbert_approximationProperty (H := Q))
+    (hilbert_approximationProperty (H := H)) j hj (q.comp T) hqt
+  refine ⟨hn.1, ?_⟩
+  calc
+    hilbertTrace N = hilbertTrace ⟨T * P, mul_mem_nuclearEndomorphisms_right P N⟩ :=
+      congrArg hilbertTrace (Subtype.ext hfac.symm)
+    _ = hilbertTrace ⟨P * T, mul_mem_nuclearEndomorphisms_left P N⟩ :=
+      (spectralRestriction_cyclic P N).symm
+    _ = hilbertTrace ⟨q.comp (T.comp j), hn.1⟩ := by
+      rw [hilbertTrace_eq_nuclearTrace, hilbertTrace_eq_nuclearTrace]
+      exact htrace.symm
+
+/-- Compression computes the trace of an action that descends to the quotient. -/
+private theorem stripDiagonal_quotientAction {H Q : Type*}
+    [NormedAddCommGroup H] [InnerProductSpace ℂ H] [CompleteSpace H]
+    [NormedAddCommGroup Q] [InnerProductSpace ℂ Q] [CompleteSpace Q]
+    (q : H →L[ℂ] Q) (j : Q →L[ℂ] H) (P A : H →L[ℂ] H) (B : Q →L[ℂ] Q)
+    (hqj : q.comp j = ContinuousLinearMap.id ℂ Q) (hjq : j.comp q = P)
+    (hqA : q.comp A = B.comp q) (hT : IsNuclearOperator (A.comp P)) :
+    ∃ hB : IsNuclearOperator B, hilbertTrace ⟨A.comp P, hT⟩ = hilbertTrace ⟨B, hB⟩ := by
+  have hPj : P.comp j = j := by
+    rw [← hjq, ContinuousLinearMap.comp_assoc, hqj, ContinuousLinearMap.comp_id]
+  have hf : ((A.comp P).comp j).comp q = A.comp P := by
+    rw [ContinuousLinearMap.comp_assoc A P j, hPj, ContinuousLinearMap.comp_assoc, hjq]
+  have hb : q.comp ((A.comp P).comp j) = B := by
+    rw [ContinuousLinearMap.comp_assoc A P j, hPj, ← ContinuousLinearMap.comp_assoc, hqA,
+      ContinuousLinearMap.comp_assoc, hqj, ContinuousLinearMap.comp_id]
+  obtain ⟨hn, ht⟩ := stripDiagonal_quotient_compression q j hqj (A.comp P) hT hf
+  exact ⟨hb ▸ hn, ht.trans (congrArg hilbertTrace (Subtype.ext hb))⟩
+
+/-- Subtracting the spectral kernel gives the negative diagonal for a test vanishing at one. -/
+private theorem stripDiagonal_convolution_sub (U : ℕ → Set C𝔽) (hU : IsDPrimeSequence μ𝔽 U)
+    (hBorel : ∀ n, MeasurableSet (U n)) (φ : BruhatCompactSupport C𝔽) (hφ : φ.val 1 = 0)
+    (g : C𝔽 × C𝔽 → ℂ) (x : C𝔽) :
+    dSequenceKernelSmoothening μ𝔽 U (fun y ↦ φ.val (y.1 * y.2⁻¹) - g y) (x, x) =
+      -dSequenceKernelSmoothening μ𝔽 U g (x, x) := by
+  classical
+  let G := IdeleClassGroup (𝓞 F) F
+  let μ : Measure (G × G) :=
+    (ideleClassTamagawaMeasure F).prod (ideleClassTamagawaMeasure F)
+  let rects : ℕ → Set (G × G) := fun n ↦ U n ×ˢ U n
+  let f : G × G → ℂ := fun y ↦ φ.val (y.1 * y.2⁻¹)
+  let p : G × G := (x, x)
+  change dSequenceSmootheningOrZero μ rects (fun y ↦ f y - g y) p =
+    -dSequenceSmootheningOrZero μ rects g p
+  obtain ⟨hf, hlim⟩ := diagonal_mem_convolutionKernelRegularSet_averages hU hBorel φ x
+  change ∀ᶠ n in atTop, IntegrableOn f (p • rects n) μ at hf
+  change Tendsto (fun n ↦ dSequenceAverage μ (rects n) f p) atTop (𝓝 (φ.val 1)) at hlim
+  rw [hφ] at hlim
+  have hsum : Tendsto (fun n ↦
+      dSequenceAverage μ (rects n) (fun y ↦ f y - g y) p +
+        dSequenceAverage μ (rects n) g p) atTop (𝓝 0) := by
+    refine squeeze_zero_norm' ?_ (by simpa only [norm_zero] using hlim.norm)
+    filter_upwards [hf] with n hn
+    by_cases hg : IntegrableOn g (p • rects n) μ
+    · change ‖(⨍ y in p • rects n, f y - g y ∂μ) +
+          (⨍ y in p • rects n, g y ∂μ)‖ ≤ ‖⨍ y in p • rects n, f y ∂μ‖
+      rw [setAverage_fun_sub hn hg, sub_add_cancel]
+    · -- If the spectral integral is undefined, both totalized averages vanish.
+      have hfg : ¬ IntegrableOn (fun y ↦ f y - g y) (p • rects n) μ := by
+        intro h
+        apply hg
+        simpa only [Pi.sub_def, sub_sub_cancel] using hn.sub h
+      have hzero : dSequenceAverage μ (rects n) g p = 0 := by
+        rw [dSequenceAverage, setAverage_eq, integral_undef hg, smul_zero]
+      have hsubzero : dSequenceAverage μ (rects n) (fun y ↦ f y - g y) p = 0 := by
+        rw [dSequenceAverage, setAverage_eq, integral_undef hfg, smul_zero]
+      rw [hzero, hsubzero, zero_add, norm_zero]
+      exact norm_nonneg _
+  by_cases hg : p ∈ dSequenceRegularSet μ rects g
+  · obtain ⟨v, hv⟩ := hg
+    have hgreg : p ∈ dSequenceRegularSet μ rects g := ⟨v, hv⟩
+    have hsub : Tendsto (fun n ↦ dSequenceAverage μ (rects n) (fun y ↦ f y - g y) p)
+        atTop (𝓝 (-v)) := by
+      simpa only [add_sub_cancel_right, zero_sub] using hsum.sub hv
+    have hreg : p ∈ dSequenceRegularSet μ rects (fun y ↦ f y - g y) := ⟨-v, hsub⟩
+    simp only [dSequenceSmootheningOrZero, dite_eq_left hreg, dite_eq_left hgreg,
+      dSequenceSmoothening, hsub.limUnder_eq, hv.limUnder_eq]
+  · have hreg : p ∉ dSequenceRegularSet μ rects (fun y ↦ f y - g y) := by
+      rintro ⟨v, hv⟩
+      apply hg
+      refine ⟨-v, ?_⟩
+      simpa only [add_sub_cancel_left, zero_sub] using hsum.sub hv
+    simp only [dSequenceSmootheningOrZero, dite_eq_right hreg, dite_eq_right hg, neg_zero]
+
+variable {hone_lt_three : (1 : ℝ) < 3}
+local notation "hs₁(" hs ")" => (lt_of_lt_of_le hone_lt_three hs)
+local notation "hs₀(" hs ")" => (le_of_lt (zero_lt_one.trans hs₁(hs)))
+local notation "hStrip(" hα ")" => (neg_nonpos.mpr hα |>.trans hα)
+local notation "stripTensorExists(" hα ", " hs ", " φ ")" =>
+  (∃ K, sobolevProjectiveKernelOperator (F := F) hα hs₀(hs) K =
+    (hardySobolevTestAction μ𝔽 m𝔽 _ _ _ (hStrip(hα)) hs₀(hs) φ).comp
+      (spectralProjection (F := F) (1 / 2) hα hs₀(hs)))
+
+local notation "geomDiagonal(" hα ", " hs ", " φ ", " hK ", " U ")" =>
+  (fun x : C𝔽 ↦ dSequenceKernelSmoothening μ𝔽 U
+    (globalStripGeometricKernel (F := F) (1 / 2) hα hs₁(hs) φ hK) (x, x))
+local notation "stripQuotientAction(" hα ", " hs ", " φ ")" =>
+  spectralConvolution (F := F) (1 / 2) (hStrip(hα)) hs₀(hs) φ
+
+/-- A projective tensor represents a nuclear operator on the Sobolev space. -/
+private theorem stripDiagonal_projective_nuclear {α s : ℝ} (hα : 0 ≤ α) (hs : 0 ≤ s)
+    (K : UniformSpace.Completion (ProjectiveTensor
+      (CompactIntervalSobolev μ𝔽 logNorm (-α) α s true)
+      (CompactIntervalSobolev μ𝔽 logNorm (-α) α s))) :
+    IsNuclearOperator (sobolevProjectiveKernelOperator (F := F) hα hs K) :=
+  (isNuclearOperator_iff_isBanachNuclear _).mpr
+    ((isBanachNuclear_iff_mem_range _).mpr ⟨_, rfl⟩)
+
+local notation "AP(" hp ", " hs ", " φ ")" =>
+  (hardySobolevTestAction μ𝔽 m𝔽 _ _ _ (hStrip(hp)) hs₀(hs) φ).comp
+    (spectralProjection (F := F) (1 / 2) hp hs₀(hs))
+local notation "spectralDiagonal(" hp ", " hs ", " φ ", " hK ", " U ")" =>
+  (fun x : C𝔽 ↦ dSequenceKernelSmoothening μ𝔽 U (globalStripSpectralKernel (F := F)
+    (1 / 2) hp hs₁(hs) φ hK) (x, x))
+
+/-- The projective tensor gives nuclearity and equal traces for the ambient and quotient actions. -/
+private theorem stripDiagonal_projective_trace (φ : BruhatCompactSupport C𝔽) {α s : ℝ}
+    (hα : 0 < α) (hs : 3 ≤ s)
+    (hK : stripTensorExists(hα.le, hs, φ)) :
+    ∃ (hn : IsNuclearOperator (AP(hα.le, hs, φ)))
+      (hq : IsNuclearOperator (spectralConvolution (F := F) (1 / 2) (hStrip(hα.le)) hs₀(hs) φ)),
+      hilbertTrace ⟨AP(hα.le, hs, φ), hn⟩ =
+        hilbertTrace ⟨spectralConvolution (F := F) (1 / 2) (hStrip(hα.le)) hs₀(hs) φ, hq⟩ := by
+  let W := CompactIntervalSobolev μ𝔽 logNorm (-α) α s
+  let A : W →L[ℂ] W := hardySobolevTestAction μ𝔽 m𝔽 (-α) α s (hStrip(hα.le)) hs₀(hs) φ
+  let P : W →L[ℂ] W := spectralProjection (F := F) (1 / 2) hα.le hs₀(hs)
+  let theta := globalThetaSobolev F (1 / 2) (hStrip(hα.le)) hs₀(hs)
+  let q := theta.mkQL
+  let j := theta.orthogonal.subtypeL.comp
+    theta.quotientEquivOrthogonal.toContinuousLinearEquiv.toContinuousLinearMap
+  let B := spectralConvolution (F := F) (1 / 2) (hStrip(hα.le)) hs₀(hs) φ
+  have hap : IsNuclearOperator (A * P) :=
+    (congrArg (fun L : W →L[ℂ] W ↦ IsNuclearOperator L) hK.choose_spec).mp
+      (stripDiagonal_projective_nuclear (F := F) hα.le hs₀(hs) hK.choose)
+  have hqj : q.comp j = ContinuousLinearMap.id ℂ _ := by
+    ext x
+    exact theta.quotientEquivOrthogonal.symm_apply_apply x
+  have hjq : j.comp q = P := by
+    apply ContinuousLinearMap.ext
+    intro x
+    exact (spectralQuotient_orthogonalRepresentative (F := F) (1 / 2) hα.le hs₀(hs)
+      (by norm_num) x).1
+  have hqA : q.comp A = B.comp q := by
+    apply ContinuousLinearMap.ext
+    intro x
+    exact (spectralConvolution_mkQ (F := F) (1 / 2) (hStrip(hα.le)) hs₀(hs) φ x).symm
+  exact ⟨hap, stripDiagonal_quotientAction q j P A B hqj hjq hqA hap⟩
+
+/-- The weighted Hilbert–Schmidt representative recovers the Haar mass of the spectral diagonal. -/
+private theorem stripDiagonal_projective_integral (φ : BruhatCompactSupport C𝔽) {α s : ℝ}
+    (hα : 0 < α) (hs : 3 ≤ s)
+    (hK : stripTensorExists(hα.le, hs, φ)) (hap : IsNuclearOperator (AP(hα.le, hs, φ)))
+    (U : ℕ → Set C𝔽) (_hU : IsDPrimeSequence μ𝔽 U) (_hBorel : ∀ n, MeasurableSet (U n)) :
+    Integrable spectralDiagonal(hα.le, hs, φ, hK, U) μ𝔽 ∧
+      (∫ x, spectralDiagonal(hα.le, hs, φ, hK, U) x ∂μ𝔽) = hilbertTrace ⟨AP(hα.le, hs, φ), hap⟩ := by
+  let w (x : C𝔽) := intervalSobolevDensity (-α) α s (logNorm x)
+  let ν := (μ𝔽).withDensity (fun g ↦ ENNReal.ofReal (w g))
+  let W := CompactIntervalSobolev μ𝔽 logNorm (-α) α s
+  let κ := (globalStripSpectralKernel (F := F) (1 / 2) hα.le hs₁(hs) φ hK : C𝔽 × C𝔽 → ℂ)
+  let A : W →L[ℂ] W := hardySobolevTestAction μ𝔽 m𝔽 (-α) α s (hStrip(hα.le)) hs₀(hs) φ
+  let P : W →L[ℂ] W := spectralProjection (F := F) (1 / 2) hα.le hs₀(hs)
+  have hw : Continuous w :=
+    (continuous_intervalSobolevDensity (-α) α s).comp (continuous_logModule' m𝔽)
+  have hwpos (x : C𝔽) : 0 < w x := intervalSobolevDensity_pos' _ _ _ _
+  let wNN (x : C𝔽) : ℝ≥0 := ⟨w x, (hwpos x).le⟩
+  have hwNN : Continuous wNN := hw.subtype_mk _
+  have hν : ν = (μ𝔽).withDensity (fun x ↦ (wNN x : ℝ≥0∞)) :=
+    congrArg (μ𝔽).withDensity (funext fun x ↦ ENNReal.ofReal_eq_coe_nnreal (hwpos x).le)
+  let : IsLocallyFiniteMeasure ν := sobolevKernelWeight_locallyFinite (F := F) α s
+  have hHS := spectralStripKernel_hilbertSchmidt (F := F) (1 / 2) hα.le hs₁(hs) φ (by norm_num) hK
+  exact stripDiagonal_of_weightedKernel _hU _hBorel hwNN hwpos hν κ (A * P) hap hHS
+
+/-- The smoothed spectral diagonal is integrable and has the quotient trace as its Haar integral. -/
+private theorem stripDiagonal_spectral_integral (φ : BruhatCompactSupport C𝔽) {α s : ℝ}
+    (hα : 0 < α) (hs : 3 ≤ s) (hK : stripTensorExists(hα.le, hs, φ))
+    (U : ℕ → Set C𝔽) (hU : IsDPrimeSequence μ𝔽 U) (hBorel : ∀ n, MeasurableSet (U n)) :
+    ∃ hq : IsNuclearOperator (stripQuotientAction(hα.le, hs, φ)),
+      Integrable spectralDiagonal(hα.le, hs, φ, hK, U) μ𝔽 ∧
+        (∫ x, spectralDiagonal(hα.le, hs, φ, hK, U) x ∂μ𝔽) =
+          hilbertTrace ⟨stripQuotientAction(hα.le, hs, φ), hq⟩ := by
+  have h := stripDiagonal_projective_trace (F := F) (hone_lt_three := hone_lt_three) φ hα hs hK
+  have d := stripDiagonal_projective_integral (F := F) (hone_lt_three := hone_lt_three)
+    φ hα hs hK h.choose U hU hBorel
+  exact ⟨h.choose_spec.choose, d.1, d.2.trans h.choose_spec.choose_spec⟩
+
+/-- If the test vanishes at one, subtraction gives the negative spectral diagonal at every point. -/
+private theorem stripDiagonal_geometric_eq_neg (φ : BruhatCompactSupport C𝔽) {α s : ℝ}
+    (hα : 0 < α) (hs : 3 ≤ s) (hK : stripTensorExists(hα.le, hs, φ))
+    (U : ℕ → Set C𝔽) (hU : IsDPrimeSequence μ𝔽 U) (hBorel : ∀ n, MeasurableSet (U n))
+    (hφ : φ.val 1 = 0) :
+    geomDiagonal(hα.le, hs, φ, hK, U) = fun x ↦ -spectralDiagonal(hα.le, hs, φ, hK, U) x := by
+  let K := (globalStripSpectralKernel (F := F) (1 / 2) hα.le hs₁(hs) φ hK : C𝔽 × C𝔽 → ℂ)
+  exact funext (stripDiagonal_convolution_sub (F := F) U hU hBorel φ hφ K)
+
+/-- Vanishing of the test on norm-one classes determines the Haar integral of the geometric diagonal. -/
+private theorem stripDiagonal_trace (φ : BruhatCompactSupport C𝔽)
+    (_hφ : ∀ g : C₁, φ.val g = 0) {α s : ℝ} (hα : 0 < α) (hs : 3 ≤ s)
+    (hK : stripTensorExists(hα.le, hs, φ))
+    (U : ℕ → Set C𝔽) (_hU : IsDPrimeSequence μ𝔽 U) (_hBorel : ∀ n, MeasurableSet (U n)) :
+    ∃ hq : IsNuclearOperator (stripQuotientAction(hα.le, hs, φ)),
+      Integrable geomDiagonal(hα.le, hs, φ, hK, U) μ𝔽 ∧
+        (∫ x, geomDiagonal(hα.le, hs, φ, hK, U) x ∂μ𝔽) =
+          -hilbertTrace ⟨stripQuotientAction(hα.le, hs, φ), hq⟩ := by
+  have heq := stripDiagonal_geometric_eq_neg (F := F) (hone_lt_three := hone_lt_three)
+    φ hα hs hK U _hU _hBorel (_hφ 1)
+  have hspec := stripDiagonal_spectral_integral (F := F) (hone_lt_three := hone_lt_three)
+    φ hα hs hK U _hU _hBorel
+  let f := spectralDiagonal(hα.le, hs, φ, hK, U)
+  have hchange := congrArg (fun q : C𝔽 → ℂ ↦ ∫ x, q x ∂μ𝔽) heq
+  refine ⟨hspec.choose, ?_,
+    hchange.trans ((integral_neg f).trans (congrArg Neg.neg hspec.choose_spec.2))⟩
+  rw [heq]
+  exact hspec.choose_spec.1.neg
+
+end StripDiagonalProof
+
 section SmoothenedDiagonal
 
 local notation "hs₁(" hs ")" => (lt_of_lt_of_le (by norm_num : (1 : ℝ) < 3) hs)
@@ -265,7 +569,11 @@ theorem integral_smoothenedStripGeometricKernel_diagonal (φ : BruhatCompactSupp
     (hK : stripTensorExists(hα.le, hs, φ))
     (U : ℕ → Set C𝔽) (_hU : IsDPrimeSequence μ𝔽 U) (_hBorel : ∀ n, MeasurableSet (U n)) :
     Integrable geomDiagonal(hα.le, hs, φ, hK, U) μ𝔽 ∧
-      (∫ x, geomDiagonal(hα.le, hs, φ, hK, U) x ∂μ𝔽) = -quotientTrace(hα.le, hs, φ) := by sorry
+      (∫ x, geomDiagonal(hα.le, hs, φ, hK, U) x ∂μ𝔽) = -quotientTrace(hα.le, hs, φ) := by
+  -- Reuse the statement’s proof of 1 < 3 throughout the Sobolev operator types.
+  exact (stripDiagonal_trace (F := F)
+    (hone_lt_three := integral_smoothenedStripGeometricKernel_diagonal._proof_1)
+    φ _hφ hα hs hK U _hU _hBorel).choose_spec
 
 end SmoothenedDiagonal
 

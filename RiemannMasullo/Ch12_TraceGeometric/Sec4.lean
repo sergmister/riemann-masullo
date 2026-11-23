@@ -5,7 +5,6 @@ public import RiemannMasullo.Ch11_ShellStructure.Sec2b
 public import RiemannMasullo.AppB_AnalyticNT.Sec4b
 public import RiemannMasullo.Ch06_LocalGlobal.Sec1
 import all RiemannMasullo.AppB_AnalyticNT.Sec4b
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
 
 /-! # S-local trace calculation
 
@@ -147,6 +146,79 @@ theorem sLocalTraceDilationKernel_apply_zero (f : BruhatCompactSupport Iₛ) (b 
   refine ⟨(hc.div hsq hne).integrable_of_hasCompactSupport hcs, ?_⟩
   simp [sLocalTraceDilationKernel, integral_mul_const]
 
+private theorem exists_sLocalTraceDilationStrongDual_exists_norm_le {H : Type*} [CommGroup H]
+    [TopologicalSpace H] {g : H → ℂ} (hg : g ∈ schwartzBruhatSubmodule H) :
+    ∃ C : ℝ, ∀ x, ‖g x‖ ≤ C := by
+  let P (g : H → ℂ) : Prop := ∃ C : ℝ, ∀ x, ‖g x‖ ≤ C
+  have hzero : P 0 := ⟨0, fun x ↦ by simp⟩
+  have hadd : ∀ g h, P g → P h → P (g + h) := by
+    rintro g h ⟨C, hC⟩ ⟨D, hD⟩
+    exact ⟨C + D, fun x ↦ (norm_add_le (g x) (h x)).trans (add_le_add (hC x) (hD x))⟩
+  refine Submodule.iSup_induction (motive := P) _ hg (fun a g hg ↦ ?_) hzero hadd
+  refine Submodule.iSup_induction (motive := P) _ hg (fun e g hg ↦ ?_) hzero hadd
+  obtain ⟨s, rfl⟩ := LinearMap.mem_range.mp hg
+  have hb (z) : ‖s z‖ ≤ (elementarySchwartzBound (s : _ → ℂ) (0, 0, 0, 0)).toReal := by
+    have hz : (‖s z‖₊ : ℝ≥0∞) ≤ elementarySchwartzBound (s : _ → ℂ) (0, 0, 0, 0) := by
+      rw [elementarySchwartzBound_zero]
+      exact le_iSup (fun y ↦ (‖s y‖₊ : ℝ≥0∞)) z
+    exact ENNReal.toReal_mono (s.property.2 (0, 0, 0, 0)).ne hz
+  refine ⟨(elementarySchwartzBound (s : _ → ℂ) (0, 0, 0, 0)).toReal, fun x ↦ ?_⟩
+  rw [schwartzBruhatStageRealization_apply]
+  split_ifs
+  · exact hb _
+  · simp
+
+private theorem exists_sLocalTraceDilationStrongDual_integrable
+    (f : BruhatCompactSupport Iₛ) (x : Aₛ) (b : testₛ) :
+    Integrable (fun g : Iₛ ↦
+      f.val g / (Real.sqrt (normS(g)) : ℂ) * testAt(b, (g⁻¹).val * x)) μₛ := by
+  have : BorelSpace Iₛ := sIdeleGroup_borelSpace (F := F) (S := S)
+  have hweight := (sLocalTraceDilationKernel_apply_zero f 0).1
+  obtain ⟨M, hM⟩ := exists_sLocalTraceDilationStrongDual_exists_norm_le b.property
+  have hshift : Continuous (fun g : Iₛ ↦ Multiplicative.ofAdd ((g⁻¹).val * x)) :=
+    continuous_ofAdd.comp ((Units.continuous_val.comp continuous_inv).mul continuous_const)
+  exact hweight.mul_bdd ((schwartzBruhat_continuous b).comp hshift).aestronglyMeasurable
+    (.of_forall fun g ↦ hM _)
+
+private theorem exists_sLocalTraceDilationStrongDual_continuous_of_sup_bound {A : Type*} [CommGroup A]
+    [TopologicalSpace A] (Λ : SchwartzBruhat A →ₗ[ℂ] ℂ) (C : ℝ≥0)
+    (hΛ : ∀ (f : SchwartzBruhat A) (M : ℝ), (∀ x, ‖f x‖ ≤ M) → ‖Λ f‖ ≤ C * M) :
+    Continuous Λ := by
+  classical
+  let p := (normSeminorm ℂ ℂ).comp Λ
+  have hp : ∀ (b : BruhatStructuralPair A) (s : ElementaryLCAPresentation b.quotient),
+      Continuous (p ∘ schwartzBruhatStageInclusion b s) := by
+    intro b s
+    let q := (normSeminorm ℂ ℂ).comp (Λ.comp (schwartzBruhatStageInclusion b s))
+    change Continuous q
+    let p₀ : Seminorm ℂ (SchwartzBruhatStage s) := elementarySchwartzSeminorm (0, 0, 0, 0)
+    have hp₀ : Continuous p₀ :=
+      (withGeneratingSeminorms_spec _ _).continuous_seminorm (0, 0, 0, 0)
+    have hpt (f : SchwartzBruhatStage s) (x : A) :
+        ‖schwartzBruhatStageRealization b s f x‖ ≤ p₀ f := by
+      let := s.finiteGroup
+      have he := schwartzBruhatStageRealization_apply b s f x
+      by_cases hx : x ∈ b.val.1
+      · rw [dite_eq_left hx] at he
+        rw [he]
+        let y := Multiplicative.toAdd (s.equiv (QuotientGroup.mk ⟨x, hx⟩))
+        change (‖f y‖₊ : ENNReal).toReal ≤ (elementarySchwartzBound f.val (0, 0, 0, 0)).toReal
+        have hb : (‖f y‖₊ : ENNReal) ≤ elementarySchwartzBound f.val (0, 0, 0, 0) :=
+          (le_iSup (fun g ↦ (‖f.val g‖₊ : ENNReal)) y).trans_eq
+            (elementarySchwartzBound_zero f.val).symm
+        exact ENNReal.toReal_mono (f.property.2 (0, 0, 0, 0)).ne hb
+      · rw [dite_eq_right hx] at he
+        exact ((congrArg norm he).trans (norm_zero : ‖(0 : ℂ)‖ = 0)).le.trans
+          (apply_nonneg p₀ f)
+    have hC : Continuous (C • p₀) := hp₀.const_smul C
+    exact Seminorm.continuous_of_le hC fun f ↦
+      hΛ (schwartzBruhatStageInclusion b s f) (p₀ f) (hpt f)
+  let i : {q : Seminorm ℂ (schwartzBruhatSubmodule A) //
+      ∀ (b : BruhatStructuralPair A) (s : ElementaryLCAPresentation b.quotient),
+        Continuous (q ∘ schwartzBruhatStageInclusion b s)} := ⟨p, hp⟩
+  exact (norm_withSeminorms ℂ ℂ).continuous_of_continuous_comp Λ fun _ ↦
+    (withGeneratingSeminorms_spec _ Subtype.val).continuous_seminorm i
+
 /-- Paper: (12.4.1.5)–(12.4.1.7), p. 516. At each output point the scalar
 pairing with the test defines a continuous linear functional on additive
 Schwartz–Bruhat functions. -/
@@ -154,7 +226,43 @@ theorem exists_sLocalTraceDilationStrongDual (f : BruhatCompactSupport Iₛ) (x 
     ∃ K : StrongDual ℂ testₛ, ∀ b : testₛ,
       Integrable (fun g : Iₛ ↦
         f.val g / (Real.sqrt (normS(g)) : ℂ) * testAt(b, (g⁻¹).val * x)) μₛ ∧
-      K b = sLocalTraceDilationKernel f (fun y ↦ testAt(b, y)) x := by sorry
+      K b = sLocalTraceDilationKernel f (fun y ↦ testAt(b, y)) x := by
+  let weight (g : Iₛ) := f.val g / (Real.sqrt (normS(g)) : ℂ)
+  let shift (g : Iₛ) : Multiplicative Aₛ := Multiplicative.ofAdd ((g⁻¹).val * x)
+  let Φ (b : testₛ) : ℂ := ∫ g, weight g * b (shift g) ∂μₛ
+  have hint (b : testₛ) : Integrable (fun g ↦ weight g * b (shift g)) μₛ :=
+    exists_sLocalTraceDilationStrongDual_integrable f x b
+  have hlin : IsLinearMap ℂ Φ := by
+    constructor
+    · intro b c
+      change (∫ g, weight g * (b + c) (shift g) ∂μₛ) =
+        (∫ g, weight g * b (shift g) ∂μₛ) + ∫ g, weight g * c (shift g) ∂μₛ
+      simp_rw [show ∀ g, (b + c) (shift g) = b (shift g) + c (shift g) from fun g ↦ by rfl]
+      simp_rw [mul_add]
+      exact integral_add (hint b) (hint c)
+    · intro c b
+      change (∫ g, weight g * (c • b) (shift g) ∂μₛ) =
+        c • ∫ g, weight g * b (shift g) ∂μₛ
+      simp_rw [show ∀ g, (c • b) (shift g) = c * b (shift g) from fun g ↦ by rfl]
+      simp_rw [mul_left_comm (weight _) c]
+      simpa only [smul_eq_mul] using (integral_const_mul c (fun g ↦ weight g * b (shift g)))
+  let Λ : testₛ →ₗ[ℂ] ℂ := IsLinearMap.mk' Φ hlin
+  have hweight : Integrable weight μₛ := (sLocalTraceDilationKernel_apply_zero f 0).1
+  let C : ℝ≥0 := ⟨∫ g, ‖weight g‖ ∂μₛ, integral_nonneg fun _ ↦ norm_nonneg _⟩
+  have hΛ : ∀ (b : testₛ) (M : ℝ), (∀ z, ‖b z‖ ≤ M) → ‖Λ b‖ ≤ C * M := by
+    intro b M hM
+    change ‖∫ g, weight g * b (shift g) ∂μₛ‖ ≤ C * M
+    calc
+      _ ≤ ∫ g, ‖weight g * b (shift g)‖ ∂μₛ := norm_integral_le_integral_norm _
+      _ ≤ ∫ g, ‖weight g‖ * M ∂μₛ := by
+        apply integral_mono (hint b).norm (hweight.norm.mul_const M)
+        intro g
+        change ‖weight g * b (shift g)‖ ≤ ‖weight g‖ * M
+        rw [norm_mul]
+        exact mul_le_mul_of_nonneg_left (hM _) (norm_nonneg _)
+      _ = C * M := by rw [integral_mul_const]; rfl
+  refine ⟨⟨Λ, exists_sLocalTraceDilationStrongDual_continuous_of_sup_bound Λ C hΛ⟩, fun b ↦ ⟨hint b, ?_⟩⟩
+  rfl
 
 -- TODO(paper-gap): The application of (12.4.1.6) requires a kernel theorem for
 -- the particular vector-valued Schwartz–Bruhat space and operator topology.

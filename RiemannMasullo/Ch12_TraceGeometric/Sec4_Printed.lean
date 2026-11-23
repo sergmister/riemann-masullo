@@ -1,6 +1,11 @@
 module
 
 public import RiemannMasullo.Ch12_TraceGeometric.Sec4
+import Mathlib.NumberTheory.Padics.ProperSpace
+import RiemannMasullo.ForMathlib.Analysis.Distribution.SchwartzSpace.Gaussian
+import all RiemannMasullo.AppD_SchwartzBruhat.Sec1b
+import all RiemannMasullo.AppD_SchwartzBruhat.Sec1c
+import all RiemannMasullo.Ch02_AdelicTheta.Sec2a
 
 /-! # Printed cutoff claims in §12.4 -/
 
@@ -63,12 +68,114 @@ def Printed.sLocalProductCutoff_preservesSchwartzBruhat : Prop :=
         (fun x : adelicModel ↦ (ρ (‖x.toAdd.1‖ * ‖x.toAdd.2‖) : ℂ) * f x) ∈
           schwartzBruhatSubmodule (G := adelicModel)
 
-/-- Paper: Step II, pp. 516–517. Take the product of exp(−x²) and the indicator
-of ℤ₂, with a smooth profile equal to one up to radius one and zero from radius two.
-For every n choose h = 2ⁿ and x = 2ⁿ⁺². The product is nonzero at (x,0) and
-zero at (x,h). No common open subgroup of translations in ℚ₂ fixes the product. -/
+section
+
+open Filter
+open scoped Topology
+
+/-- Every mixed real/2-adic Schwartz–Bruhat function has a nonzero period in the finite coordinate. -/
+private theorem sLocalProductCutoff_false_period (f : SchwartzBruhat adelicModel) :
+    ∃ h : ℚ_[2], h ≠ 0 ∧ ∀ x : ℝ,
+      f (Multiplicative.ofAdd (x, h)) = f (Multiplicative.ofAdd (x, 0)) := by
+  obtain ⟨a, e, s, hs⟩ := test_from_stage f
+  obtain ⟨U, hU, hK⟩ := stage_kernel_contains_small_powers a e
+  let j : Multiplicative ℚ_[2] →* adelicModel :=
+    { toFun := fun h ↦ Multiplicative.ofAdd (0, h.toAdd)
+      map_one' := rfl
+      map_mul' := by
+        intro x y
+        change Multiplicative.ofAdd (0, x.toAdd + y.toAdd) =
+          Multiplicative.ofAdd (0 + 0, x.toAdd + y.toAdd)
+        rw [zero_add] }
+  have hj : Continuous j := continuous_const.prodMk continuous_id
+  have hpre : (j ∘ Multiplicative.ofAdd) ⁻¹' U ∈ 𝓝 (0 : ℚ_[2]) :=
+    (hj.comp continuous_ofAdd).continuousAt.preimage_mem_nhds
+      (by simpa [Function.comp_def] using hU)
+  obtain ⟨H, hH⟩ := NonarchimedeanAddGroup.is_nonarchimedean _ hpre
+  obtain ⟨π, hpos, hlt⟩ := NormedField.exists_norm_lt_one ℚ_[2]
+  have hev : ∀ᶠ n : ℕ in atTop, π ^ n ∈ H :=
+    (tendsto_pow_atTop_nhds_zero_of_norm_lt_one hlt) (H.isOpen.mem_nhds H.zero_mem)
+  obtain ⟨n, hn⟩ := hev.exists
+  have hk : j (Multiplicative.ofAdd (π ^ n)) ∈ OrderDual.ofDual a.val.2 := by
+    apply hK
+    intro k
+    have h := hH (H.nsmul_mem hn k)
+    change j (Multiplicative.ofAdd (k • π ^ n)) ∈ U at h
+    simpa only [ofAdd_nsmul, map_pow] using h
+  refine ⟨π ^ n, pow_ne_zero _ (norm_pos_iff.mp hpos), fun x ↦ ?_⟩
+  have he := stage_realization_mul_kernel a e s hk (Multiplicative.ofAdd (x, 0))
+  have heq (y : adelicModel) : schwartzBruhatStageRealization a e s y = f y :=
+    congrArg (fun t : SchwartzBruhat adelicModel ↦ t y) hs
+  rw [heq, heq] at he
+  change f (Multiplicative.ofAdd (0 + x, π ^ n + 0)) =
+    f (Multiplicative.ofAdd (x, 0)) at he
+  simpa only [zero_add, add_zero] using he
+/-- A Gaussian times a finite compact-open test is nonzero along the entire real axis. -/
+private theorem sLocalProductCutoff_false_test : ∃ f : SchwartzBruhat adelicModel, ∀ x : ℝ, f (Multiplicative.ofAdd (x, 0)) ≠ 0 := by
+  obtain ⟨H, hH, hzero⟩ := localField_exists_compactOpenSubgroup ℚ_[2]
+    (isCompact_singleton (x := (1 : Multiplicative ℚ_[2])))
+  obtain ⟨g, hg⟩ := schwartzBruhat_compactOpen_indicator H hH
+  obtain ⟨R, hR⟩ := realSchwartzBruhat_equiv
+  let φ : 𝓢(ℝ, ℂ) := (SchwartzMap.gaussian 1 one_pos).postcompCLM Complex.ofRealCLM
+  obtain ⟨b, hb, -⟩ := schwartzBruhat_product_tests
+    (G := Multiplicative ℝ) (H := Multiplicative ℚ_[2])
+  let d : adelicModel ≃ₜ* Multiplicative ℝ × Multiplicative ℚ_[2] :=
+    { toFun := fun x ↦ (Multiplicative.ofAdd x.toAdd.1, Multiplicative.ofAdd x.toAdd.2)
+      invFun := fun x ↦ Multiplicative.ofAdd (x.1.toAdd, x.2.toAdd)
+      left_inv := fun _ ↦ rfl
+      right_inv := fun _ ↦ rfl
+      map_mul' := by intros; rfl
+      continuous_toFun := continuous_id
+      continuous_invFun := continuous_id }
+  let f : SchwartzBruhat adelicModel :=
+    ⟨(b (R φ) g).val ∘ d, schwartzBruhat_mem_comp_equiv d (b (R φ) g).property⟩
+  refine ⟨f, fun x ↦ ?_⟩
+  change b (R φ) g (Multiplicative.ofAdd x, Multiplicative.ofAdd 0) ≠ 0
+  have hg0 : g (Multiplicative.ofAdd (0 : ℚ_[2])) = 1 := hg _ H.one_mem
+  rw [hb, hR, hg0, mul_one]
+  change (SchwartzMap.gaussian 1 one_pos x : ℂ) ≠ 0
+  rw [SchwartzMap.gaussian_apply]
+  exact Complex.ofReal_ne_zero.mpr (Real.exp_ne_zero _)
+/-- Paper: Step II, pp. 516–517. Multiply a real Gaussian by a finite compact-open
+test equal to one at zero, and use a smooth profile equal to one through radius
+one and zero from radius two. Any nonzero common finite-coordinate period h
+would identify the values at (2/‖h‖,0) and (2/‖h‖,h). The first is nonzero,
+while the product-norm cutoff makes the second zero. -/
 theorem Printed.sLocalProductCutoff_preservesSchwartzBruhat_false :
-    ¬ Printed.sLocalProductCutoff_preservesSchwartzBruhat := by sorry
+    ¬ Printed.sLocalProductCutoff_preservesSchwartzBruhat := by
+  intro hall
+  let B : ContDiffBump (0 : ℝ) := ⟨1, 2, by norm_num, by norm_num⟩
+  have hout : ∀ t ≥ (2 : ℝ), B t = 0 := by
+    intro t ht
+    apply B.zero_of_le_dist
+    change 2 ≤ dist t 0
+    rw [Real.dist_eq, sub_zero, abs_of_nonneg (by linarith)]
+    exact ht
+  have hin : EqOn (B : ℝ → ℝ) 1 (Icc 0 (2 - 1)) := by
+    intro t ht
+    apply B.one_of_mem_closedBall
+    rw [Real.closedBall_eq_Icc]
+    change 0 - 1 ≤ t ∧ t ≤ 0 + 1
+    obtain ⟨hl, hr⟩ := ht
+    constructor <;> linarith
+  obtain ⟨f, hf⟩ := sLocalProductCutoff_false_test
+  let g : SchwartzBruhat adelicModel := ⟨_, hall 2 1 (by norm_num) (by norm_num) B B.contDiff
+    (fun _ ↦ ⟨B.nonneg, B.le_one⟩) hout hin f⟩
+  obtain ⟨h, hne, hh⟩ := sLocalProductCutoff_false_period g
+  let x : ℝ := 2 / ‖h‖
+  have hx : 0 ≤ x := by positivity
+  have hprod : ‖x‖ * ‖h‖ = 2 := by
+    rw [Real.norm_eq_abs, abs_of_nonneg hx]
+    exact div_mul_cancel₀ _ (norm_ne_zero_iff.mpr hne)
+  have he := hh x
+  change (B (‖x‖ * ‖h‖) : ℂ) * f (Multiplicative.ofAdd (x, h)) =
+    (B (‖x‖ * ‖(0 : ℚ_[2])‖) : ℂ) * f (Multiplicative.ofAdd (x, 0)) at he
+  rw [hprod, hout 2 le_rfl, Complex.ofReal_zero, zero_mul, norm_zero, mul_zero,
+    hin ⟨le_rfl, by norm_num⟩] at he
+  simp only [Pi.one_apply, Complex.ofReal_one, one_mul] at he
+  exact hf x he.symm
+
+end
 
 /-- Paper: (12.4.1.22), p. 518. The smoothed identity orbital mass is set
 equal to the integral over the two sharp intervals.

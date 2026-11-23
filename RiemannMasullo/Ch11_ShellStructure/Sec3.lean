@@ -3,9 +3,9 @@ module
 public import Mathlib.NumberTheory.PrimeCounting
 public import RiemannMasullo.Ch11_ShellStructure.Sec2b
 
-import all RiemannMasullo.AppA_AlgebraicNT.Sec2
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
-import all RiemannMasullo.Ch11_ShellStructure.Sec1a
+import RiemannMasullo.AppA_AlgebraicNT.Sec2
+import RiemannMasullo.Ch10_TraceSpectral.Sec1
+import RiemannMasullo.Ch11_ShellStructure.Sec1a
 
 import all RiemannMasullo.Ch07_SchauderBasesZeta.Sec5
 
@@ -783,6 +783,65 @@ theorem orbitalPlacePoissonTerm_trivial_zero (φ : 𝒟) (v : V) (π : (v.adicCo
   simp [orbitalPlacePoissonTerm]
 
 /-- Paper: §11.3.1.1(2), p. 494, and (11.3.2.5), p. 496.
+For one unramified place, the half-shifted Mellin values at the zeros of its
+reciprocal Euler factor sum to its norm-one coset contributions.
+Deviation: Uses the angular integral and half-shift weight of the repaired formula.
+This is the analytic part of the split: decompose the Mellin integral along the
+norm fibres and apply Poisson summation in the logarithmic norm coordinate. -/
+private theorem orbitalEulerSum_eq_poisson_local (F : Type*) [Field F] [NumberField F]
+    (χ : PontryaginDual (IdeleClassGroup (𝓞 F) F))
+    (φ : BruhatCompactSupport (IdeleClassGroup (𝓞 F) F))
+    (v : HeightOneSpectrum (𝓞 F))
+    (hχ : (ideleClassNormTwist χ 0).IsUnramifiedAt v)
+    (π : (v.adicCompletion F)ˣ)
+    (hπ : Valued.v.IsUniformizer (π : v.adicCompletion F)) :
+    HasSum (fun z : {z : ℂ // (finiteHeckeEulerFactor χ v z)⁻¹ = 0} ↦
+      nuclearityTestMellin χ φ (z.val - 1 / 2))
+      (∑' n : ℤ, orbitalPlacePoissonTerm χ φ v π n) := by
+  sorry
+
+/-- Paper: §11.3.1.1(2), p. 494.
+Adding the local zero sums counts a shared zero once for each vanishing factor,
+which is exactly its multiplicity in the reciprocal Euler product. -/
+private theorem orbitalEulerSum_eq_poisson_assemble (F : Type*) [Field F] [NumberField F]
+    (χ : PontryaginDual (IdeleClassGroup (𝓞 F) F))
+    (φ : BruhatCompactSupport (IdeleClassGroup (𝓞 F) F))
+    (S : Finset (HeightOneSpectrum (𝓞 F)))
+    (a : HeightOneSpectrum (𝓞 F) → ℂ)
+    (hs : ∀ v ∈ S, HasSum
+      (fun z : {z : ℂ // (finiteHeckeEulerFactor χ v z)⁻¹ = 0} ↦
+        nuclearityTestMellin χ φ (z.val - 1 / 2)) (a v)) :
+    HasSum (fun z : {z : ℂ // reciprocalPartialHeckeEulerProduct χ S z = 0} ↦
+      (orbitalEulerMultiplicity χ S z.val : ℂ) *
+        nuclearityTestMellin χ φ (z.val - 1 / 2)) (∑ v ∈ S, a v) := by
+  classical
+  let f : ℂ → ℂ := fun z ↦ nuclearityTestMellin χ φ (z - 1 / 2)
+  have hv (v) (hv : v ∈ S) :
+      HasSum ({z : ℂ | (finiteHeckeEulerFactor χ v z)⁻¹ = 0}.indicator f) (a v) :=
+    hasSum_subtype_iff_indicator.mp (hs v hv)
+  have h := hasSum_sum hv
+  have he (z : ℂ) :
+      (∑ v ∈ S, {z : ℂ | (finiteHeckeEulerFactor χ v z)⁻¹ = 0}.indicator f z) =
+        (orbitalEulerMultiplicity χ S z : ℂ) * f z := by
+    rw [orbitalEulerMultiplicity_eq_card]
+    simp only [Set.indicator_apply, Set.mem_ofPred_eq]
+    rw [← Finset.sum_filter]
+    simp
+  have hglobal : HasSum (fun z : ℂ ↦ (orbitalEulerMultiplicity χ S z : ℂ) * f z)
+      (∑ v ∈ S, a v) := h.congr_fun (fun z ↦ (he z).symm)
+  apply (hasSum_subtype_iff_of_support_subset (s :=
+    {z : ℂ | reciprocalPartialHeckeEulerProduct χ S z = 0}) ?_).mpr hglobal
+  intro z hz
+  by_contra hn
+  have hnone : ∀ v ∈ S, (finiteHeckeEulerFactor χ v z)⁻¹ ≠ 0 := by
+    intro v hv hzv
+    exact hn (Finset.prod_eq_zero hv hzv)
+  have hzero : orbitalEulerMultiplicity χ S z = 0 := by
+    rw [orbitalEulerMultiplicity_eq_card, Finset.filter_eq_empty_iff.mpr hnone]
+    rfl
+  exact hz (by simp [hzero])
+
+/-- Paper: §11.3.1.1(2), p. 494, and (11.3.2.5), p. 496.
 The half-shifted Mellin values at the zeros of the reciprocal Euler product sum,
 with multiplicity, to the Poisson contributions of the places over the prime.
 Deviation: This is the Poisson evaluation of the spectral expression. A layer
@@ -794,7 +853,10 @@ theorem orbitalEulerSum_eq_poisson (χ : PontryaginDual C𝔽) (φ : 𝒟) (p : 
     let zeros := {z : ℂ // reciprocalPartialHeckeEulerProduct χ above(p) z = 0}
     HasSum (fun z : zeros ↦ (orbitalEulerMultiplicity χ above(p) z.val : ℂ) *
       nuclearityTestMellin χ φ (z.val - 1 / 2))
-      (∑ v ∈ above(p), ∑' n : ℤ, orbitalPlacePoissonTerm χ φ v (π v) n) := by sorry
+      (∑ v ∈ above(p), ∑' n : ℤ, orbitalPlacePoissonTerm χ φ v (π v) n) := by
+  exact orbitalEulerSum_eq_poisson_assemble F χ φ above(p)
+    (fun v ↦ ∑' n : ℤ, orbitalPlacePoissonTerm χ φ v (π v) n)
+    (fun v hv ↦ orbitalEulerSum_eq_poisson_local F χ φ v (_hχ v hv) (π v) (_hπ v hv))
 
 /-- Paper: §11.3.1.1(2), pp. 494–495. If the test is supported at norms
 strictly between one and the residue size, every summand at that place vanishes. -/
@@ -869,13 +931,188 @@ def orbitalSectionWeight (E : Set N𝔽) (τ : ℝ≥0ˣ →* I𝔽) (xy : I𝔽
       (Set.range τ).indicator (fun _ ↦ (1 : ℝ)) (principal ξ * g.val * xy.2)
       ∂normOneIdeleTamagawaMeasure F
 
+private theorem local_principalUnits {L : Type*} [NontriviallyNormedField L] [IsUltrametricDist L] :
+    ∃ u : ℕ → Lˣ, Filter.Tendsto u Filter.atTop (nhds 1) ∧ (∀ n, ‖(u n : L)‖ = 1) ∧ ∀ n, u n ≠ 1 := by
+  obtain ⟨π, hpos, hlt⟩ := NormedField.exists_norm_lt_one L
+  let a (n : ℕ) := π ^ (n + 1)
+  have ha (n : ℕ) : ‖a n‖ < 1 := by
+    change ‖π ^ (n + 1)‖ < 1
+    rw [norm_pow]
+    exact pow_lt_one₀ hpos.le hlt n.succ_ne_zero
+  have hne (n : ℕ) : 1 + a n ≠ 0 := by
+    intro he
+    have h := ha n
+    rw [show a n = -1 by linear_combination he, norm_neg, norm_one] at h
+    exact lt_irrefl _ h
+  let u (n : ℕ) := Units.mk0 (1 + a n) (hne n)
+  refine ⟨u, ?_, ?_, ?_⟩
+  · rw [Units.isEmbedding_val₀.isInducing.tendsto_nhds_iff]
+    have hlim : Filter.Tendsto a Filter.atTop (nhds (0 : L)) :=
+      (tendsto_pow_atTop_nhds_zero_of_norm_lt_one hlt).comp (Filter.tendsto_add_atTop_nat 1)
+    have h1 : Filter.Tendsto (fun n : ℕ ↦ (1 : L) + a n) Filter.atTop (nhds (1 + 0)) := tendsto_const_nhds.add hlim
+    rw [add_zero] at h1
+    simpa only [Function.comp_def, u, Units.val_mk0, Units.val_one] using h1
+  · intro n
+    change ‖1 + a n‖ = 1
+    have hlow : (1 : ℝ) ≤ max ‖1 + a n‖ ‖a n‖ := by
+      have h := IsUltrametricDist.norm_add_le_max (1 + a n) (-(a n))
+      simpa using h
+    have hge : (1 : ℝ) ≤ ‖1 + a n‖ := by
+      by_contra h
+      rw [not_le] at h
+      exact absurd (max_lt h (ha n)) (not_lt.mpr hlow)
+    have hle : ‖1 + a n‖ ≤ 1 :=
+      (IsUltrametricDist.norm_add_le_max (1 : L) (a n)).trans (max_le norm_one.le (ha n).le)
+    linarith
+  · intro n h
+    exact pow_ne_zero _ (norm_pos_iff.mp hpos) (add_eq_left.mp (congrArg Units.val h))
+
+
+/-- The idele with a unit of norm one at one finite place and 1 elsewhere has idele norm one. -/
+private theorem ideleNorm_ofAdicCompletion_of_norm_one (v : V) (u : (v.adicCompletion F)ˣ)
+    (hu : ‖(u : v.adicCompletion F)‖ = 1) :
+    ideleNorm F (IdeleGroup.ofAdicCompletion (𝓞 F) F v u) = 1 := by
+  classical
+  let g := IdeleGroup.ofAdicCompletion (𝓞 F) F v u
+  apply Units.ext
+  apply NNReal.coe_injective
+  change ((ideleNorm F g : ℝ≥0) : ℝ) = 1
+  rw [((ideleNorm_spec F).1 g).2]
+  change (∏ w : InfinitePlace F, ‖(1 : w.Completion)‖ ^ w.mult) *
+    ∏ᶠ w, ‖RestrictedProduct.mulSingle (fun w : V ↦ w.adicCompletionIntegers F) v u.val w‖ =
+    ((1 : ℝ≥0ˣ) : ℝ)
+  simp only [norm_one, one_pow, Finset.prod_const_one, one_mul, Units.val_one, NNReal.coe_one]
+  rw [finprod_eq_single _ v]
+  · rw [RestrictedProduct.mulSingle_eq_same]
+    exact hu
+  · intro w hw
+    rw [RestrictedProduct.mulSingle_eq_of_ne _ _ hw, norm_one]
+
+/-- Inserting a finite completion into the idele group is continuous. -/
+private theorem continuous_ideleGroup_ofAdicCompletion (v : V) :
+    Continuous (IdeleGroup.ofAdicCompletion (𝓞 F) F v) := by
+  classical
+  apply Continuous.units_map
+  apply continuous_const.prodMk
+  apply continuous_restrictedProduct_of_uniform
+  · intro w
+    exact (continuous_apply w).comp (continuous_mulSingle (A := fun u : V ↦ u.adicCompletion F) v)
+  · filter_upwards [Filter.eventually_cofinite_ne v] with w hw x
+    change Pi.mulSingle v x w ∈ w.adicCompletionIntegers F
+    rw [Pi.mulSingle_eq_of_ne hw]
+    exact (w.adicCompletionIntegers F).one_mem
+
+/-- The single-place insertion is injective. -/
+private theorem ofAdicCompletion_injective (v : V) {x : (v.adicCompletion F)ˣ}
+    (hx : IdeleGroup.ofAdicCompletion (𝓞 F) F v x = 1) : x = 1 := by
+  have hv := congrArg (fun d : I𝔽 ↦ d.val.2 v) hx
+  have hcoord : (IdeleGroup.ofAdicCompletion (𝓞 F) F v x).val.2 v = x.val := by
+    change RestrictedProduct.mulSingle (fun w : V ↦ w.adicCompletionIntegers F) v x.val v = x.val
+    exact RestrictedProduct.mulSingle_eq_same ..
+  rw [hcoord] at hv
+  simp at hv
+  exact Units.val_eq_one.mp hv
+
+
+open scoped Valued in
+/-- The norm-one ideles have no isolated point: a sequence of principal units at one
+finite place gives ideles of norm one tending to one but never equal to it. -/
+private theorem nhdsNE_neBot_normOne (v : V) : Filter.NeBot (nhdsWithin (1 : N𝔽) {1}ᶜ) := by
+  classical
+  obtain ⟨u, hu_tend, hu_norm, hu_ne⟩ := local_principalUnits (L := v.adicCompletion F)
+  have hcont : Continuous (IdeleGroup.ofAdicCompletion (𝓞 F) F v) :=
+    continuous_ideleGroup_ofAdicCompletion v
+  let φ (n : ℕ) : N𝔽 :=
+    ⟨IdeleGroup.ofAdicCompletion (𝓞 F) F v (u n), by
+      rw [MonoidHom.mem_ker]
+      exact ideleNorm_ofAdicCompletion_of_norm_one v (u n) (hu_norm n)⟩
+  rw [← mem_closure_iff_nhdsWithin_neBot, mem_closure_iff_frequently, Filter.frequently_iff]
+  intro U hU
+  rw [show nhds (1 : N𝔽) = (nhds (1 : I𝔽)).comap (Subtype.val : N𝔽 → I𝔽) from nhds_induced _ _] at hU
+  obtain ⟨W, hW, hWU⟩ := Filter.mem_comap.mp hU
+  have hpre : (IdeleGroup.ofAdicCompletion (𝓞 F) F v) ⁻¹' W ∈ nhds (1 : (v.adicCompletion F)ˣ) :=
+    hcont.continuousAt.preimage_mem_nhds (by rw [map_one]; exact hW)
+  obtain ⟨n, hn⟩ := (hu_tend.eventually hpre).exists
+  refine ⟨φ n, hWU hn, ?_⟩
+  intro hEq
+  have h1 : u n = 1 := by
+    apply ofAdicCompletion_injective v
+    exact congrArg Subtype.val hEq
+  exact hu_ne n h1
+
+
+/-- The norm-one Tamagawa measure gives measure zero to singletons. -/
+private theorem normOneIdeleTamagawaMeasure_nullSingleton (v : V) :
+    NullSingletonClass (normOneIdeleTamagawaMeasure F) := by
+  have htop : IsTopologicalGroup I𝔽 := (ideleGroup_topology F).2.2.1
+  have hcl : IsClosed ((ideleNorm F).ker : Set I𝔽) := (ideleGroup_topology F).2.2.2.2.2
+  let : IsTopologicalGroup I𝔽 := htop
+  let : LocallyCompactSpace I𝔽 := (ideleGroup_topology F).2.1
+  let : T2Space I𝔽 := (ideleGroup_topology F).1
+  let : LocallyCompactSpace N𝔽 := hcl.locallyCompactSpace
+  let : BorelSpace I𝔽 := ⟨rfl⟩
+  let : BorelSpace N𝔽 := ⟨by rw [borel_comap]; rfl⟩
+  let : (normOneIdeleTamagawaMeasure F).IsHaarMeasure :=
+    (normOneIdeleTamagawaMeasure_existsUnique F).exists.choose_spec.1
+  have hbot : Filter.NeBot (nhdsWithin (1 : N𝔽) {1}ᶜ) := nhdsNE_neBot_normOne v
+  exact MeasureTheory.Measure.IsHaarMeasure.nullSingletonClass _
+
+
+/-- A number field has a finite place. -/
+private theorem finitePlace_nonempty (F : Type*) [Field F] [NumberField F] :
+    Nonempty (HeightOneSpectrum (𝓞 F)) := by
+  obtain ⟨m, hm⟩ := Ideal.exists_maximal (𝓞 F)
+  exact ⟨⟨m, hm.isPrime, NeZero.ne m⟩⟩
+
 /-- Paper: (11.3.2.2), p. 495. The displayed weight vanishes everywhere.
 For each principal multiplier, the first translated section condition forces
 the integration variable into a single Haar-null point.
 Deviation: The printed weight cannot implement a normalized indentation. -/
 theorem orbitalSectionWeight_eq_zero (E : Set N𝔽) (τ : ℝ≥0ˣ →* I𝔽)
     (_hτ : RightInverse τ (ideleNorm F)) (xy : I𝔽 × I𝔽) :
-    orbitalSectionWeight E τ xy = 0 := by sorry
+    orbitalSectionWeight E τ xy = 0 := by
+  classical
+  have hτ : RightInverse τ (ideleNorm F) := _hτ
+  obtain ⟨v⟩ := finitePlace_nonempty F
+  haveI hns : NullSingletonClass (normOneIdeleTamagawaMeasure F) :=
+    normOneIdeleTamagawaMeasure_nullSingleton v
+  have hprincipal (ξ : Fˣ) : ideleNorm F (principal ξ) = 1 := by
+    have h : principal ξ ∈ (ideleNorm F).ker := (ideleNorm_spec F).2 ⟨ξ, rfl⟩
+    simpa using h
+  have hterm : ∀ ξ : Fˣ, ∫ g in E,
+      (Set.range τ).indicator (fun _ ↦ (1 : ℝ)) (principal ξ * g.val * xy.1) *
+        (Set.range τ).indicator (fun _ ↦ (1 : ℝ)) (principal ξ * g.val * xy.2)
+        ∂normOneIdeleTamagawaMeasure F = 0 := by
+    intro ξ
+    let g₀ : N𝔽 := ⟨(principal ξ)⁻¹ * τ (ideleNorm F xy.1) * (xy.1)⁻¹, by
+      rw [MonoidHom.mem_ker]
+      have hτ' : ∀ t : ℝ≥0ˣ, ideleNorm F (τ t) = t := hτ
+      simp only [map_mul, map_inv, hprincipal, hτ', inv_one, one_mul]
+      simp⟩
+    have hsupp : ∀ᵐ g ∂(normOneIdeleTamagawaMeasure F |>.restrict E),
+        (Set.range τ).indicator (fun _ ↦ (1 : ℝ)) (principal ξ * g.val * xy.1) *
+          (Set.range τ).indicator (fun _ ↦ (1 : ℝ)) (principal ξ * g.val * xy.2) = 0 := by
+      filter_upwards [Measure.ae_ne (normOneIdeleTamagawaMeasure F |>.restrict E) g₀]
+        with g hg
+      by_cases h1 : principal ξ * g.val * xy.1 ∈ Set.range τ
+      · exfalso
+        apply hg
+        obtain ⟨t, ht⟩ := h1
+        have hg1 : ideleNorm F (g : I𝔽) = 1 := MonoidHom.mem_ker.mp g.property
+        have hnorm : t = ideleNorm F xy.1 := by
+          have h := congrArg (ideleNorm F) ht
+          rw [hτ] at h
+          simp only [map_mul, hprincipal, hg1, one_mul] at h
+          exact h
+        have hg' : g.val = (principal ξ)⁻¹ * τ t * (xy.1)⁻¹ := by
+          rw [ht]
+          group
+        apply Subtype.ext
+        rw [hg', hnorm]
+      · rw [Set.indicator_of_notMem h1, zero_mul]
+    rw [integral_eq_zero_of_ae hsupp]
+  unfold orbitalSectionWeight
+  simp [hterm]
 
 /-- Paper: (11.3.2.1) and (11.3.2.3)–(11.3.2.4), pp. 495–496.
 The printed weight gives a zero skew-diagonal integral for any kernel,

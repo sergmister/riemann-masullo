@@ -1938,13 +1938,6 @@ theorem finitePlaceUnitAverage_integrable (w : Places) (f : ℬᵥ(w)) (x : L(w)
     ((ae_restrict_iff' (units_isOpen w).measurableSet).2 (Filter.Eventually.of_forall hC))
 
 
-/-- Paper: Lemma 6.1.2.4(2), p. 292.
-A test function averages to zero exactly when it belongs to the span of unit
-translation differences. -/
-theorem finitePlaceUnitAverage_eq_zero_iff (w : Places) (f : ℬᵥ(w)) :
-    (∀ x, finitePlaceUnitAverage w f x = 0) ↔
-      f ∈ Representation.Coinvariants.ker (ρ(w)) := by sorry
-
 -- TODO(paper-gap): The proof on p. 292 identifies multiplicative unit averaging
 -- with additive convolution and deduces vanishing of the function from unramified
 -- Mellin values. For the indicator of the integer ring at the trivial character,
@@ -2129,6 +2122,29 @@ theorem finitePlaceUnitAverage_coinvariants_equiv (w : Places) :
     exact H (finitePlaceUnitAverage_coinvariants_equiv_lift (F := F) w)
       (finitePlaceUnitAverage_coinvariants_equiv_fixed (F := F) w)
       (finitePlaceUnitAverage_coinvariants_equiv_surj (F := F) w)
+
+/-- Paper: Lemma 6.1.2.4(2), p. 292.
+A test function averages to zero exactly when it belongs to the span of unit
+translation differences. -/
+theorem finitePlaceUnitAverage_eq_zero_iff (w : Places) (f : ℬᵥ(w)) :
+    (∀ x, finitePlaceUnitAverage w f x = 0) ↔
+      f ∈ Representation.Coinvariants.ker (ρ(w)) := by
+  obtain ⟨N, hN⟩ := finitePlaceUnitAverage_coinvariants_equiv (F := F) w
+  constructor
+  · intro h
+    have hz : N (Submodule.Quotient.mk f) = 0 := by
+      refine Subtype.ext (SchwartzBruhat.ext fun y ↦ ?_)
+      exact (hN f (Multiplicative.toAdd y)).trans (h _)
+    have h0 : (Submodule.Quotient.mk f :
+        ℬᵥ(w) ⧸ Representation.Coinvariants.ker (ρ(w))) = 0 :=
+      N.injective (hz.trans (map_zero N).symm)
+    exact (Submodule.Quotient.mk_eq_zero _).mp h0
+  · intro hf x
+    have hz : (Submodule.Quotient.mk f :
+        ℬᵥ(w) ⧸ Representation.Coinvariants.ker (ρ(w))) = 0 :=
+      (Submodule.Quotient.mk_eq_zero _).mpr hf
+    rw [← hN f x, hz, map_zero]
+    rfl
 
 /-- Paper: Lemma 6.1.2.4(2), p. 292.
 Local unit averaging also defines a continuous linear map in the intrinsic
