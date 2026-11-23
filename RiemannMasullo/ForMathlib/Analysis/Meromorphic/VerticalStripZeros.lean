@@ -35,11 +35,12 @@ local notation "windowZeros(" f ", " b ", " a ")" =>
 
 /-- A square-root bound on the total weight in each unit height range gives a summable inverse-
 square weight. -/
-private theorem summable_zeroWeights_of_bins {ι : Type*}
+theorem tsum_zeroWeights_le_of_bins {ι : Type*}
     (h m : ι → ℝ) (hm : ∀ i, 0 ≤ m i) (C : ℝ)
     (hcount : ∀ (n : ℕ) (S : Finset ι), (∀ i ∈ S, ⌊|h i|⌋₊ = n) →
       ∑ i ∈ S, m i ≤ C * ((n : ℝ) + 1) ^ (1 / 2 : ℝ)) :
-    Summable (fun i ↦ m i / (1 + |h i|) ^ 2) := by
+    Summable (fun i ↦ m i / (1 + |h i|) ^ 2) ∧
+      (∑' i, m i / (1 + |h i|) ^ 2) ≤ C * ∑' n : ℕ, 1 / ((n : ℝ) + 1) ^ (3 / 2 : ℝ) := by
   classical
   let b (i : ι) := ⌊|h i|⌋₊
   let u (n : ℕ) := C / ((n : ℝ) + 1) ^ (3 / 2 : ℝ)
@@ -47,7 +48,10 @@ private theorem summable_zeroWeights_of_bins {ι : Type*}
     have h := ((Real.summable_one_div_nat_add_rpow 1 (3 / 2)).2 (by norm_num)).mul_left C
     simpa [u, abs_of_nonneg, add_nonneg, div_eq_mul_inv] using h
   have hC : 0 ≤ C := by simpa using hcount 0 ∅ (by simp)
-  apply summable_of_sum_le (c := ∑' n, u n) (fun i ↦ div_nonneg (hm i) (sq_nonneg _))
+  suffices hbound : ∀ S : Finset ι, (∑ i ∈ S, m i / (1 + |h i|) ^ 2) ≤ ∑' n, u n by
+    have hnon (i) : 0 ≤ m i / (1 + |h i|) ^ 2 := div_nonneg (hm i) (sq_nonneg _)
+    refine ⟨summable_of_sum_le hnon hbound, (Real.tsum_le_of_sum_le hnon hbound).trans_eq ?_⟩
+    simp only [u, div_eq_mul_inv, one_mul, tsum_mul_left]
   intro S
   have hf (n : ℕ) : ∑ i ∈ S with b i = n, m i / (1 + |h i|) ^ 2 ≤ u n := by
     let T := S.filter (fun i ↦ b i = n)
@@ -73,6 +77,15 @@ private theorem summable_zeroWeights_of_bins {ι : Type*}
       (Finset.sum_fiberwise_of_maps_to (fun i hi ↦ Finset.mem_image_of_mem b hi) _).symm
     _ ≤ ∑ n ∈ S.image b, u n := Finset.sum_le_sum (fun n _ ↦ hf n)
     _ ≤ ∑' n, u n := hu.sum_le_tsum _ fun _ _ ↦ div_nonneg hC (Real.rpow_nonneg (by positivity) _)
+
+/-- A square-root bound on the total weight in each unit height range gives a summable inverse-
+square weight. -/
+private theorem summable_zeroWeights_of_bins {ι : Type*}
+    (h m : ι → ℝ) (hm : ∀ i, 0 ≤ m i) (C : ℝ)
+    (hcount : ∀ (n : ℕ) (S : Finset ι), (∀ i ∈ S, ⌊|h i|⌋₊ = n) →
+      ∑ i ∈ S, m i ≤ C * ((n : ℝ) + 1) ^ (1 / 2 : ℝ)) :
+    Summable (fun i ↦ m i / (1 + |h i|) ^ 2) :=
+  (tsum_zeroWeights_le_of_bins h m hm C hcount).1
 
 /-- Jensen’s inequality bounds the sum of orders on any finite subset of the smaller disc. -/
 private theorem zeroCount_disk_sum {f : ℂ → ℂ} {c : ℂ} {r R B : ℝ}
@@ -121,6 +134,20 @@ private theorem zeroCount_local_order {L Λ : ℂ → ℂ} (hΛ : MeromorphicOn 
   have : (meromorphicOrderAt Λ z).untop₀ ≤ (analyticOrderNatAt L z : ℤ) := by
     simpa using WithTop.untop₀_le_untop₀ (WithTop.coe_ne_top : ((analyticOrderNatAt L z : ℤ) : WithTop ℤ) ≠ ⊤) h
   exact_mod_cast this
+
+/-- Jensen's inequality bounds a finite sum of divisor multiplicities by the
+growth of an analytic comparison function whose local orders dominate them. -/
+theorem sum_divisor_le_log_of_disk_bound {Λ L : ℂ → ℂ} (hΛ : MeromorphicOn Λ univ)
+    (hcmp : ∀ z, meromorphicOrderAt Λ z ≤ meromorphicOrderAt L z)
+    {c : ℂ} {r R B : ℝ} (hr : 0 < r) (hrR : r < R)
+    (ha : AnalyticOnNhd ℂ L (closedBall c R)) (hc : L c ≠ 0)
+    (hB : ∀ z ∈ closedBall c R, ‖L z / L c‖ ≤ B)
+    (S : Finset ℂ) (hS : ∀ z ∈ S, z ∈ closedBall c r) :
+    ∑ z ∈ S, (MeromorphicOn.divisor Λ univ z : ℝ) ≤ Real.log B / Real.log (R / r) := by
+  apply le_trans (Finset.sum_le_sum fun z hz ↦
+    zeroCount_local_order hΛ (hr.trans hrR).le ha hc hcmp
+      (closedBall_subset_closedBall hrR.le (hS z hz)))
+  exact zeroCount_disk_sum hr hrR ha hc hB S hS
 
 private theorem zeroCount_compact {f : ℂ → ℂ} (K : Set ℂ) (hK : IsCompact K) :
     {z : ℂ | z ∈ K ∧ MeromorphicOn.divisor f univ z ≠ 0}.Finite := by
