@@ -7,7 +7,7 @@ public import Mathlib.Analysis.Meromorphic.NormalForm
 public import Mathlib.Analysis.SpecialFunctions.Gamma.Deligne
 public import RiemannMasullo.ForMathlib.NumberTheory.NumberField.DedekindZeta
 
-import all RiemannMasullo.AppA_AlgebraicNT.Sec2
+import RiemannMasullo.AppA_AlgebraicNT.Sec2
 import all RiemannMasullo.AppA_AlgebraicNT.Sec3
 import all RiemannMasullo.Ch02_AdelicTheta.Sec1
 import all RiemannMasullo.Ch02_AdelicTheta.Sec2a

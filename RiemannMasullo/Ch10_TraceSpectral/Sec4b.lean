@@ -245,6 +245,115 @@ local notation "Order₀(" χ ", " e ")" => (∀ z z' : Z(χ), z.val.1 = z'.val.
 -- The double limit uses rectangles with the product order on their end points.
 -- The convergence argument invokes the uniform estimate flagged in ERRATA R5.
 
+open scoped ComplexOrder in
+/-- The projective gauge of the unit pure tensors controls every zero-neighborhood. -/
+private theorem spectralLineQuotientKernel_tendsto_gauge {X Y : Type*}
+    [NormedAddCommGroup X] [NormedSpace ℂ X] [NormedAddCommGroup Y] [NormedSpace ℂ Y]
+    (U : Set (ProjectiveTensor X Y)) (hU : U ∈ 𝓝 0) :
+    ∃ ε : ℝ, 0 < ε ∧ ∀ z : ProjectiveTensor X Y,
+      gauge (convexHull ℝ (image2 (TensorProduct.tmul ℂ)
+        (Metric.closedBall (0 : X) 1) (Metric.closedBall (0 : Y) 1))) z < ε → z ∈ U := by
+  let B (r s : ℝ) : Set (ProjectiveTensor X Y) :=
+    image2 (TensorProduct.tmul ℂ) (Metric.closedBall 0 r) (Metric.closedBall 0 s)
+  let : PolynormableSpace ℂ X := (norm_withSeminorms ℂ X).toPolynormableSpace
+  let : PolynormableSpace ℂ Y := (norm_withSeminorms ℂ Y).toPolynormableSpace
+  let : IsScalarTower ℝ ℂ (ProjectiveTensor X Y) := IsScalarTower.restrictScalars ℝ ℂ _
+  let : ContinuousSMul ℂ (ProjectiveTensor X Y) := PolynormableSpace.continuousSMul ℂ _
+  let : ContinuousSMul ℝ (ProjectiveTensor X Y) := IsScalarTower.continuousSMul ℂ
+  have hb := projectiveTensor_zero_basis (E := X) (F := Y) (Metric.nhds_basis_closedBall (x := (0 : X)))
+    (Metric.nhds_basis_closedBall (x := (0 : Y)))
+  have hbal : Balanced ℂ (B 1 1) := by
+    intro c hc
+    rintro _ ⟨z, hz, rfl⟩
+    obtain ⟨x, hx, y, hy, rfl⟩ := hz
+    refine ⟨c • x, ?_, y, hy, rfl⟩
+    rw [Metric.mem_closedBall, dist_zero_right, norm_smul]
+    exact (mul_le_mul_of_nonneg_right hc (norm_nonneg x)).trans
+      (by simpa using hx)
+  have hrect : absConvexHull ℂ (B 1 1) ⊆ convexHull ℝ (B 1 1) := by
+    rw [absConvexHull_eq_convexHull_balancedHull, show balancedHull ℂ (B 1 1) = B 1 1 from
+      le_antisymm (hbal.balancedHull_subset_of_subset Subset.rfl) (subset_balancedHull ℂ)]
+    exact convexHull_min (subset_convexHull ..) (convex_RCLike_iff_convex_real.mpr (convex_convexHull ..))
+  have hunit : convexHull ℝ (B 1 1) ∈ 𝓝 (0 : ProjectiveTensor X Y) :=
+    Filter.mem_of_superset (hb.mem_of_mem (i := (1, 1)) ⟨one_pos, one_pos⟩) hrect
+  obtain ⟨⟨r, s⟩, ⟨hr, hs⟩, hsub⟩ := hb.mem_iff.mp hU
+  refine ⟨r * s, mul_pos hr hs, fun z hz ↦ ?_⟩
+  obtain ⟨t, ht, htrs, hz⟩ := exists_lt_of_gauge_lt (absorbent_nhds_zero hunit) hz
+  apply hsub
+  rw [← convexHull_smul] at hz
+  refine convexHull_min ?_ (convex_absConvexHull.lift ℝ) hz
+  rintro _ ⟨_, ⟨x, hx, y, hy, rfl⟩, rfl⟩
+  apply subset_absConvexHull
+  refine ⟨(t / s : ℝ) • x, ?_, s • y, ?_, ?_⟩
+  · rw [Metric.mem_closedBall, dist_zero_right, norm_smul, Real.norm_of_nonneg (div_nonneg ht.le hs.le)]
+    exact (mul_le_of_le_one_right (div_nonneg ht.le hs.le) (by simpa using hx)).trans
+      ((div_lt_iff₀ hs).mpr htrs).le
+  · rw [Metric.mem_closedBall, dist_zero_right, norm_smul, Real.norm_of_nonneg hs.le]
+    exact mul_le_of_le_one_right hs.le (by simpa using hy)
+  · rw [← TensorProduct.smul_tmul', TensorProduct.tmul_smul, smul_smul, div_mul_cancel₀ _ hs.ne']
+    rfl
+
+/-- Trace-norm Cauchy rectangles of finite-rank operators give Cauchy tensor rectangles. -/
+private theorem spectralLineQuotientKernel_tendsto_of_traceCauchy {H Z J : Type*}
+    [NormedAddCommGroup H] [InnerProductSpace ℂ H] [CompleteSpace H]
+    (A : H →L[ℂ] H) (x : J → H) (f : J → StrongDual ℂ H) (e : Z ↪ ℕ × ℕ)
+    (N : Z → ℕ) (i : (z : Z) → Fin (N z) → J)
+    (hc : SpectralRectanglesTraceCauchy (fun ij ↦ spectralConvolutionFiniteSum A x f
+      (((Finset.Iic ij.1).product (Finset.Iic ij.2)).preimage e e.injective.injOn) N i)) :
+    ∃ K, Tendsto (spectralKernelRectangle e N i (fun j ↦ (f j).comp A) x) atTop (𝓝 K) := by
+  classical
+  let P := ProjectiveTensor (StrongDual ℂ H) H
+  let box (ij : ℕ × ℕ) := ((Finset.Iic ij.1).product (Finset.Iic ij.2)).preimage e e.injective.injOn
+  let w (ij : ℕ × ℕ) : P := ∑ z ∈ box ij, ∑ m : Fin (N z), (f (i z m)).comp A ⊗ₜ[ℂ] x (i z m)
+  have hop (ij) : tensorToFiniteRank (w ij) = spectralConvolutionFiniteSum A x f (box ij) N i := by
+    change tensorToFiniteRank (∑ z ∈ box ij, ∑ m : Fin (N z), (f (i z m)).comp A ⊗ₜ[ℂ] x (i z m)) = _
+    simp only [map_sum, spectralConvolutionFiniteSum]
+    apply Finset.sum_congr rfl
+    intro z _
+    apply Finset.sum_congr rfl
+    intro m _
+    exact ContinuousLinearMap.ext fun y ↦ tensorToFiniteRank_tmul _ _ y
+  obtain ⟨huc, equiv, hval, hnorm⟩ := exists_projectiveTensorCompletion_traceClassIsometry (E := H) (F := H)
+  have hcauchy : CauchySeq w := by
+    apply (cauchySeq_iff_sub_mem w).mpr
+    intro U hU
+    obtain ⟨ε, hε, hball⟩ := spectralLineQuotientKernel_tendsto_gauge U hU
+    obtain ⟨b, hb⟩ := hc ε hε
+    refine ⟨b, fun j hj k hk ↦ hball _ ?_⟩
+    obtain ⟨T, hT, hsmall⟩ := hb j k hj hk
+    have heq : (equiv ((w j - w k : P) : Completion P)).val = T.val := by
+      rw [hval, completedProjectiveTensorToOperators_coe]
+      exact (map_sub tensorToFiniteRank (w j : StrongDual ℂ H ⊗[ℂ] H) (w k)).trans
+        ((congrArg₂ (· - ·) (hop j) (hop k)).trans hT.symm)
+    have hnorm' := (hnorm ((w j - w k : P) : Completion P)).trans (Completion.extension_coe huc _)
+    exact hnorm'.symm.trans_lt ((congrArg schattenNorm (Subtype.ext heq)).trans_lt
+      ((schattenNorm_one_eq_traceNorm T).trans_lt hsmall))
+  exact cauchySeq_tendsto_of_complete
+    (UniformContinuous.comp_cauchySeq (Completion.uniformContinuous_coe (α := P)) hcauchy)
+
+/-- Transport the line trace estimate from the endpoint zero to an equal endpoint. -/
+private theorem spectralLineQuotientKernel_tendsto_traceCauchy {F : Type*} [Field F] [NumberField F]
+    (a : ℝ) {s : ℝ} (hs : 1 < s)
+    (χ : PontryaginDual (ideleClassNorm F).ker → PontryaginDual (IdeleClassGroup (𝓞 F) F))
+    (eχ : PontryaginDual (ideleClassNorm F).ker ↪ ℕ)
+    (e : {z : PontryaginDual (ideleClassNorm F).ker × ℝ // 0 < order(χ z.1, shift(a, z.2))} ↪ ℕ × ℕ)
+    (hχ : IsSpectralBasepointChoice χ) (he : ∀ z, (e z).1 = eχ z.val.1)
+    (φ : BruhatCompactSupport (IdeleClassGroup (𝓞 F) F)) (l : ℝ) (hl : 0 = l) (hI : l ≤ 0)
+    (x' : SpectralLineJetIndex χ a s → spectralSobolevQuotient F a hI hs₀(hs))
+    (f' : SpectralLineJetIndex χ a s → StrongDual ℂ (spectralSobolevQuotient F a hI hs₀(hs)))
+    (hb : IsSpectralMarkushevichBasis x' f')
+    (hj : ∀ j, spectralSobolevDualEmbedding F a hI hs₀(hs) (f' j) =
+      cast (congrArg (fun r : ℝ ↦ CompactIntervalSobolev (ideleClassTamagawaMeasure F)
+        (fun g ↦ Real.log ((ideleClassNorm F g).val : ℝ)) r 0 s true) hl)
+        ((spectralLineJet_memLp χ hs j).toLp
+          (spectralZeroJet (F := F) (χ j.val.1) 0 j.val.2.1 j.val.2.2))) :
+    SpectralRectanglesTraceCauchy (fun ij ↦ spectralConvolutionFiniteSum
+      (spectralConvolution (F := F) a hI hs₀(hs) φ) x' f'
+      (((Finset.Iic ij.1).product (Finset.Iic ij.2)).preimage e e.injective.injOn)
+      (fun z ↦ spectralBoundaryMultiplicity s (mult(χ z.val.1, shift(a, z.val.2)))) jet) := by
+  subst l
+  exact spectralLineConvolution_traceCauchy (F := F) a χ hχ hs φ eχ e he x' f' hb hj
+
 /-- Paper: Theorem 10.4.3.1(2), p. 467, equation (10.4.3.13). The quotient
 kernel tensors converge along the directed net of finite rectangles.
 Deviation: The injections allow empty and finite zero sets. Use the strict
@@ -257,7 +366,9 @@ theorem spectralLineQuotientKernel_tendsto (_ha : 0 < a)
     (_hχ : IsSpectralBasepointChoice χ) (_he : ∀ z, (e z).1 = eχ z.val.1)
     (_horder : Order₀(χ, e)) (_hb : Bases₀(χ, x, f)) (φ : BruhatCompactSupport C𝔽) :
     ∃ K, Tendsto (spectralKernelRectangle e (fun z ↦ N(χ, z)) jet
-      (fun j ↦ (f j).comp (Aq₀(φ))) x) atTop (𝓝 K) := by sorry
+      (fun j ↦ (f j).comp (Aq₀(φ))) x) atTop (𝓝 K) := by
+  exact spectralLineQuotientKernel_tendsto_of_traceCauchy (Aq₀(φ)) x f e _ _
+    (spectralLineQuotientKernel_tendsto_traceCauchy a hs χ eχ e _hχ _he φ _ neg_zero.symm _ x f _hb.1 _hb.2)
 
 /-- Paper: Theorem 10.4.3.1(2), p. 467, equation (10.4.3.14). The ambient
 kernel tensors converge in the completed projective tensor product.
@@ -939,37 +1050,6 @@ local notation "Order(" χ ", " e ")" => (∀ z z' : Z(χ), z.val.1 = z'.val.1 �
 local notation "rectangle(" χ ", " e ")" =>
   spectralKernelRectangle e (fun z ↦ N(χ, z)) (fun z m ↦ jet(z, m))
 
-section TraceClassRectangles
-
-/-- Projective tensors for the finite quotient rectangles inherit their trace-norm limit. -/
-private theorem spectralKernelRectangle_limit_of_traceNorm {H Z J : Type*} [NormedAddCommGroup H] [InnerProductSpace ℂ H]
-    [CompleteSpace H] (A : H →L[ℂ] H) (x : J → H) (f : J → StrongDual ℂ H)
-    (e : Z ↪ ℕ × ℕ) (N : Z → ℕ) (i : (z : Z) → Fin (N z) → J)
-    (hc : let partialOp (ij : ℕ × ℕ) := spectralConvolutionFiniteSum A x f
-            (((Finset.Iic ij.1).product (Finset.Iic ij.2)).preimage e e.injective.injOn) N i
-          ∃ (hA : A ∈ traceClassOperators H H) (hB : ∀ ij, partialOp ij ∈ traceClassOperators H H),
-            Tendsto (fun ij ↦ schattenNorm (⟨partialOp ij, hB ij⟩ - ⟨A, hA⟩ : traceClassOperators H H))
-              atTop (𝓝 0)) :
-    ∃ K, Tendsto (spectralKernelRectangle e N i (fun j ↦ (f j).comp A) x) atTop (𝓝 K) := by
-  let rect (ij : ℕ × ℕ) := ((Finset.Iic ij.1).product (Finset.Iic ij.2)).preimage e e.injective.injOn
-  let partialOp (ij : ℕ × ℕ) := spectralConvolutionFiniteSum A x f (rect ij) N i
-  let w (ij : ℕ × ℕ) : StrongDual ℂ H ⊗[ℂ] H :=
-    ∑ z ∈ rect ij, ∑ m : Fin (N z), (f (i z m)).comp A ⊗ₜ[ℂ] x (i z m)
-  have hR (ij) : tensorToFiniteRank (w ij) = partialOp ij := by
-    unfold w partialOp spectralConvolutionFiniteSum
-    simp only [map_sum]
-    apply Finset.sum_congr rfl
-    intro z _
-    apply Finset.sum_congr rfl
-    intro m _
-    ext y
-    exact tensorToFiniteRank_tmul _ _ y
-  obtain ⟨hA, hB, hc⟩ := hc
-  exact exists_tendsto_projectiveTensor_of_traceNorm atTop w ⟨A, hA⟩
-    (fun ij ↦ ⟨partialOp ij, hB ij⟩) hR hc
-
-end TraceClassRectangles
-
 /-- Paper: Theorem 10.4.3.5(2), pp. 472–473, equation (10.4.3.42).
 The quotient tensors converge in the completed projective tensor topology.
 Deviation: The zero set is restricted to the strip, and its boundary and interior
@@ -983,9 +1063,8 @@ theorem spectralStripQuotientKernel_tendsto (_ha : 0 < a)
     (_horder : Order(χ, e)) (_hb : Bases(χ, x, f)) :
     ∃ K, Tendsto (rectangle(χ, e)
       (fun j ↦ (f j).comp (Aq(a, hα, hs₀(hs), φ))) x) atTop (𝓝 K) := by
-  classical
-  exact spectralKernelRectangle_limit_of_traceNorm (Aq(a, hα, hs₀(hs), φ)) x f e _ _
-    (spectralStripConvolution_schatten_tendsto (F := F) a χ _hχ hα hs φ eχ e _he x f _hb.1 _hb.2 1 le_rfl)
+  exact spectralLineQuotientKernel_tendsto_of_traceCauchy (Aq(a, hα, hs₀(hs), φ)) x f e _ _
+    (spectralStripConvolution_traceCauchy (F := F) a χ _hχ hα hs φ eχ e _he x f _hb.1 _hb.2)
 
 /-- Paper: Theorem 10.4.3.5(2), pp. 472–473, equation (10.4.3.43).
 The printed ambient rectangles with convolution transposed onto the input

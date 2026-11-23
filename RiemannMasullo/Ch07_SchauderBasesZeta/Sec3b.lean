@@ -1044,6 +1044,68 @@ theorem sLocalInvariantPW_principalValue {S₀ : Finset (HeightOneSpectrum (𝓞
     (Y : ℝ) (_hY : 0 < Y) :
     (invPW(hST, Y, χ)).map (PV(hRT, χ)) ≤ invPW(hST, size(R) * Y, χ) := by sorry
 
+/-- Modulo an arbitrary subspace, the kernel of the two moments is still closed:
+its preimage is the inverse image of a subspace of the moment plane. -/
+private theorem sLocalPW_principalValue_diagram_closed {E : Type*} [AddCommGroup E]
+    [Module ℂ E] [TopologicalSpace E] (K : Submodule ℂ E) (m : E →ₗ[ℂ] ℂ × ℂ)
+    (hm : Continuous m) : IsClosed (m.ker.map K.mkQ : Set (E ⧸ K)) := by
+  apply K.isQuotientMap_mkQ.isCoinducing.isClosed_preimage.mp
+  change IsClosed (((m.ker.map K.mkQ).comap K.mkQ : Submodule ℂ E) : Set E)
+  rw [Submodule.comap_map_mkQ, ← Submodule.comap_map_eq m K]
+  exact (K.map m).isClosed_of_finiteDimensional.preimage hm
+
+private theorem sLocalPW_principalValue_diagram_polar (χ : PontryaginDual J₁(T)) :
+    IsClosed ((Z₀(T)).map (q(T, χ)) : Set (Θ(T, χ))) := by
+  unfold sAdelePolarSubspace
+  apply sLocalPW_principalValue_diagram_closed
+  obtain ⟨L, hL⟩ := sLocal_fourier_continuousLinear (F := F) (S := T)
+  have he := schwartzBruhat_eval_continuous (Multiplicative.ofAdd (0 : SAdeleRing F T))
+  exact he.prodMk ((he.comp L.continuous).congr fun f ↦ congrArg (fun g : B(T) ↦
+    g (Multiplicative.ofAdd 0)) (hL f))
+
+private theorem sLocalPW_principalValue_diagram_empty (h : (∅ : Finset V) ⊆ T) :
+    sAdelePrincipalValue F h = LinearMap.id := by
+  have conj {E G Y : Type _} [AddCommGroup E] [Module ℂ E] [TopologicalSpace E]
+      [AddCommGroup G] [Module ℂ G] [TopologicalSpace G]
+      [AddCommGroup Y] [Module ℂ Y] [TopologicalSpace Y]
+      (e : InductiveTensor E G ≃L[ℂ] Y) (P : G →ₗ[ℂ] G) (hp : ∀ x, P x = x) :
+      e.toLinearMap.comp ((TensorProduct.map (LinearMap.id : E →ₗ[ℂ] E) P).comp e.symm.toLinearMap)
+        = LinearMap.id := by
+    have he : P = LinearMap.id := LinearMap.ext hp
+    subst he
+    exact LinearMap.ext fun x ↦ (congrArg e (LinearMap.congr_fun
+      (TensorProduct.map_id (R := ℂ) (M := E) (N := G)) (e.symm x))).trans (e.apply_symm_apply x)
+  unfold sAdelePrincipalValue
+  refine conj _ _ fun x ↦ ?_
+  simp only [Finset.notMem_empty, ite_false, PiTensorProduct.map_id]
+  rfl
+
+private theorem sLocalPW_principalValue_diagram_test (h : R ⊆ T) (χ : PontryaginDual J₁(T))
+    (u : (SAdeleRing F T)ˣ) (f : B(T)) :
+    q(T, χ) (sAdelePrincipalValue F h (schwartzBruhatUnitTranslate u f)) =
+      q(T, χ) (schwartzBruhatUnitTranslate u (sAdelePrincipalValue F h f)) := by
+  rcases R.eq_empty_or_nonempty with rfl | hn
+  · rw [sLocalPW_principalValue_diagram_empty h]
+    rfl
+  · apply (sLocalHomogeneousThetaSpace_mk_eq_iff χ _ _).2
+    have he := (sLocalAdelicThetaSpace_mk_eq_iff (F := F) (S := T) _ _).1
+      (sLocalThetaPrincipalValue_equivariant (F := F) h hn u f)
+    exact ContinuousMap.ext fun y ↦ by simp only [sLocalHomogeneousAdelicThetaLinearMap_apply, he]
+
+private theorem sLocalPW_principalValue_diagram_comm (h : R ⊆ T) (χ : PontryaginDual J₁(T))
+    (g : J(T)) (x : Θ(T, χ)) : PV(h, χ) (A(T, χ) g x) = A(T, χ) g (PV(h, χ) x) := by
+  let ρ := A(T, χ)
+  let U := PV(h, χ)
+  let Q := q(T, χ)
+  change U (ρ g x) = ρ g (U x)
+  have hx : Surjective (Q : B(T) → Θ(T, χ)) := Submodule.mkQ_surjective _
+  obtain ⟨u, hu⟩ := QuotientGroup.mk_surjective g
+  obtain ⟨f, hf⟩ := hx x
+  rw [← hu, ← hf]
+  have ha := (existsUnique_sLocalHomogeneousThetaAction (F := F) (S := T) χ).exists.choose_spec.2 u
+  exact ((congrArg U (ha f)).trans (sLocalPW_principalValue_diagram_test h χ u f)).trans
+    (ha (sAdelePrincipalValue F h f)).symm
+
 /-- Paper: Proposition 7.3.3.2, p. 358.
 There are inclusions along both rows of the PW diagram. The restrictions of the
 ambient principal value are continuous and commute with the translations.
@@ -1067,7 +1129,22 @@ theorem sLocalPW_principalValue_diagram {S₀ : Finset (HeightOneSpectrum (𝓞 
         (∀ x : b, (P' x).val = PV(hRT, χ) x.val) ∧
         ∀ (g : J(T)), 1 ≤ ((m(T) g).val : ℝ) →
           ∀ x : (Z₀(T)).map (q(T, χ)),
-            PV(hRT, χ) (A(T, χ) g x.val) = A(T, χ) g (PV(hRT, χ) x.val) := by sorry
+            PV(hRT, χ) (A(T, χ) g x.val) = A(T, χ) g (PV(hRT, χ) x.val) := by
+  have hsize : 0 < size(R) := Finset.prod_pos fun v _ ↦
+    Nat.cast_pos.mpr (zero_lt_one.trans (HeightOneSpectrum.one_lt_absNorm v))
+  have row (l r : ℝ) (hl : 0 < l) (hlr : l ^ count(S) ≤ r) : absPW(hST, l, χ) ≤ invPW(hST, r, χ) :=
+    (sLocalAbsolutePW_le_invariant hST l hl _ χ).trans (sLocalInvariantPW_mono hST hlr _ χ)
+  have polar (r : ℝ) : invPW(hST, r, χ) ≤ (Z₀(T)).map (q(T, χ)) :=
+    Submodule.topologicalClosure_minimal _ (Submodule.map_mono inf_le_right)
+      (sLocalPW_principalValue_diagram_polar χ)
+  let p : Θ(T, χ) →L[ℂ] Θ(T, χ) := ⟨PV(hRT, χ),
+    (sLocalHomogeneousThetaPrincipalValue_isClosedEmbedding hRT χ).continuous⟩
+  have hA := sLocalAbsolutePW_principalValue hST _hT hRT _hR _hsatR _hdis _hsat _hPic ω hu χ _hχ X _hX
+  have hB := sLocalInvariantPW_principalValue hST _hT hRT _hR _hsatR _hdis _hsat _hPic ω hu χ _hχ Y _hY
+  exact ⟨row _ _ _hX _hXY, row _ _ (mul_pos hsize _hX) _hXY', polar _, polar _,
+    (p.comp (absPW(hST, X, χ)).subtypeL).codRestrict _ (fun x ↦ hA ⟨x, x.property, rfl⟩),
+    (p.comp (invPW(hST, Y, χ)).subtypeL).codRestrict _ (fun x ↦ hB ⟨x, x.property, rfl⟩),
+    fun _ ↦ rfl, fun _ ↦ rfl, fun g _ x ↦ sLocalPW_principalValue_diagram_comm hRT χ g x.val⟩
 
 end PrincipalValues
 

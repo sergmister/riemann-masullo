@@ -3,6 +3,7 @@ module
 public import RiemannMasullo.Ch12_TraceGeometric.Sec5
 import RiemannMasullo.Ch10_TraceSpectral.Sec1
 import RiemannMasullo.AppB_AnalyticNT.Sec4b
+import RiemannMasullo.AppD_SchwartzBruhat.Sec1c
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec2b
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec3b
 
@@ -120,6 +121,71 @@ theorem mem_criticalTraceTestSubmodule_iff (τ : ℝ≥0ˣ →ₜ* C𝔽)
                 ∂normOneIdeleClassTamagawaMeasure F) ∂positiveRealHaar)
             (-((x : ℂ) * Complex.I)) = 0 := by sorry
 
+open scoped NumberField.AdeleRing in
+/-- The finite sign idele with real coordinate one gives a nontrivial involution. -/
+private theorem criticalTrace_rat_sign :
+    ∃ g : IdeleClassGroup (𝓞 ℚ) ℚ, g ≠ 1 ∧ g ^ 2 = 1 := by
+  have hs : ((1, -1) : 𝔸[ℚ]) * (1, -1) = 1 :=
+    Prod.ext (one_mul _) ((neg_mul_neg 1 1).trans (one_mul 1))
+  let s : IdeleGroup (𝓞 ℚ) ℚ := ⟨(1, -1), (1, -1), hs, hs⟩
+  let q := QuotientGroup.mk' (IdeleGroup.principalSubgroup (𝓞 ℚ) ℚ)
+  refine ⟨q s, ?_, ?_⟩
+  · intro h
+    obtain ⟨r, hr⟩ := (QuotientGroup.eq_one_iff s).mp h
+    have hval := (congrArg Units.val hr).trans (show s.val = (1, -1) from rfl)
+    have hreal := congrArg (fun x : 𝔸[ℚ] ↦ x.1 Rat.infinitePlace) hval
+    change algebraMap ℚ Rat.infinitePlace.Completion r.val = 1 at hreal
+    have hr₁ : r.val = 1 := (algebraMap ℚ Rat.infinitePlace.Completion).injective
+      (hreal.trans (map_one _).symm)
+    let v : HeightOneSpectrum (𝓞 ℚ) :=
+      Rat.HeightOneSpectrum.primesEquiv.symm ⟨3, Nat.prime_three⟩
+    have hfinite := congrArg (fun x : 𝔸[ℚ] ↦ x.2 v) hval
+    change algebraMap ℚ (v.adicCompletion ℚ) r.val = -1 at hfinite
+    rw [hr₁, map_one] at hfinite
+    have : (1 : ℚ) = -1 := (algebraMap ℚ (v.adicCompletion ℚ)).injective
+      (by simpa only [map_neg, map_one] using hfinite)
+    norm_num at this
+  · rw [← map_pow, sq]
+    exact (congrArg q (Units.ext hs)).trans (map_one q)
+
+open scoped ContDiff in
+/-- A nonnegative bump near one has nonzero moment against characters with positive
+real part on its support. -/
+private theorem criticalTrace_exists_nonzero_moments (χ : U𝔽) :
+    ∃ φ : D𝔽, ∀ η : U𝔽, (∀ x, 0 < (χ x : ℂ).re → 0 < (η x : ℂ).re) →
+      (∫ x, φ.val x * (η x : ℂ) ∂μ𝔽) ≠ 0 := by
+  have hχ : Continuous (fun x ↦ (χ x : ℂ).re) :=
+    Complex.continuous_re.comp (continuous_subtype_val.comp χ.continuous)
+  obtain ⟨v, hc, hs, hv⟩ := schwartzBruhat_exists_local_unit
+    (U := {x | 0 < (χ x : ℂ).re}) (isOpen_lt continuous_const hχ)
+    (x := 1) (by simp [map_one])
+  let p (z : ℂ) : ℂ := (z.re ^ 2 : ℝ)
+  have hp : ContDiff ℝ (∞) p := Complex.ofRealCLM.contDiff.comp (Complex.reCLM.contDiff.pow 2)
+  have hzero : p 0 = 0 := by simp [p]
+  obtain ⟨f, hf⟩ := compact_schwartzBruhat_comp hc hp hzero
+  have hfs : tsupport f.val ⊆ tsupport v.val := hf ▸ tsupport_comp_subset hzero _
+  have hfc : HasCompactSupport f.val := hc.of_isClosed_subset (isClosed_tsupport _) hfs
+  have hf₁ : f.val 1 = 1 := by rw [hf, comp_apply, hv.eq_of_nhds]; norm_num [p]
+  refine ⟨⟨f.val, (mem_bruhatSmoothSubmodule_iff _).mpr (schwartzBruhat_isBruhatSmooth f), hfc⟩, fun η hη ↦ ?_⟩
+  let G (x : C𝔽) := f.val x * (η x : ℂ)
+  have hG : Continuous G :=
+    (continuous_schwartzBruhat f).mul (continuous_subtype_val.comp η.continuous)
+  have hGc : HasCompactSupport G := hfc.mul_right
+  have hnonneg (x) : 0 ≤ (G x).re := by
+    by_cases hx : x ∈ tsupport f.val
+    · have he := hη x (hs (hfs hx))
+      change 0 ≤ (f.val x * (η x : ℂ)).re
+      rw [hf]
+      simpa only [p, Function.comp_def, Complex.mul_re, Complex.ofReal_re, Complex.ofReal_im,
+        zero_mul, sub_zero] using mul_nonneg (sq_nonneg (v.val x).re) he.le
+    · have hz := image_eq_zero_of_notMem_tsupport hx
+      simp [G, hz]
+  have hpos := (Complex.continuous_re.comp hG).integral_pos_of_hasCompactSupport_nonneg_ne_zero
+    (μ := μ𝔽) (hGc.comp_left Complex.zero_re) hnonneg (x := 1) (by simp [G, hf₁])
+  intro he
+  exact hpos.ne' ((integral_re (hG.integrable_of_hasCompactSupport hGc)).trans
+    (congrArg Complex.re he))
+
 /-- Paper: Theorem 13.3.1.1, p. 522. The rational Mellin-jet test subspace has
 codimension at least two, as witnessed by the trivial character and the character
 modulo four on the norm-one classes.
@@ -127,7 +193,110 @@ Deviation: This replaces the printed codimension one over `ℚ` by a lower bound
 theorem criticalTraceTestSubmodule_rat_codimension_ge_two
     (τ : ℝ≥0ˣ →ₜ* IdeleClassGroup (𝓞 ℚ) ℚ) (_hτ : RightInverse τ (ideleClassNorm ℚ)) :
     2 ≤ Module.rank ℂ (BruhatCompactSupport (IdeleClassGroup (𝓞 ℚ) ℚ) ⧸
-      criticalTraceTestSubmodule τ) := by sorry
+      criticalTraceTestSubmodule τ) := by
+  let g := criticalTrace_rat_sign.choose
+  have hg : g ≠ 1 := criticalTrace_rat_sign.choose_spec.1
+  have hg₂ : g ^ 2 = 1 := criticalTrace_rat_sign.choose_spec.2
+  have hn : ideleClassNorm ℚ g = 1 := sq_eq_one.mp (by rw [← map_pow, hg₂, map_one])
+  let ψ := (exists_pontryaginDual_apply_ne_one hg).choose
+  have hψ : ψ g ≠ 1 := (exists_pontryaginDual_apply_ne_one hg).choose_spec
+  let n : IdeleClassGroup (𝓞 ℚ) ℚ →ₜ* ℝ≥0ˣ :=
+    ⟨ideleClassNorm ℚ, (isProperMap_ideleClassNorm ℚ).continuous⟩
+  -- Retract onto the norm-one classes so the character is trivial on the section.
+  let r : IdeleClassGroup (𝓞 ℚ) ℚ →ₜ* IdeleClassGroup (𝓞 ℚ) ℚ :=
+    ContinuousMonoidHom.id _ / τ.comp n
+  let χ : PontryaginDual (IdeleClassGroup (𝓞 ℚ) ℚ) := ψ.comp r
+  have hr (x) : r x = x / τ (ideleClassNorm ℚ x) := rfl
+  have hχτ (t) : χ (τ t) = 1 := by
+    change ψ (r (τ t)) = 1
+    rw [hr, _hτ t, div_self', map_one]
+  have hχg : (χ g : ℂ) = -1 := by
+    have he : ψ (r g) = ψ g := by rw [hr, hn, map_one, div_one]
+    change (ψ (r g) : ℂ) = -1
+    rw [he]
+    have hsq : (ψ g : ℂ) ^ 2 = 1 := by
+      rw [← Circle.coe_pow, ← map_pow, hg₂, map_one, Circle.coe_one]
+    exact (sq_eq_one_iff.mp hsq).resolve_left (fun h ↦ hψ (Subtype.ext h))
+  let f := (criticalTrace_exists_nonzero_moments χ).choose
+  have hf := (criticalTrace_exists_nonzero_moments χ).choose_spec
+  let f' : SchwartzBruhat (IdeleClassGroup (𝓞 ℚ) ℚ) :=
+    ⟨f.val, bruhatCompactSupport_mem_schwartz f.property⟩
+  let v := schwartzBruhatTranslate g f'
+  let u : BruhatCompactSupport (IdeleClassGroup (𝓞 ℚ) ℚ) :=
+    ⟨v.val, (mem_bruhatSmoothSubmodule_iff _).mpr (schwartzBruhat_isBruhatSmooth v),
+      f.property.2.comp_homeomorph (Homeomorph.mulLeft g⁻¹)⟩
+  let M (η : PontryaginDual (IdeleClassGroup (𝓞 ℚ) ℚ)) :=
+    (criticalTraceMoment_isLinearMap η 0).mk' _
+  have hM (η) (w : BruhatCompactSupport (IdeleClassGroup (𝓞 ℚ) ℚ)) :
+      M η w = ∫ x, w.val x * (η x : ℂ) ∂ideleClassTamagawaMeasure ℚ := by
+    change (∫ x, w.val x * spectralZeroJet η 0 0 0 x ∂ideleClassTamagawaMeasure ℚ) = _
+    simp only [spectralZeroJet_zero]
+  have hMu (η) : M η u = (η g : ℂ) * M η f := by
+    let μ := ideleClassTamagawaMeasure ℚ
+    let integrand x := u.val x * (η x : ℂ)
+    calc
+      M η u = ∫ x, integrand x ∂μ := hM η u
+      _ = ∫ x, integrand (g * x) ∂μ :=
+        (integral_mul_left_eq_self (μ := μ) integrand g).symm
+      _ = ∫ x, (η g : ℂ) * (f.val x * (η x : ℂ)) ∂μ := by
+        apply integral_congr_ae
+        exact Filter.Eventually.of_forall fun x ↦ by
+          change v (g * x) * (η (g * x) : ℂ) = _
+          rw [schwartzBruhatTranslate_apply_mul, map_mul, Circle.coe_mul, mul_left_comm]
+      _ = (η g : ℂ) * (∫ x, f.val x * (η x : ℂ) ∂μ) := integral_const_mul _ _
+      _ = (η g : ℂ) * M η f := congrArg ((η g : ℂ) * ·) (hM η f).symm
+  let L := (M 1).prod (M χ)
+  have hL : criticalTraceTestSubmodule τ ≤ LinearMap.ker L := by
+    intro w hw
+    let k : Fin (Module.finrank ℚ ℚ) := ⟨0, by simp⟩
+    have hm (η : {η : PontryaginDual (IdeleClassGroup (𝓞 ℚ) ℚ) // ∀ t, η (τ t) = 1}) :
+        M η.val w = 0 := by
+      have hle : criticalTraceTestSubmodule τ ≤ (M η.val).ker :=
+        iInf_le_of_le η (iInf_le _ k)
+      exact hle hw
+    exact LinearMap.mem_ker.mpr (Prod.ext (hm ⟨1, by simp⟩) (hm ⟨χ, hχτ⟩))
+  let A := M 1 f
+  let B := M χ f
+  have hA : A ≠ 0 := by
+    rw [show A = M 1 f from rfl, hM]
+    exact hf 1 (by simp)
+  have hB : B ≠ 0 := by
+    rw [show B = M χ f from rfl, hM]
+    exact hf χ (fun _ h ↦ h)
+  have hLf : L f = (A, B) := rfl
+  have hLu : L u = (A, -B) := by
+    change (M 1 u, M χ u) = (A, -B)
+    refine Prod.ext ((hMu 1).trans ?_) ((hMu χ).trans ?_)
+    · change (1 : ℂ) * A = A
+      exact one_mul A
+    · exact (congrArg (· * B) hχg).trans (neg_one_mul B)
+  let Q := (criticalTraceTestSubmodule τ).liftQ L hL
+  have hQ : Surjective Q := by
+    intro z
+    let a := z.1
+    let b := z.2
+    let c := (a / A + b / B) / 2
+    let d := (a / A - b / B) / 2
+    refine ⟨(criticalTraceTestSubmodule τ).mkQ (c • f + d • u), ?_⟩
+    change L (c • f + d • u) = z
+    calc
+      L (c • f + d • u) = L (c • f) + L (d • u) := L.map_add _ _
+      _ = c • (A, B) + d • (A, -B) :=
+        congrArg₂ (· + ·) ((L.map_smul c f).trans (congrArg (c • ·) hLf))
+          ((L.map_smul d u).trans (congrArg (d • ·) hLu))
+      _ = z := by
+        apply Prod.ext
+        · change c * A + d * A = a
+          dsimp [c, d]
+          field_simp [hA, hB]
+          ring
+        · change c * B + d * (-B) = b
+          dsimp [c, d]
+          field_simp [hA, hB]
+          ring
+  calc
+    2 = Module.rank ℂ (ℂ × ℂ) := by rw [rank_prod', Module.rank_self]; norm_num
+    _ ≤ _ := Q.rank_le_of_surjective hQ
 
 local notation "lineZeros(" τ ")" =>
   {z : sectionCharacters(τ) × ℂ // 0 < ord(z.1.val, z.2) ∧ z.2.re = 1 / 2}

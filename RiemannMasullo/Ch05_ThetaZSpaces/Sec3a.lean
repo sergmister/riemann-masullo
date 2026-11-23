@@ -3,6 +3,8 @@ module
 public import RiemannMasullo.Ch05_ThetaZSpaces.Sec2b
 public import RiemannMasullo.Ch03_IdelicZeta.Sec4
 public import Mathlib.Analysis.Distribution.Support
+
+import Mathlib.Analysis.Calculus.FDeriv.Symmetric
 public import Mathlib.Analysis.Calculus.BumpFunction.FiniteDimension
 public import Mathlib.Algebra.MvPolynomial.Degrees
 public import Mathlib.RingTheory.MvPowerSeries.PiTopology
@@ -2434,6 +2436,92 @@ theorem distribution_coordinatePlane_decomposition_apply_tmul {N : ℕ} (T : �
     (hf : ∀ x : Eᵣ(ι ⊕ κ), f x = factors(g, h, x)) :
     T f = ∑ α : index(N), (∂𝒟[ι, normal(α)] g) 0 * A α (∂𝒟[κ, tangent(α)] h) := by sorry
 
+private theorem coordinateDerivative_split_sum {M : Type*} [Monoid M] (D : (ι ⊕ κ) → M)
+    (hc : ∀ i j, Commute (D i) (D j)) (a : (ι ⊕ κ) → ℕ) :
+    coordinateDerivative D a =
+      coordinateDerivative (D ∘ Sum.inr) (a ∘ Sum.inr) *
+        coordinateDerivative (D ∘ Sum.inl) (a ∘ Sum.inl) := by
+  classical
+  let l := (Finset.univ : Finset (ι ⊕ κ)).toList
+  let r := (Finset.univ : Finset κ).toList
+  let s := (Finset.univ : Finset ι).toList
+  have hp : l.Perm (r.map Sum.inr ++ s.map Sum.inl) := by
+    apply (List.perm_ext_iff_of_nodup (Finset.nodup_toList _) _).2
+    · intro i; cases i <;> simp [r, s]
+    · apply List.nodup_append'.2
+      refine ⟨(Finset.nodup_toList _).map Sum.inr_injective,
+        (Finset.nodup_toList _).map Sum.inl_injective, ?_⟩
+      apply List.disjoint_left.mpr
+      rintro _ h₁ h₂
+      obtain ⟨_, _, rfl⟩ := List.mem_map.mp h₁
+      simp at h₂
+  have h := (hp.map (fun i ↦ D i ^ a i)).prod_eq' (List.pairwise_map.mpr
+    (List.pairwise_of_forall_mem_list (fun i _ j _ ↦ (hc i j).pow_pow _ _)))
+  simpa [coordinateDerivative, l, r, s, List.map_append, List.map_map, Function.comp_def] using h
+
+private theorem coordinateDerivative_line_commute (v w : Eᵣ(ι)) :
+    Commute (LineDeriv.lineDerivOpCLM ℂ 𝒟(ι) v : 𝒟(ι) →L[ℂ] 𝒟(ι))
+      (LineDeriv.lineDerivOpCLM ℂ 𝒟(ι) w) := by
+  have hd (u : Eᵣ(ι)) (g : 𝒟(ι)) :
+      ⇑((LineDeriv.lineDerivOpCLM ℂ 𝒟(ι) u : 𝒟(ι) →L[ℂ] 𝒟(ι)) g) =
+        fun y ↦ fderiv ℝ (⇑g) y u := by
+    ext y
+    rw [TestFunction.lineDerivOpCLM_eq_lineDerivCLM, TestFunction.lineDerivCLM_eq_fderivCLM,
+      TestFunction.fderivCLM_apply_of_le g le_top]
+  apply ContinuousLinearMap.ext
+  intro f
+  apply TestFunction.ext
+  intro x
+  simp only [mul_apply_eq_comp, hd]
+  have hf : DifferentiableAt ℝ (fderiv ℝ ⇑f) x :=
+    ((f.contDiff.fderiv_right (m := 1) (by simp)).differentiable one_ne_zero).differentiableAt
+  simp only [fderiv_clm_apply hf (differentiableAt_const _), fderiv_fun_const, Pi.zero_apply,
+    ContinuousLinearMap.comp_zero, zero_add, ContinuousLinearMap.flip_apply]
+  exact f.contDiff.contDiffAt.isSymmSndFDerivAt (by simp) v w
+
+open Classical in
+private theorem coordinateDerivative_plane_line (R : 𝒟(ι ⊕ κ) →L[ℂ] 𝒟(κ))
+    (hR : ∀ (f : 𝒟(ι ⊕ κ)) (y : Eᵣ(κ)), R f y = f (insertPlane y))
+    (j : κ) (f : 𝒟(ι ⊕ κ)) :
+    R ((LineDeriv.lineDerivOpCLM ℂ 𝒟(ι ⊕ κ) (eᵣ (Sum.inr j) : Eᵣ(ι ⊕ κ)) :
+        𝒟(ι ⊕ κ) →L[ℂ] 𝒟(ι ⊕ κ)) f) =
+      (LineDeriv.lineDerivOpCLM ℂ 𝒟(κ) (eᵣ j : Eᵣ(κ)) : 𝒟(κ) →L[ℂ] 𝒟(κ)) (R f) := by
+  classical
+  apply TestFunction.ext
+  intro y
+  simp only [hR, TestFunction.lineDerivOpCLM_eq_lineDerivCLM,
+    TestFunction.lineDerivCLM_apply_of_le le_top, lineDeriv]
+  congr 1
+  funext t
+  congr 1
+  ext i
+  cases i <;> simp
+
+open Classical in
+private theorem coordinateDerivative_plane_restrict (R : 𝒟(ι ⊕ κ) →L[ℂ] 𝒟(κ))
+    (hR : ∀ (f : 𝒟(ι ⊕ κ)) (y : Eᵣ(κ)), R f y = f (insertPlane y))
+    (a : (ι ⊕ κ) → ℕ) (f : 𝒟(ι ⊕ κ)) :
+    R (∂𝒟[ι ⊕ κ, a] f) = ∂𝒟[κ, a ∘ Sum.inr]
+      (R (∂𝒟[ι ⊕ κ, Sum.elim (a ∘ Sum.inl) (0 : κ → ℕ)] f)) := by
+  let D (i : ι ⊕ κ) := (LineDeriv.lineDerivOpCLM ℂ 𝒟(ι ⊕ κ) (eᵣ i : Eᵣ(ι ⊕ κ)) :
+    𝒟(ι ⊕ κ) →L[ℂ] 𝒟(ι ⊕ κ))
+  let d (j : κ) := (LineDeriv.lineDerivOpCLM ℂ 𝒟(κ) (eᵣ j : Eᵣ(κ)) : 𝒟(κ) →L[ℂ] 𝒟(κ))
+  have hD (i j : ι ⊕ κ) : Commute (D i) (D j) := coordinateDerivative_line_commute _ _
+  have hd (j : κ) : Semiconj R (D (.inr j)) (d j) := coordinateDerivative_plane_line R hR j
+  have hprod (l : List κ) : Semiconj R
+      ((l.map fun j ↦ D (.inr j) ^ a (.inr j)).prod : 𝒟(ι ⊕ κ) →L[ℂ] 𝒟(ι ⊕ κ))
+      ((l.map fun j ↦ d j ^ a (.inr j)).prod : 𝒟(κ) →L[ℂ] 𝒟(κ)) := by
+    induction l with
+    | nil => exact fun _ ↦ rfl
+    | cons j l ih =>
+      simpa only [List.map_cons, List.prod_cons, FunLike.coe_mul_eq_comp,
+        FunLike.coe_pow_eq_iterate] using ((hd j).iterate_right (a (.inr j))).comp_right ih
+  let b := Sum.elim (a ∘ Sum.inl) (0 : κ → ℕ)
+  change R (coordinateDerivative D a f) = coordinateDerivative d _ (R (coordinateDerivative D b f))
+  rw [coordinateDerivative_split_sum D hD a, coordinateDerivative_split_sum D hD b]
+  rw [show b ∘ Sum.inr = 0 from rfl, coordinateDerivative_zero, one_mul, mul_apply_eq_comp]
+  exact hprod _ _
+
 open Classical in
 /-- Paper: Theorem 5.3.2.3(4), p. 245.
 Tensoring a normal Dirac derivative with a tangential distribution is the transposed normal
@@ -2460,7 +2548,18 @@ theorem distribution_coordinatePlane_decomposition_eq_sum {N : ℕ} (T : 𝒟'(�
     (hA : ∀ f : 𝒟(ι ⊕ κ), T f = ∑ α : index(N), A α (R𝒟 (∂𝒟[ι ⊕ κ, multi(α)] f))) :
     T = ∑ α : index(N), (-1 : ℂ)^weight(multi(α)) •
       coordinatePlaneDiracTensor (normal(α))
-        ((-1 : ℂ)^weight(tangent(α)) • (A α).comp ∂𝒟[κ, tangent(α)]) := by sorry
+        ((-1 : ℂ)^weight(tangent(α)) • (A α).comp ∂𝒟[κ, tangent(α)]) := by
+  ext f
+  rw [hA, sum_apply]
+  apply Finset.sum_congr rfl
+  intro α _
+  simp only [coordinatePlaneDiracTensor, smul_apply, ContinuousLinearMap.comp_apply,
+    smul_eq_mul]
+  rw [coordinateDerivative_plane_restrict R𝒟
+    exists_testFunction_coordinatePlaneRestriction.choose_spec (multi(α)) f]
+  rw [← mul_assoc ((-1 : ℂ)^weight(normal(α))) _ _, ← pow_add,
+    ← Fintype.sum_sum_type (multi(α)), ← mul_assoc, ← mul_pow]
+  simp [Function.comp_def]
 
 open Classical in
 /-- Paper: Theorem 5.3.2.3(5), p. 245.

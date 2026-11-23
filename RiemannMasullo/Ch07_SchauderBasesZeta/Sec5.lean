@@ -68,12 +68,78 @@ abbrev StrongCoprimalityDecaySpace (ω : PontryaginDual C₁) :=
   ↥(modulatedDecayIsotype m𝔽 univ (mem_univ (0 : ℝ)) ω)
 
 /-- Paper: Equation (7.5.0.2), p. 374.
+The homogeneous theta transform of a zero-moment test is an exponentially decaying function of
+the given isotype, continuously in the test. Continuity is with respect to the topology of the
+zero-moment test space and that of the isotype. -/
+theorem exists_strongCoprimalityThetaLinearMap (ω : PontryaginDual C₁) :
+    ∃ T : P →L[ℂ] StrongCoprimalityDecaySpace ω, ∀ (f : P) (g : C𝔽),
+      (T f).val.val g = homogeneousAdelicThetaLinearMap F ω f.val g := by sorry
+
+private theorem exists_strongCoprimalityThetaEmbedding_ker_le (ω : PontryaginDual C₁)
+    (T : P →L[ℂ] StrongCoprimalityDecaySpace ω)
+    (hT : ∀ (f : P) (g : C𝔽),
+      (T f).val.val g = homogeneousAdelicThetaLinearMap F ω f.val g) :
+    K(ω) ≤ T.ker := by
+  intro f hf
+  rw [LinearMap.mem_ker]
+  have h0 : (homogeneousAdelicThetaLinearMap F ω) (f : P) = 0 := by
+    simpa only [LinearMap.mem_ker, LinearMap.domRestrict_apply] using hf
+  refine Subtype.ext (Subtype.ext (funext fun g ↦ ?_))
+  have hg : (T f).val.val g = 0 := by
+    rw [hT, h0]
+    simp
+  exact hg.trans (by rfl)
+
+/-- Paper: Equation (7.5.0.2), p. 374.
+Two zero-moment tests with the same homogeneous theta function give the same class, so a
+map with the theta values separates the classes of the pole-free theta space. -/
+private theorem exists_strongCoprimalityThetaEmbedding_injective (ω : PontryaginDual C₁)
+    (j : StrongCoprimalityThetaSpace ω →L[ℂ] StrongCoprimalityDecaySpace ω)
+    (hj : ∀ (f : P) (g : C𝔽),
+      (j ((K(ω)).mkQ f)).val.val g = homogeneousAdelicThetaLinearMap F ω f.val g) :
+    Function.Injective j := by
+  intro x y hxy
+  obtain ⟨f, rfl⟩ := (K(ω)).mkQ_surjective x
+  obtain ⟨f', rfl⟩ := (K(ω)).mkQ_surjective y
+  have hθ : (homogeneousAdelicThetaLinearMap F ω) (f : P) =
+      (homogeneousAdelicThetaLinearMap F ω) (f' : P) := by
+    ext g
+    rw [← hj f g, ← hj f' g, hxy]
+  have hmem : f - f' ∈ (K(ω) : Submodule ℂ P) := by
+    rw [LinearMap.mem_ker, LinearMap.domRestrict_apply, Submodule.coe_sub, map_sub, hθ, sub_self]
+  rw [Submodule.mkQ_apply, Submodule.mkQ_apply, Submodule.Quotient.eq]
+  exact hmem
+
+/-- Paper: Equation (7.5.0.2), p. 374.
+The homogeneous theta functions of zero-moment tests form a closed subspace of the
+exponentially decaying isotype, so the theta transform is a topological embedding.
+The paper obtains this from the Mellin model of §7.4, where the theta image is the
+closed denominator of the nuclearity quotient. -/
+private theorem exists_strongCoprimalityThetaEmbedding_isInducing (ω : PontryaginDual C₁)
+    (j : StrongCoprimalityThetaSpace ω →L[ℂ] StrongCoprimalityDecaySpace ω)
+    (hj : ∀ (f : P) (g : C𝔽),
+      (j ((K(ω)).mkQ f)).val.val g = homogeneousAdelicThetaLinearMap F ω f.val g) :
+    IsInducing j := by sorry
+
+/-- Paper: Equation (7.5.0.2), p. 374.
 The topological linear embedding takes a zero-moment test class to its homogeneous theta
 function, viewed in the corresponding exponentially decaying isotype. -/
 theorem exists_strongCoprimalityThetaEmbedding (ω : PontryaginDual C₁) :
     ∃ j : StrongCoprimalityThetaSpace ω →L[ℂ] StrongCoprimalityDecaySpace ω,
       IsEmbedding j ∧ ∀ (f : P) (g : C𝔽),
-        (j ((K(ω)).mkQ f)).val.val g = homogeneousAdelicThetaLinearMap F ω f.val g := by sorry
+        (j ((K(ω)).mkQ f)).val.val g = homogeneousAdelicThetaLinearMap F ω f.val g := by
+  obtain ⟨T, hT⟩ := exists_strongCoprimalityThetaLinearMap (F := F) ω
+  have hker : K(ω) ≤ T.ker :=
+    exists_strongCoprimalityThetaEmbedding_ker_le (F := F) ω T hT
+  set j : StrongCoprimalityThetaSpace ω →L[ℂ] StrongCoprimalityDecaySpace ω :=
+    (K(ω)).liftQL T hker with hj
+  have hformula : ∀ (f : P) (g : C𝔽),
+      (j ((K(ω)).mkQ f)).val.val g = homogeneousAdelicThetaLinearMap F ω f.val g := by
+    intro f g
+    rw [hj, Submodule.liftQL_apply, Submodule.mkQ_apply, Submodule.liftQ_apply]
+    exact hT f g
+  exact ⟨j, ⟨exists_strongCoprimalityThetaEmbedding_isInducing (F := F) ω j hformula,
+      exists_strongCoprimalityThetaEmbedding_injective (F := F) ω j hformula⟩, hformula⟩
 
 private theorem strongCoprimalityPrincipalValue_mem_polar_of_line
     {E : Type*} [AddCommGroup E] [Module ℂ E] [TopologicalSpace E]

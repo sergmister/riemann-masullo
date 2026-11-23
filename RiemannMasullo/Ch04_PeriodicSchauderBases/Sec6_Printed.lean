@@ -1,13 +1,19 @@
 module
 
 public import RiemannMasullo.Ch04_PeriodicSchauderBases.Sec6
+import RiemannMasullo.Ch04_PeriodicSchauderBases.Sec3a
+import RiemannMasullo.ForMathlib.MeasureTheory.Group.Arithmetic
+import RiemannMasullo.ForMathlib.Analysis.SpecialFunctions.Pow.Complex
+import Mathlib.Analysis.SpecialFunctions.Trigonometric.Bounds
+import Mathlib.Topology.Algebra.Module.Equiv.Submodule
+import Mathlib.Topology.Baire.CompleteMetrizable
 
 /-! # §4.6 assertions that are false as printed -/
 
 @[expose] public noncomputable section
 
-open MeasureTheory Set
-open scoped NNReal
+open Filter Function MeasureTheory Set
+open scoped NNReal Topology
 
 namespace RiemannMasullo
 
@@ -37,17 +43,443 @@ def Printed.modulatedQuotientLogMoment_biorthogonal_basis : Prop :=
       ∀ σ : ℕ ≃ J, ∃ ψ : J → U,
         IsSchauderBasis (ψ ∘ σ) (D ∘ σ) ∧ SchauderBasis.IsAbsolute (ψ ∘ σ) (D ∘ σ)
 
+/-- Any prescribed positive one-sided approximation errors occur at arbitrarily large
+denominators for some real number between one and two. -/
+private theorem exists_superApproximation (η : ℕ → ℝ) (hη : ∀ n, 0 < η n) :
+    ∃ B : ℝ, 1 < B ∧ B < 2 ∧ ∀ N : ℕ, ∃ q ≥ N, 0 < q ∧
+      ∃ p : ℤ, 0 < B - (p : ℝ) / q ∧ B - (p : ℝ) / q < η q := by
+  let U (N : ℕ) : Set ℝ := ⋃ (q : ℕ) (_ : N ≤ q) (_ : 0 < q) (p : ℤ),
+    Ioo ((p : ℝ) / q) ((p : ℝ) / q + η q)
+  have hOpen (N : ℕ) : IsOpen (U N) := isOpen_iUnion fun _ => isOpen_iUnion fun _ =>
+    isOpen_iUnion fun _ => isOpen_iUnion fun _ => isOpen_Ioo
+  have hDense (N : ℕ) : Dense (U N) := by
+    intro x
+    refine Rat.denseRange_cast.induction_on x isClosed_closure fun r => ?_
+    let q := r.den * (N + 1)
+    let p : ℤ := r.num * (N + 1 : ℕ)
+    have hq : N ≤ q := (Nat.le_succ N).trans (Nat.le_mul_of_pos_left _ r.den_pos)
+    have hq0 : 0 < q := Nat.mul_pos r.den_pos (Nat.succ_pos _)
+    have hr : (r : ℝ) = (p : ℝ) / q := by
+      rw [Rat.cast_def]
+      dsimp [q, p]
+      push_cast
+      field_simp
+    have hh : (r : ℝ) < r + η q := lt_add_of_pos_right _ (hη q)
+    apply closure_mono (s := Ioo (r : ℝ) (r + η q)) ?_
+    · rw [closure_Ioo hh.ne]
+      exact ⟨le_rfl, hh.le⟩
+    · rw [hr]
+      exact subset_iUnion_of_subset q <| subset_iUnion_of_subset hq <|
+        subset_iUnion_of_subset hq0 <| subset_iUnion_of_subset p Subset.rfl
+  obtain ⟨B, hB, hU⟩ := (dense_iInter_of_isOpen_nat hOpen hDense).inter_open_nonempty
+    (Ioo 1 2) isOpen_Ioo (nonempty_Ioo.mpr (by norm_num))
+  refine ⟨B, hB.1, hB.2, fun N => ?_⟩
+  have hm := mem_iInter.mp hU N
+  simp only [U, mem_iUnion, mem_Ioo] at hm
+  obtain ⟨q, hq, hq0, p, h1, h2⟩ := hm
+  exact ⟨q, hq, hq0, p, sub_pos.mpr h1, sub_lt_iff_lt_add'.mpr h2⟩
+
+/-- The Fourier lattice gaps can be smaller than the value of the Gaussian at the
+higher frequency for arbitrarily large positive denominators. -/
+private theorem exists_gaussian_smallDivisors :
+    ∃ B : ℝ, 1 < B ∧ B < 2 ∧ ∀ N : ℕ, ∃ q ≥ N, 0 < q ∧ ∃ p : ℤ,
+      let y := 2 * Real.pi * q / B
+      let v := 2 * Real.pi * p / B ^ 2
+      0 < y - v ∧ (N : ℝ) * (y - v) < Real.exp (-(y ^ 2)) := by
+  let c := 2 * Real.pi
+  have hc : 0 < c := by dsimp [c]; positivity
+  let η (q : ℕ) := Real.exp (-((c * q) ^ 2)) / (c * (q + 1) ^ 2)
+  have hη (q : ℕ) : 0 < η q := by dsimp [η]; positivity
+  obtain ⟨B, hB, hB2, hA⟩ := exists_superApproximation η hη
+  refine ⟨B, hB, hB2, fun N => ?_⟩
+  obtain ⟨q, hq, hq0, p, hpos, hsmall⟩ := hA N
+  refine ⟨q, hq, hq0, p, ?_⟩
+  have hq' : 0 < (q : ℝ) := by exact_mod_cast hq0
+  have hB' : 0 < B := zero_lt_one.trans hB
+  have hgap : c * q / B - c * p / B ^ 2 = (c * q / B ^ 2) * (B - p / q) := by
+    field_simp
+  change 0 < c * q / B - c * p / B ^ 2 ∧
+    (N : ℝ) * (c * q / B - c * p / B ^ 2) < Real.exp (-((c * q / B) ^ 2))
+  rw [hgap]
+  refine ⟨mul_pos (by positivity) hpos, ?_⟩
+  have hqc : 0 < c * (q + 1 : ℝ) ^ 2 := by positivity
+  have hle : c * q / B ^ 2 ≤ c * (q + 1) := by
+    have hBsq : 1 ≤ B ^ 2 := one_le_pow₀ hB.le
+    exact (div_le_self (by positivity) hBsq).trans (mul_le_mul_of_nonneg_left (by linarith) hc.le)
+  have hNq : (N : ℝ) ≤ (q : ℝ) + 1 := by exact_mod_cast Nat.le_succ_of_le hq
+  have hfactor : (N : ℝ) * (c * q / B ^ 2) ≤ c * (q + 1) ^ 2 := by
+    calc
+      _ ≤ ((q : ℝ) + 1) * (c * (q + 1)) :=
+        mul_le_mul hNq hle (by positivity) (by positivity)
+      _ = _ := by ring
+  calc
+    (N : ℝ) * ((c * q / B ^ 2) * (B - p / q)) ≤ (c * (q + 1) ^ 2) * (B - p / q) := by
+      rw [← mul_assoc]
+      exact mul_le_mul_of_nonneg_right hfactor hpos.le
+    _ < (c * (q + 1) ^ 2) * η q := mul_lt_mul_of_pos_left hsmall hqc
+    _ = Real.exp (-((c * q) ^ 2)) := by dsimp [η]; field_simp
+    _ ≤ Real.exp (-((c * q / B) ^ 2)) := Real.exp_le_exp.mpr <|
+      neg_le_neg (pow_le_pow_left₀ (by positivity) (div_le_self (by positivity) hB.le) 2)
+
+/-- A pointwise bounded family of scalar-valued continuous linear maps on a quotient of a
+barrelled space is dominated by a continuous quotient seminorm. -/
+private theorem quotient_sup_seminorm {E U ι : Type*} [AddCommGroup E] [Module ℂ E]
+    [TopologicalSpace E] [BarrelledSpace ℂ E] [AddCommGroup U] [Module ℂ U]
+    [TopologicalSpace U] (π : E →L[ℂ] U) (hπ : Topology.IsQuotientMap π)
+    (L : ι → StrongDual ℂ U) (hL : ∀ x, BddAbove (range fun i => ‖L i x‖)) :
+    ∃ q : Seminorm ℂ U, Continuous q ∧ ∀ i x, ‖L i x‖ ≤ q x := by
+  have : BarrelledSpace ℂ U := by
+    constructor
+    intro p hp
+    apply hπ.continuous_iff.mpr
+    exact (p.comp π.toLinearMap).continuous_of_lowerSemicontinuous
+      (hp.comp π.continuous)
+  let s (i : ι) := (normSeminorm ℂ ℂ).comp (L i).toLinearMap
+  have hb : BddAbove (range s) := Seminorm.bddAbove_range_iff.mpr hL
+  refine ⟨⨆ i, s i, ?_, fun i => le_ciSup hb i⟩
+  rw [Seminorm.coe_iSup_eq hb]
+  exact Seminorm.continuous_iSup s (fun i => (L i).continuous.norm) hb
+
+section
+local notation "G₊" => ℝ≥0ˣ
+local notation "m₊" => ContinuousMonoidHom.id ℝ≥0ˣ
+local notation "ω₊" => (1 : PontryaginDual m₊.toMonoidHom.ker)
+local notation "H₊" => modulatedDecayIsotype m₊ (univ : Set ℝ) (mem_univ (0 : ℝ)) ω₊
+local notation "M₊" => positiveRealFourierMellin univ isOpen_univ ordConnected_univ univ_nonempty
+
+local instance Printed.positiveMoment_borelSpace : BorelSpace G₊ :=
+  borelSpace_units_of_continuousInv₀ ℝ≥0
+
+local instance Printed.positiveMoment_secondCountable : SecondCountableTopology G₊ :=
+  Units.isEmbedding_val₀.secondCountableTopology
+
+private theorem Printed.positiveMoment_identity : IsModulation m₊ := by
+  refine ⟨isProperMap_id, ⟨Units.mk0 2 (by norm_num), ?_⟩⟩
+  intro h
+  have := congrArg (fun t : G₊ ↦ (t.val : ℝ)) h
+  norm_num at this
+
+private def Printed.positiveMoment_exp (x : ℝ) : G₊ :=
+  Units.mk0 (Real.exp x).toNNReal (by positivity)
+
+private theorem Printed.positiveMoment_exp_val (x : ℝ) :
+    ((Printed.positiveMoment_exp x).val : ℝ) = Real.exp x :=
+  Real.coe_toNNReal _ (Real.exp_pos x).le
+
+private theorem Printed.positiveMoment_log_exp (x : ℝ) :
+    Real.log ((Printed.positiveMoment_exp x).val : ℝ) = x := by
+  rw [Printed.positiveMoment_exp_val, Real.log_exp]
+
+private def Printed.positiveMoment_character (s : ℝ) : PontryaginDual G₊ where
+  toFun t := Circle.exp (s * Real.log (t.val : ℝ))
+  map_one' := by simp
+  map_mul' a b := by
+    have hpos (t : G₊) : 0 < (t.val : ℝ) := NNReal.coe_pos.mpr (Units.zero_lt _)
+    rw [Units.val_mul, NNReal.coe_mul, Real.log_mul (hpos a).ne' (hpos b).ne', mul_add, Circle.exp_add]
+  continuous_toFun := Circle.exp.continuous.comp (continuous_const.mul
+    ((NNReal.continuous_coe.comp Units.continuous_val).log
+      fun t ↦ (NNReal.coe_pos.mpr (Units.zero_lt t)).ne'))
+
+private theorem Printed.positiveMoment_character_power (s : ℝ) (t : G₊) :
+    (Printed.positiveMoment_character s t : ℂ) = ((t.val : ℝ) : ℂ) ^ ((s : ℂ) * Complex.I) := by
+  have hpos : 0 < (t.val : ℝ) := NNReal.coe_pos.mpr (Units.zero_lt _)
+  change (Circle.exp (s * Real.log (t.val : ℝ)) : ℂ) = _
+  rw [Circle.coe_exp, Complex.cpow_def_of_ne_zero (Complex.ofReal_ne_zero.mpr hpos.ne'),
+    ← Complex.ofReal_log hpos.le]
+  congr 1
+  push_cast
+  ring
+
+private theorem Printed.positiveMoment_character_injective :
+    Injective Printed.positiveMoment_character := by
+  intro s t h
+  let c : G₊ →ₜ* ℂ :=
+    (⟨Circle.coeHom, continuous_subtype_val⟩ : Circle →ₜ* ℂ).comp (Printed.positiveMoment_character s)
+  obtain ⟨z, -, huniq⟩ := existsUnique_complexPower c
+  have hs : (s : ℂ) * Complex.I = z :=
+    huniq _ (Printed.positiveMoment_character_power s)
+  have ht : (t : ℂ) * Complex.I = z := huniq _ (by
+    intro u
+    change (Printed.positiveMoment_character s u : ℂ) = _
+    rw [h]
+    exact Printed.positiveMoment_character_power t u)
+  exact_mod_cast mul_right_cancel₀ Complex.I_ne_zero (hs.trans ht.symm)
+
+private theorem Printed.positiveMoment_isotype_top :
+    H₊ = (⊤ : Submodule ℂ (ModulatedExponentialDecay m₊ (univ : Set ℝ))) := by
+  apply top_unique
+  intro f _
+  apply (mem_modulatedDecayIsotype_iff m₊ ω₊ univ (mem_univ _) f).mpr
+  intro u x
+  have hu : u = 1 := Subtype.ext u.property
+  simp [hu]
+
+private theorem Printed.positiveMoment_profileEquiv :
+    ∃ e : PositiveRealExponentialDecay univ ≃L[ℂ] H₊,
+      ∀ f (t : G₊), (e f).val.val t = f.val (Real.log (t.val : ℝ)) := by
+  obtain ⟨d, hd⟩ := identityModulationExponentialDecay_equiv univ ordConnected_univ univ_nonempty
+  let c : H₊ ≃L[ℂ] ModulatedExponentialDecay m₊ univ :=
+    (ContinuousLinearEquiv.ofEq _ _ Printed.positiveMoment_isotype_top).trans Submodule.topContEquiv
+  exact ⟨d.trans c.symm, hd⟩
+
+private theorem Printed.positiveMoment_scalarIntegral (p : ℝ → ℂ) (s : ℂ) :
+    (∫ t : G₊, p (Real.log (t.val : ℝ)) * (((t.val : ℝ) : ℂ) ^ s) ∂positiveRealHaar) =
+      mellin (fun t ↦ p (Real.log t)) s := by
+  let e : ℝ ≃ₜ G₊ := Real.expOrderIso.toHomeomorph.trans (Nonneg.unitsHomeomorphPos ℝ).symm
+  have he : (e : ℝ → G₊) = Printed.positiveMoment_exp := by
+    funext x
+    apply Units.ext
+    apply NNReal.eq
+    exact (Printed.positiveMoment_exp_val x).symm
+  have hμ : positiveRealHaar = Measure.map Printed.positiveMoment_exp volume := rfl
+  rw [hμ, ← he, e.measurableEmbedding.integral_map, mellin, ← integral_comp_exp]
+  apply integral_congr_ae
+  filter_upwards with x
+  rw [he, Printed.positiveMoment_exp_val, Real.log_exp]
+  rw [Complex.cpow_def_of_ne_zero (by exact_mod_cast (Real.exp_pos x).ne'),
+    ← Complex.ofReal_log (Real.exp_pos x).le, Real.log_exp]
+  simp only [Complex.real_smul, smul_eq_mul]
+  rw [Complex.cpow_def_of_ne_zero (by exact_mod_cast (Real.exp_pos x).ne'),
+    ← Complex.ofReal_log (Real.exp_pos x).le, Real.log_exp, Complex.ofReal_exp, ← mul_assoc, ← Complex.exp_add]
+  rw [show (x : ℂ) + (x : ℂ) * (s - 1) = (x : ℂ) * s by ring, mul_comm]
+
+private theorem Printed.positiveMoment_character_lipschitz (y v x : ℝ) :
+    ‖(Circle.exp (y * x) : ℂ) - (Circle.exp (v * x) : ℂ)‖ ≤ |y - v| * |x| := by
+  rw [Circle.coe_exp, Circle.coe_exp]
+  have hsplit : Complex.exp ((↑(y * x) : ℂ) * Complex.I) - Complex.exp ((↑(v * x) : ℂ) * Complex.I) =
+      Complex.exp ((↑(v * x) : ℂ) * Complex.I) *
+        (Complex.exp (Complex.I * (↑((y - v) * x) : ℂ)) - 1) := by
+    rw [mul_sub, mul_one, ← Complex.exp_add]
+    congr 2
+    push_cast
+    ring
+  rw [hsplit, norm_mul]
+  have hunit : ‖Complex.exp ((↑(v * x) : ℂ) * Complex.I)‖ = 1 := by
+    rw [← Circle.coe_exp, Circle.norm_coe]
+  rw [hunit, one_mul, ← abs_mul, ← Real.norm_eq_abs]
+  exact Real.norm_exp_I_mul_ofReal_sub_one_le
+
+local instance Printed.positiveMoment_haar : positiveRealHaar.IsHaarMeasure :=
+  positiveRealHaar_isHaarMeasure
+
+local notation "hm₊" => Printed.positiveMoment_identity
+private theorem Printed.positiveMoment_surj : Surjective m₊ := surjective_id
+
+local notation "hs₊" => Printed.positiveMoment_surj
+local notation "R₊[" γ "]" =>
+  (modulatedIsotypicDifferenceProduct (m := m₊) (hm := hm₊) (hms := hs₊) (ω := ω₊)
+    univ ordConnected_univ (mem_univ (0 : ℝ)) (List.ofFn γ)).range
+local notation "J₊[" γ "]" =>
+  {p : PontryaginDual G₊ × ℕ // p.2 < modulatedPeriodicMultiplicity m₊ ω₊ γ p.1}
+local notation "D₊[" γ ", " hγ "]" =>
+  (modulatedQuotientLogMoment (m := m₊) (hm := hm₊) (hms := hs₊) (ω := ω₊)
+    (γs := γ) (hγs := hγ) (μ := positiveRealHaar))
+
+private theorem Printed.positiveMoment_index
+    (γ : Fin 2 → G₊) (k : Fin 2) (s : ℝ)
+    (hs : ∃ n : ℤ, s * Real.log ((γ k).val : ℝ) = n * (2 * Real.pi)) :
+    ∃ j : J₊[γ], j.val = (Printed.positiveMoment_character s, 0) := by
+  let χ := Printed.positiveMoment_character s
+  have hχ : χ ∈ modulatedCyclicAnnihilatorFiber m₊ ω₊ (γ k) := by
+    apply (mem_modulatedCyclicAnnihilatorFiber_iff m₊ ω₊ (γ k) χ).mpr
+    refine ⟨Circle.exp_eq_one.mpr hs, fun u ↦ ?_⟩
+    have h : u = 1 := Subtype.ext u.property
+    simp [h]
+  have hpos := (mem_modulatedPeriodicSpectrum_iff m₊ ω₊ γ χ).mp (mem_iUnion.mpr ⟨k, hχ⟩)
+  exact ⟨⟨(χ,0),hpos⟩,rfl⟩
+
+private theorem Printed.positiveMoment_zero
+    (γ : Fin 2 → G₊) (hγ : ∀ k, 1 < (m₊ (γ k)).val)
+    (j : J₊[γ]) (s : ℝ) (hj : j.val = (Printed.positiveMoment_character s, 0)) (f : H₊) :
+    D₊[γ, hγ] j (R₊[γ].mkQ f) =
+      ∫ t : G₊, f.val.val t * (Printed.positiveMoment_character s t : ℂ) ∂positiveRealHaar := by
+  calc
+    _ = ∫ t : G₊, f.val.val t * (j.val.1 t : ℂ)
+        * ((Real.log (t.val : ℝ) : ℝ) : ℂ) ^ j.val.2 ∂positiveRealHaar :=
+      modulatedQuotientLogMoment_mkQ m₊ hm₊ hs₊ ω₊ γ hγ positiveRealHaar j f
+    _ = _ := by simp only [hj, pow_zero, mul_one]
+
+private theorem Printed.positiveMoment_gaussian
+    (γ : Fin 2 → G₊) (hγ : ∀ k, 1 < (m₊ (γ k)).val) :
+    ∃ u : H₊ ⧸ R₊[γ], ∀ (j : J₊[γ]) (s : ℝ),
+      j.val = (Printed.positiveMoment_character s, 0) →
+      ‖D₊[γ, hγ] j u‖ = Real.exp (-(s ^ 2)) := by
+  obtain ⟨e, he⟩ := Printed.positiveMoment_profileEquiv
+  let F : SchwartzBergman (univ : Set ℝ) := ⟨fun z ↦ Complex.exp (z ^ 2), by
+    simpa using gaussian_mem_schwartzBergmanSubmodule univ isOpen_univ⟩
+  let f := M₊.symm F
+  refine ⟨R₊[γ].mkQ (e f), fun j s hj ↦ ?_⟩
+  rw [Printed.positiveMoment_zero γ hγ j s hj]
+  simp_rw [he, Printed.positiveMoment_character_power]
+  rw [Printed.positiveMoment_scalarIntegral,
+    ← positiveRealFourierMellin_apply univ isOpen_univ ordConnected_univ univ_nonempty f _ (mem_univ _)]
+  change ‖(M₊ (M₊.symm F)).val _‖ = _
+  rw [ContinuousLinearEquiv.apply_symm_apply]
+  change ‖Complex.exp (((s : ℂ) * Complex.I) ^ 2)‖ = _
+  rw [Complex.norm_exp]
+  congr 1
+  simp [pow_two, Complex.mul_re, Complex.mul_im]
+
+private def Printed.positiveMoment_difference
+    (γ : Fin 2 → G₊) (hγ : ∀ k, 1 < (m₊ (γ k)).val) (y v : ℝ) (j k : J₊[γ]) :
+    StrongDual ℂ (H₊ ⧸ R₊[γ]) :=
+  ((y - v : ℝ) : ℂ)⁻¹ • (D₊[γ, hγ] j - D₊[γ, hγ] k)
+
+private theorem Printed.positiveMoment_difference_bound
+    (γ : Fin 2 → G₊) (hγ : ∀ k, 1 < (m₊ (γ k)).val)
+    (f : H₊) (y v : ℝ) (hv : v < y) (j k : J₊[γ])
+    (hj : j.val = (Printed.positiveMoment_character y, 0))
+    (hk : k.val = (Printed.positiveMoment_character v, 0)) :
+    ‖Printed.positiveMoment_difference γ hγ y v j k (R₊[γ].mkQ f)‖ ≤
+      ∫ t : G₊, ‖f.val.val t‖ * |Real.log (t.val : ℝ)| ∂positiveRealHaar := by
+  let w (t : G₊) := f.val.val t
+  let l (t : G₊) := Real.log (t.val : ℝ)
+  let c (s : ℝ) (t : G₊) : ℂ := Printed.positiveMoment_character s t
+  have hf (s : ℝ) : Integrable (fun t ↦ w t * c s t) positiveRealHaar := by
+    simpa only [pow_zero, mul_one] using
+      (modulatedLogMoment_linearContinuous m₊ hm₊ hs₊ ω₊ positiveRealHaar
+        (Printed.positiveMoment_character s) 0).1 f
+  have hg : Integrable (fun t ↦ ‖w t‖ * |l t|) positiveRealHaar := by
+    have hid (t : G₊) : m₊ t = t := rfl
+    simpa only [hid, pow_one, norm_mul, Circle.norm_coe, mul_one, Complex.norm_real, Real.norm_eq_abs]
+      using ((modulatedLogMoment_linearContinuous m₊ hm₊ hs₊ ω₊ positiveRealHaar 1 1).1 f).norm
+  have hdiff : 0 < y - v := sub_pos.mpr hv
+  change ‖((y - v : ℝ) : ℂ)⁻¹ *
+      (D₊[γ, hγ] j (R₊[γ].mkQ f) - D₊[γ, hγ] k (R₊[γ].mkQ f))‖ ≤
+    ∫ t : G₊, ‖w t‖ * |l t| ∂positiveRealHaar
+  rw [norm_mul, norm_inv, Complex.norm_real, Real.norm_eq_abs, abs_of_pos hdiff,
+    ← div_eq_inv_mul]
+  rw [Printed.positiveMoment_zero γ hγ j y hj, Printed.positiveMoment_zero γ hγ k v hk,
+    ← integral_sub (hf y) (hf v), div_le_iff₀ hdiff, mul_comm _ (y-v), ← integral_const_mul]
+  apply norm_integral_le_of_norm_le (hg.const_mul (y-v))
+  refine ae_of_all _ fun t ↦ ?_
+  change ‖w t * c y t - w t * c v t‖ ≤ (y-v) * (‖w t‖ * |l t|)
+  rw [← mul_sub, norm_mul]
+  calc
+    _ ≤ ‖w t‖ * (|y-v| * |l t|) :=
+      mul_le_mul_of_nonneg_left (Printed.positiveMoment_character_lipschitz y v (l t)) (norm_nonneg _)
+    _ = _ := by rw [abs_of_pos hdiff]; ring
+
 /-- Paper: Theorem 4.6.1.5 and (4.6.1.16), p. 212. Take the positive reals
-with identity modulation, Haar measure dt/t, trivial weight and generators exp(B)
-and exp(B²), where q₁ = 10, qⱼ₊₁ = 10^(qⱼ⁴), and B = 1 + ∑ⱼ 1/qⱼ. The
-double-logarithm hypothesis holds with b = B. Put pⱼ = qⱼ (1 + ∑_{k≤j} 1/qₖ).
-The distinct zeroth-moment frequencies yⱼ = 2πqⱼ/B and vⱼ = 2πpⱼ/B² have gaps
-less than 4πqⱼ/(B²qⱼ₊₁). The supremum of the corresponding divided differences
-of the test transform is a continuous quotient seminorm, bounded by the first
-absolute log moment. Biorthogonality makes this seminorm of the yⱼ-vector at
-least 1/(yⱼ−vⱼ). For the test with transform exp(z²) the basis terms therefore
-have seminorms at least exp(−yⱼ²)/(yⱼ−vⱼ), which grow without bound. -/
+with identity modulation, Haar measure `dt/t`, trivial weight and generators
+`exp B` and `exp (B²)`. Following the small-divisor argument in ERRATA F235
+(Goyal, *Audit of Masullo's proposed proof*, reproducing issue #36), choose
+`B > 1` with arbitrarily accurate rational approximations. Baire category
+gives a `B` for which the two moment lattices have distinct ordinates with
+gaps arbitrarily small relative to the Gaussian at the higher ordinate.
+The divided differences are bounded by the first absolute log moment and
+hence dominated by a continuous quotient seminorm. Biorthogonality forces
+the Gaussian's coordinate terms to be unbounded in that seminorm. -/
 theorem Printed.modulatedQuotientLogMoment_biorthogonal_basis_false :
-    ¬ Printed.modulatedQuotientLogMoment_biorthogonal_basis := by sorry
+    ¬ Printed.modulatedQuotientLogMoment_biorthogonal_basis := by
+  intro h
+  obtain ⟨B, hB, -, hdiv⟩ := exists_gaussian_smallDivisors
+  have hB₀ : 0 < B := zero_lt_one.trans hB
+  let γ : Fin 2 → G₊ := ![Printed.positiveMoment_exp B, Printed.positiveMoment_exp (B ^ 2)]
+  have hlog₀ : Real.log ((γ 0).val : ℝ) = B := Printed.positiveMoment_log_exp B
+  have hlog₁ : Real.log ((γ 1).val : ℝ) = B ^ 2 := Printed.positiveMoment_log_exp (B ^ 2)
+  have hγ (k : Fin 2) : 1 < (m₊ (γ k)).val := by
+    have hpos : 0 < Real.log ((γ k).val : ℝ) := by
+      fin_cases k
+      · change 0 < Real.log ((γ 0).val : ℝ)
+        rw [hlog₀]
+        exact hB₀
+      · change 0 < Real.log ((γ 1).val : ℝ)
+        rw [hlog₁]
+        positivity
+    have : 1 < ((γ k).val : ℝ) :=
+      (Real.log_pos_iff (NNReal.coe_nonneg _)).mp hpos
+    change 1 < (γ k).val
+    exact_mod_cast this
+  have hnonzero : ∃ k, Real.log (Real.log ((m₊ (γ k)).val : ℝ)) ≠ 0 := by
+    refine ⟨0, ?_⟩
+    change Real.log (Real.log ((γ 0).val : ℝ)) ≠ 0
+    rw [hlog₀]
+    exact (Real.log_pos hB).ne'
+  have hcomm : ∃ b : ℝ, 1 < b ∧ ∀ k, ∃ r : ℚ,
+      Real.log (Real.log ((m₊ (γ k)).val : ℝ)) = (r : ℝ) * Real.log b := by
+    refine ⟨B, hB, fun k ↦ ?_⟩
+    fin_cases k
+    · refine ⟨1, ?_⟩
+      change Real.log (Real.log ((γ 0).val : ℝ)) = _
+      simp [hlog₀]
+    · refine ⟨2, ?_⟩
+      change Real.log (Real.log ((γ 1).val : ℝ)) = _
+      rw [hlog₁, Real.log_pow]
+      norm_num
+  obtain ⟨σ⟩ := modulatedPeriodicMomentIndex_enumerable m₊ hm₊ hs₊ ω₊ γ hγ (by decide)
+  obtain ⟨ψ, hbasis, habs⟩ :=
+    h G₊ positiveRealHaar m₊ hm₊ hs₊ 2 (by decide) γ hγ hnonzero hcomm ω₊ σ
+  let D := D₊[γ, hγ]
+  let R := R₊[γ]
+  let U := H₊ ⧸ R
+  let J := J₊[γ]
+  have hdiag (j : J) : D j (ψ j) = 1 := by
+    simpa [D, Function.comp_def] using hbasis.1 (σ.symm j) (σ.symm j)
+  have hoff (j k : J) (hjk : j ≠ k) : D j (ψ k) = 0 := by
+    have hne := σ.symm.injective.ne hjk
+    simpa [D, Function.comp_def, hne] using hbasis.1 (σ.symm j) (σ.symm k)
+  choose q _hq _hq₀ p hp using hdiv
+  let y (n : ℕ) : ℝ := 2 * Real.pi * q n / B
+  let v (n : ℕ) : ℝ := 2 * Real.pi * p n / B ^ 2
+  have hgap (n : ℕ) : 0 < y n - v n := (hp n).1
+  have hsmall (n : ℕ) : (n : ℝ) * (y n - v n) < Real.exp (-((y n) ^ 2)) := (hp n).2
+  have hy (n : ℕ) : ∃ j : J, j.val = (Printed.positiveMoment_character (y n), 0) := by
+    apply Printed.positiveMoment_index γ 0
+    refine ⟨q n, ?_⟩
+    rw [hlog₀]
+    dsimp [y]
+    rw [div_mul_cancel₀ _ hB₀.ne']
+    push_cast
+    ring
+  have hv (n : ℕ) : ∃ k : J, k.val = (Printed.positiveMoment_character (v n), 0) := by
+    apply Printed.positiveMoment_index γ 1
+    refine ⟨p n, ?_⟩
+    rw [hlog₁]
+    dsimp [v]
+    rw [div_mul_cancel₀ _ (pow_ne_zero _ hB₀.ne'), mul_comm]
+  choose j hj using hy
+  choose k hk using hv
+  have hjk (n : ℕ) : k n ≠ j n := by
+    intro hkj
+    have hchar : Printed.positiveMoment_character (v n) = Printed.positiveMoment_character (y n) :=
+      (congrArg Prod.fst (hk n)).symm.trans
+        ((congrArg (fun r : J ↦ r.val.1) hkj).trans (congrArg Prod.fst (hj n)))
+    exact (sub_pos.mp (hgap n)).ne (Printed.positiveMoment_character_injective hchar)
+  let L (n : ℕ) : StrongDual ℂ U :=
+    Printed.positiveMoment_difference γ hγ (y n) (v n) (j n) (k n)
+  have hL (u : U) : BddAbove (range fun n ↦ ‖L n u‖) := by
+    obtain ⟨f, rfl⟩ := R.mkQ_surjective u
+    refine ⟨∫ t : G₊, ‖f.val.val t‖ * |Real.log (t.val : ℝ)| ∂positiveRealHaar, ?_⟩
+    rintro _ ⟨n, rfl⟩
+    exact Printed.positiveMoment_difference_bound γ hγ f (y n) (v n) (sub_pos.mp (hgap n))
+      (j n) (k n) (hj n) (hk n)
+  obtain ⟨e, -⟩ := Printed.positiveMoment_profileEquiv
+  let E := PositiveRealExponentialDecay (univ : Set ℝ)
+  let : BarrelledSpace ℂ E :=
+    isFrechetTVS_barrelled (positiveRealExponentialDecay_frechet univ ordConnected_univ univ_nonempty)
+  let π : E →L[ℂ] U := R.mkQL.comp e.toContinuousLinearMap
+  have hπ : Topology.IsQuotientMap π :=
+    R.isQuotientMap_mkQL.comp e.toHomeomorph.isQuotientMap
+  obtain ⟨s, hs, hLs⟩ := quotient_sup_seminorm π hπ L hL
+  obtain ⟨u, hu⟩ := Printed.positiveMoment_gaussian γ hγ
+  obtain ⟨s', _, hsum⟩ := habs s hs
+  obtain ⟨n, hn⟩ := exists_nat_gt (s' u)
+  let w : U := D (j n) u • ψ (j n)
+  have hw : s w ≤ s' u := by
+    have hle := (hsum u).1.le_tsum (σ.symm (j n)) (fun _ _ ↦ apply_nonneg s _)
+    exact (by simpa [w, D, Function.comp_def] using hle.trans (hsum u).2)
+  have hnorm : ‖L n w‖ = Real.exp (-((y n) ^ 2)) / (y n - v n) := by
+    change ‖((y n - v n : ℝ) : ℂ)⁻¹ * (D (j n) w - D (k n) w)‖ = _
+    have hjw : D (j n) w = D (j n) u := by
+      rw [show w = D (j n) u • ψ (j n) from rfl, map_smul, hdiag, smul_eq_mul, mul_one]
+    have hkw : D (k n) w = 0 := by
+      rw [show w = D (j n) u • ψ (j n) from rfl, map_smul, hoff _ _ (hjk n), smul_zero]
+    rw [hjw, hkw, sub_zero, norm_mul, norm_inv, Complex.norm_real, Real.norm_eq_abs,
+      abs_of_pos (hgap n), hu (j n) (y n) (hj n), ← div_eq_inv_mul]
+  have hn' : (n : ℝ) < ‖L n w‖ := hnorm ▸ (lt_div_iff₀ (hgap n)).mpr (hsmall n)
+  exact (hn'.trans_le ((hLs n w).trans hw)).not_gt hn
+
+end
 
 end RiemannMasullo

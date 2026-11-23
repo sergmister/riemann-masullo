@@ -2000,6 +2000,201 @@ theorem existsUnique_sLocalThetaSobolevAverage (ω : PontryaginDual J₁) :
 local notation "P(" ω ")" =>
   (existsUnique_sLocalThetaSobolevAverage (F := F) (S := S) ha hI hs hα ω).exists.choose
 
+/-- continuous equivariant maps commute with pettis averages. -/
+private theorem exists_sLocalHomogeneousThetaSobolevInclusion_commute
+    {G E Y : Type*} [Monoid G] [TopologicalSpace G] [MeasurableSpace G]
+    [AddCommGroup E] [Module ℂ E] [TopologicalSpace E]
+    [NormedAddCommGroup Y] [NormedSpace ℂ Y]
+    (μ : Measure G) (ω : PontryaginDual G)
+    (ρ : G →* (E →L[ℂ] E)) (σ : G →* (Y →L[ℂ] Y))
+    (A : E →L[ℂ] E) (B : Y →L[ℂ] Y)
+    (hA : IsPettisIsotypicAverageOn μ univ ρ ω A)
+    (hB : IsPettisIsotypicAverageOn μ univ σ ω B)
+    (i : E →L[ℂ] Y) (hi : ∀ g x, σ g (i x) = i (ρ g x)) (x : E) :
+    B (i x) = i (A x) := by
+  apply (SeparatingDual.eq_iff_forall_dual_eq (R := ℂ)).2
+  intro φ
+  have h₁ := LinearMap.congr_fun (hB (i x)).2 φ
+  have h₂ := LinearMap.congr_fun (hA x).2 (φ.comp i)
+  change φ (B (i x)) = ∫ g, φ (star (ω g : ℂ) • σ g (i x)) ∂μ.restrict univ at h₁
+  change φ (i (A x)) = ∫ g, φ (i (star (ω g : ℂ) • ρ g x)) ∂μ.restrict univ at h₂
+  rw [h₁, h₂]
+  congr 1
+  funext g
+  simp only [hi, map_smul]
+
+/-- an injective dense equivariant map induces an injective dense map on isotypes. -/
+private theorem exists_sLocalHomogeneousThetaSobolevInclusion_assemble
+    {G E Y T X : Type*} [Monoid G] [TopologicalSpace G] [MeasurableSpace G]
+    [AddCommGroup E] [Module ℂ E] [TopologicalSpace E]
+    [NormedAddCommGroup Y] [NormedSpace ℂ Y]
+    [AddCommGroup T] [Module ℂ T] [TopologicalSpace T]
+    (μ : Measure G) (ω : PontryaginDual G)
+    (ρ : G →* (E →L[ℂ] E)) (σ : G →* (Y →L[ℂ] Y))
+    (A : E →L[ℂ] E) (B : Y →L[ℂ] actionIsotype σ ω)
+    (hA : IsPettisIsotypicAverageOn μ univ ρ ω A)
+    (hB : IsPettisIsotypicAverageOn μ univ σ ω ((actionIsotype σ ω).subtypeL.comp B))
+    (i : E →L[ℂ] Y) (hi : ∀ g x, σ g (i x) = i (ρ g x))
+    (hinj : Injective i) (hdense : DenseRange i) (hBsurj : Surjective B)
+    (e : T ≃L[ℂ] actionIsotype ρ ω) (q : X → T) (r : X → E)
+    (hr : Surjective r) (he : ∀ f, (e (q f)).val = A (r f)) :
+    ∃ j : T →L[ℂ] actionIsotype σ ω,
+      Injective j ∧ DenseRange j ∧ ∀ f, j (q f) = B (i (r f)) := by
+  let L : T →L[ℂ] Y := i.comp ((actionIsotype ρ ω).subtypeL.comp e.toContinuousLinearMap)
+  have hmem (x : T) : L x ∈ actionIsotype σ ω := by
+    apply (mem_actionIsotype σ ω _).mpr
+    intro g
+    change σ g (i (e x).val) = (ω g : ℂ) • i (e x).val
+    rw [hi, (mem_actionIsotype ρ ω _).mp (e x).property g, map_smul]
+  let j := L.codRestrict (actionIsotype σ ω) hmem
+  have hj (f : X) : j (q f) = B (i (r f)) := by
+    apply Subtype.ext
+    exact (congrArg i (he f)).trans
+      (exists_sLocalHomogeneousThetaSobolevInclusion_commute μ ω ρ σ A
+        ((actionIsotype σ ω).subtypeL.comp B) hA hB i hi (r f)).symm
+  refine ⟨j, ?_, ?_, hj⟩
+  · intro x y h
+    exact e.injective (Subtype.ext (hinj (congrArg Subtype.val h)))
+  · have hd : DenseRange (fun f ↦ B (i (r f))) :=
+      (hBsurj.denseRange.comp hdense B.continuous).comp hr.denseRange
+        (B.continuous.comp i.continuous)
+    have hh : (fun f ↦ B (i (r f))) = j ∘ q := funext fun f ↦ (hj f).symm
+    rw [hh] at hd
+    exact hd.of_comp
+
+/-- point evaluations identify the average of a representative after inversion of haar measure. -/
+private theorem exists_sLocalHomogeneousThetaSobolevInclusion_eval
+    {G E X I J : Type*} [CommGroup G] [TopologicalSpace G]
+    [MeasurableSpace G] [MeasurableInv G]
+    [AddCommGroup E] [Module ℂ E] [TopologicalSpace E]
+    (μ : Measure G) [μ.IsInvInvariant] (ω : PontryaginDual G)
+    (ρ : G →* (E →L[ℂ] E)) (A : E →L[ℂ] E)
+    (hA : IsPettisIsotypicAverageOn μ univ ρ ω A)
+    (r : X → E) (ev : I → StrongDual ℂ E) (π : I → J) (hπ : Surjective π)
+    (θ ψ : X → J → ℂ) (φ : X → I → G → ℂ)
+    (hθ : ∀ f t, ev t (r f) = θ f (π t))
+    (hρ : ∀ g f t, ev t (ρ g (r f)) = φ f t g⁻¹)
+    (hψ : ∀ f t, ψ f (π t) = ∫ g, φ f t g * (ω g : ℂ) ∂μ)
+    (f f' : X) (hf : r f' = A (r f)) : θ f' = ψ f := by
+  funext x
+  obtain ⟨t, rfl⟩ := hπ x
+  rw [← hθ, hf, hψ]
+  have h := LinearMap.congr_fun (hA (r f)).2 (ev t)
+  change ev t (A (r f)) = ∫ g, ev t (star (ω g : ℂ) • ρ g (r f)) ∂μ.restrict univ at h
+  simp only [Measure.restrict_univ, map_smul, smul_eq_mul, hρ] at h
+  refine h.trans (Eq.trans (integral_congr_ae (.of_forall fun g ↦ ?_))
+    (integral_inv_eq_self (fun g ↦ φ f t g * (ω g : ℂ)) μ))
+  rw [map_inv, Circle.coe_inv_eq_conj, mul_comm]
+  rfl
+
+/-- a representative of the test-space average computes the embedded average. -/
+private theorem exists_sLocalHomogeneousThetaSobolevInclusion_representative
+    {E Y X J : Type*} [AddCommGroup E] [Module ℂ E] [TopologicalSpace E]
+    [AddCommGroup Y] [Module ℂ Y] [TopologicalSpace Y] [MeasurableSpace J]
+    (μ : Measure J) (r : X → E) (hr : Surjective r)
+    (A : E →L[ℂ] E) (i : E →L[ℂ] Y) (B : Y →L[ℂ] Y)
+    (hc : ∀ x, B (i x) = i (A x)) (v : Y → J → ℂ)
+    (θ ψ : X → J → ℂ) (w : (J → ℂ) → (J → ℂ))
+    (hi : ∀ f, v (i (r f)) =ᵐ[μ] w (θ f))
+    (hA : ∀ f f', r f' = A (r f) → θ f' = ψ f) (f : X) :
+    v (B (i (r f))) =ᵐ[μ] w (ψ f) := by
+  obtain ⟨f', hf⟩ := hr (A (r f))
+  rw [hc, ← hf, ← hA f f' hf]
+  exact hi f'
+
+/-- combine the isotype inclusion with the function formula on representatives. -/
+private theorem exists_sLocalHomogeneousThetaSobolevInclusion_finish
+    {G E Y T X J : Type*} [Monoid G] [TopologicalSpace G] [MeasurableSpace G]
+    [AddCommGroup E] [Module ℂ E] [TopologicalSpace E]
+    [NormedAddCommGroup Y] [NormedSpace ℂ Y]
+    [AddCommGroup T] [Module ℂ T] [TopologicalSpace T] [MeasurableSpace J]
+    (μ : Measure G) (ν : Measure J) (ω : PontryaginDual G)
+    (ρ : G →* (E →L[ℂ] E)) (σ : G →* (Y →L[ℂ] Y))
+    (A : E →L[ℂ] E) (B : Y →L[ℂ] actionIsotype σ ω)
+    (hA : IsPettisIsotypicAverageOn μ univ ρ ω A)
+    (hB : IsPettisIsotypicAverageOn μ univ σ ω ((actionIsotype σ ω).subtypeL.comp B))
+    (i : E →L[ℂ] Y) (hi : ∀ g x, σ g (i x) = i (ρ g x))
+    (hinj : Injective i) (hdense : DenseRange i) (hBsurj : Surjective B)
+    (q : X → T) (r : X → E) (hr : Surjective r)
+    (he : ∃ e : T ≃L[ℂ] actionIsotype ρ ω, ∀ f, (e (q f)).val = A (r f))
+    (v : Y → J → ℂ) (θ ψ : X → J → ℂ) (w : (J → ℂ) → (J → ℂ))
+    (hrep : ∀ f, v (i (r f)) =ᵐ[ν] w (θ f))
+    (hAvg : ∀ f f', r f' = A (r f) → θ f' = ψ f) :
+    ∃ j : T →L[ℂ] actionIsotype σ ω,
+      Injective j ∧ DenseRange j ∧ ∀ f,
+        j (q f) = B (i (r f)) ∧ v (j (q f)).val =ᵐ[ν] w (ψ f) := by
+  obtain ⟨e, he⟩ := he
+  obtain ⟨j, hj, hd, heq⟩ := exists_sLocalHomogeneousThetaSobolevInclusion_assemble
+    μ ω ρ σ A B hA hB i hi hinj hdense hBsurj e q r hr he
+  refine ⟨j, hj, hd, fun f ↦ ⟨heq f, ?_⟩⟩
+  rw [heq f]
+  exact exists_sLocalHomogeneousThetaSobolevInclusion_representative ν r hr A i
+    ((actionIsotype σ ω).subtypeL.comp B)
+    (exists_sLocalHomogeneousThetaSobolevInclusion_commute μ ω ρ σ A
+      ((actionIsotype σ ω).subtypeL.comp B) hA hB i hi) v θ ψ w hrep hAvg f
+
+/-- the modulation factor is one on the kernel of the norm. -/
+private theorem exists_sLocalHomogeneousThetaSobolevInclusion_normOne
+    {G E Y : Type*} [Group G] [TopologicalSpace G]
+    [MulAction ℝ Y]
+    (m : G →ₜ* ℝ≥0ˣ) (a : ℝ)
+    (ρ : G → E → E) (σ : G → Y → Y) (i : E → Y)
+    (hi : ∀ g x, σ g (i x) = (((m g).val : ℝ) ^ (-a)) • i (ρ g x))
+    (g : m.toMonoidHom.ker) (x : E) : σ g.val (i x) = i (ρ g.val x) := by
+  rw [hi, show m g.val = 1 from g.property]
+  simp only [Units.val_one, NNReal.coe_one, Real.one_rpow, one_smul]
+
+/-- restricting the codomain of an injective map preserves injectivity. -/
+private theorem exists_sLocalHomogeneousThetaSobolevInclusion_injective
+    {E W : Type*} [AddCommGroup E] [Module ℂ E] [TopologicalSpace E]
+    [AddCommGroup W] [Module ℂ W] [TopologicalSpace W]
+    (i : E →L[ℂ] W) (Y : Submodule ℂ W) (h : ∀ x, i x ∈ Y)
+    (hi : Injective i) : Injective (i.codRestrict Y h) :=
+  fun _ _ hh ↦ hi (congrArg Subtype.val hh)
+
+/-- equivariance restricts to a subgroup. -/
+private theorem exists_sLocalHomogeneousThetaSobolevInclusion_restrict
+    {G E Y : Type*} [Group G]
+    [AddCommGroup E] [Module ℂ E] [TopologicalSpace E]
+    [AddCommGroup Y] [Module ℂ Y] [TopologicalSpace Y]
+    (N : Subgroup G) (ρ : G →* (E →L[ℂ] E)) (σ : G →* (Y →L[ℂ] Y))
+    (i : E →L[ℂ] Y) (hi : ∀ (g : N) x, σ g.val (i x) = i (ρ g.val x)) :
+    ∀ g x, (σ.comp N.subtype) g (i x) = i ((ρ.comp N.subtype) g x) := hi
+
+/-- the test-space pettis average has the unnormalized homogeneous theta function. -/
+private theorem exists_sLocalHomogeneousThetaSobolevInclusion_test {F : Type*} [Field F] [NumberField F]
+    {S : Finset (IsDedekindDomain.HeightOneSpectrum (NumberField.RingOfIntegers F))}
+    (ω : PontryaginDual (sIdeleQuotientNorm F S).ker)
+    (f f' : SchwartzBruhat (Multiplicative (SAdeleRing F S)))
+    (hf : (Submodule.Quotient.mk f' : SLocalAdelicThetaSpace F S) =
+      (existsUnique_sLocalThetaIsotypicAverage (F := F) (S := S) ω).exists.choose
+        (Submodule.Quotient.mk f)) :
+    (sLocalAdelicThetaOnClasses F S f' : SIdeleQuotient F S → ℂ) =
+      sLocalHomogeneousAdelicThetaLinearMap F S ω f := by
+  let : BorelSpace (sIdeleQuotientNorm F S).ker := ⟨rfl⟩
+  let : CompactSpace (sIdeleQuotientNorm F S).ker := isCompact_iff_compactSpace.mp
+    ((isProperMap_sIdeleQuotientNorm F S).isCompact_preimage (isCompact_singleton (x := 1)))
+  let : (sLocalNormOneQuotientMeasure F S).IsHaarMeasure :=
+    (sLocalNormOneQuotientMeasure_normProduct (F := F) (S := S)).1
+  exact exists_sLocalHomogeneousThetaSobolevInclusion_eval
+    (sLocalNormOneQuotientMeasure F S) ω
+    ((existsUnique_sLocalThetaAction (F := F) (S := S)).exists.choose.comp
+      (sIdeleQuotientNorm F S).ker.subtype)
+    (existsUnique_sLocalThetaIsotypicAverage (F := F) (S := S) ω).exists.choose
+    (existsUnique_sLocalThetaIsotypicAverage (F := F) (S := S) ω).exists.choose_spec
+    (Submodule.Quotient.mk : SchwartzBruhat (Multiplicative (SAdeleRing F S)) → SLocalAdelicThetaSpace F S)
+    (fun t ↦ thetaQuotientEval (sLocalAdelicTheta F S) t (sLocalAdelicTheta_continuous_eval t))
+    (QuotientGroup.mk : (SAdeleRing F S)ˣ → SIdeleQuotient F S) QuotientGroup.mk_surjective
+    (fun f x ↦ sLocalAdelicThetaOnClasses F S f x)
+    (fun f x ↦ sLocalHomogeneousAdelicThetaLinearMap F S ω f x)
+    (fun f t g ↦ sLocalAdelicThetaOnClasses F S f (QuotientGroup.mk t * g.val))
+    (fun f t ↦ (sLocalAdelicThetaOnClasses_mk F S f t).symm)
+    (fun g f t ↦ sLocalThetaAction_eval
+      (existsUnique_sLocalThetaAction (F := F) (S := S)).exists.choose
+      (existsUnique_sLocalThetaAction (F := F) (S := S)).exists.choose_spec.2
+      f t g.val (sLocalAdelicTheta_continuous_eval t))
+    (fun f t ↦ sLocalHomogeneousAdelicThetaLinearMap_apply ω f (QuotientGroup.mk t)) f f' hf
+
 /-- Paper: Proposition 10.1.1.5(1), pp. 436–437. The S-local isotype completes
 the homogeneous classes of §5.2 with their weighted function norm. Its test-class
 inclusion is given by the unnormalized S-local homogeneous theta function. -/
@@ -2008,7 +2203,42 @@ theorem exists_sLocalHomogeneousThetaSobolevInclusion (ω : PontryaginDual J₁)
       Injective j ∧ DenseRange j ∧ ∀ f : ℬₛ,
         j (Submodule.Quotient.mk f) = P(ω) (jₛ(ha, hI, hs, hp) (Submodule.Quotient.mk f)) ∧
         ((j (Submodule.Quotient.mk f)).val.val : Jₛ → ℂ) =ᵐ[μₛ]
-          modulationWeight mₛ a (sLocalHomogeneousAdelicThetaLinearMap F S ω f) := by sorry
+          modulationWeight mₛ a (sLocalHomogeneousAdelicThetaLinearMap F S ω f) := by
+  have hi := exists_sLocalHomogeneousThetaSobolevInclusion_normOne mₛ a
+    (fun g u ↦ ρₛ g u) (fun g u ↦ Rₛ(ha, hI, hs, hp) g u) (jₛ(ha, hI, hs, hp))
+    (exists_sLocalThetaSobolevAction (F := F) (S := S) ha hI hs hp).choose_spec.2.2
+  have hinj : Injective (jₛ(ha, hI, hs, hp)) :=
+    exists_sLocalHomogeneousThetaSobolevInclusion_injective (Eₛ(ha, hI, hs, hp))
+      (Hₛ(ha, hI, hs, hp))
+      (fun u ↦ Submodule.le_topologicalClosure _ (LinearMap.mem_range_self _ u))
+      (existsUnique_sLocalThetaSobolevEmbedding (F := F) (S := S) a α β s ha hI hs hp).exists.choose_spec.1
+  have he : ∃ e : SLocalHomogeneousThetaSpace F S ω ≃L[ℂ]
+      actionIsotype ((ρₛ).comp (sIdeleQuotientNorm F S).ker.subtype) ω,
+      ∀ f : ℬₛ, (e (Submodule.Quotient.mk f)).val =
+        (existsUnique_sLocalThetaIsotypicAverage (F := F) (S := S) ω).exists.choose
+          (Submodule.Quotient.mk f) := (sLocalThetaIsotypicAverage_equiv (F := F) (S := S) ω).2
+  have hrep : ∀ f : ℬₛ, ((jₛ(ha, hI, hs, hp) (Submodule.Quotient.mk f)).val : Jₛ → ℂ) =ᵐ[μₛ]
+      modulationWeight mₛ a (θₛ(f)) :=
+    (existsUnique_sLocalThetaSobolevEmbedding (F := F) (S := S) a α β s ha hI hs hp).exists.choose_spec.2
+  with_reducible_and_instances
+  exact exists_sLocalHomogeneousThetaSobolevInclusion_finish
+    (G := J₁) (E := Θₛ) (Y := H) (T := SLocalHomogeneousThetaSpace F S ω) (X := ℬₛ) (J := Jₛ)
+    μₛ₁ μₛ ω ((ρₛ).comp (sIdeleQuotientNorm F S).ker.subtype) ρ₁
+    (existsUnique_sLocalThetaIsotypicAverage (F := F) (S := S) ω).exists.choose (P(ω))
+    (existsUnique_sLocalThetaIsotypicAverage (F := F) (S := S) ω).exists.choose_spec
+    (existsUnique_sLocalThetaSobolevAverage (F := F) (S := S) ha hI hs hα ω).exists.choose_spec.1
+    (jₛ(ha, hI, hs, hp))
+    (exists_sLocalHomogeneousThetaSobolevInclusion_restrict (sIdeleQuotientNorm F S).ker
+      ρₛ (Rₛ(ha, hI, hs, hp)) (jₛ(ha, hI, hs, hp)) hi) hinj
+    (sLocalThetaSobolev_dense ha hI hs hp)
+    (existsUnique_sLocalThetaSobolevAverage (F := F) (S := S) ha hI hs hα ω).exists.choose_spec.2.1
+    (Submodule.Quotient.mk : ℬₛ → SLocalHomogeneousThetaSpace F S ω)
+    (Submodule.Quotient.mk : ℬₛ → Θₛ) (Submodule.Quotient.mk_surjective _)
+    he
+    (fun u : H ↦ (u.val : Jₛ → ℂ)) (fun f x ↦ θₛ(f) x)
+    (fun f x ↦ sLocalHomogeneousAdelicThetaLinearMap F S ω f x) (modulationWeight mₛ a)
+    hrep
+    (exists_sLocalHomogeneousThetaSobolevInclusion_test ω)
 
 /-- Paper: Proposition 10.1.1.5(1), p. 437. The S-local raw average induces a
 topological linear isomorphism from the completed homogeneous quotient to the isotype.

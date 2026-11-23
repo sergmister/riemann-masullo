@@ -3,7 +3,7 @@ module
 public import Mathlib.NumberTheory.PrimeCounting
 public import RiemannMasullo.Ch11_ShellStructure.Sec2b
 
-import all RiemannMasullo.AppA_AlgebraicNT.Sec2
+import RiemannMasullo.AppA_AlgebraicNT.Sec2
 import RiemannMasullo.Ch10_TraceSpectral.Sec1
 import RiemannMasullo.Ch11_ShellStructure.Sec1a
 

@@ -1269,7 +1269,76 @@ it lies in the image of the transpose of the quotient map. -/
 theorem sLocalOrbitalFourierJet_range_le_ker
     (p : Vℚ) (ω : PontryaginDual J₁) (j : Idx(p, ω)) :
     Rₚ(p, ω) ≤
-      (sLocalOrbitalFourierJet (F := F) (S := S) (T := Sₚ(p)) (ω := ω) j).ker := by sorry
+      (sLocalOrbitalFourierJet (F := F) (S := S) (T := Sₚ(p)) (ω := ω) j).ker := by
+  classical
+  apply sLocalOrbitalPrincipalPart_range_le_ker_range ((Kₛ(ω)).mkQ) (Submodule.mkQ_surjective _)
+    (sLocalHomogeneousThetaPrincipalValue hₚ(p) ω)
+    (sLocalOrbitalFourierJet (F := F) (S := S) (T := Sₚ(p)) (ω := ω) j)
+  intro f
+  let c := j.val.1
+  let g := sAdelePrincipalValue F hₚ(p) f
+  rw [show sLocalHomogeneousThetaPrincipalValue hₚ(p) ω ((Kₛ(ω)).mkQ f) =
+      (Kₛ(ω)).mkQL g from sLocalHomogeneousThetaPrincipalValue_mk hₚ(p) ω f,
+    sLocalOrbitalFourierJet_mk]
+  obtain ⟨χ, a, hx, -⟩ := sLocalOrbitalFourierZeta_chart j
+  let Q (z : ℂ) := ∏ v : S, if v.val ∈ Sₚ(p) then
+    (finiteLocalEulerFactor v.val (sLocalFiniteRestriction v (twistₛ c z)))⁻¹ else 1
+  let Z (v : ℬₛ) (η : PontryaginDual Jₛ) (z : ℂ) := sLocalIdelicZFunction v (chart(η) z)
+  let R (z : ℂ) := sLocalRhoFactor (chart(χ) z)
+  let D (v : ℬₛ) (z : ℂ) := Z (sAdeleSchwartzFourier v) χ⁻¹ (1 - z)
+  have heq (v : ℬₛ) : Z v χ =ᶠ[codiscrete ℂ] R * D v := by
+    have hZ (w : ℬₛ) (η : PontryaginDual Jₛ) (z : ℂ) : MeromorphicAt (Z w η) z :=
+      ((sLocalIdelicZFunction_meromorphic w η) (mem_univ z)).meromorphicAt
+    apply sLocal_meromorphic_identity (hZ v χ) (fun z ↦ (sLocalRhoFactor_meromorphic χ z).mul
+      ((hZ _ _ (1 - z)).comp_analyticAt (analyticAt_const.sub analyticAt_id)))
+    intro z hz
+    have hd : 0 < (1 - z).re := by simp; linarith [hz.2]
+    exact (sLocalIdelicZFunction_eq_integral v ⟨χ, z, hz.1, rfl⟩).trans <|
+      (sLocalIdelicZetaIntegral_functionalEquation v χ z hz).trans <|
+      (congrArg (fun d ↦ R z * sLocalIdelicZetaIntegral (sAdeleSchwartzFourier v) d)
+        (sLocal_dual_normTwist χ z)).trans <| congrArg (R z * ·)
+        (sLocalIdelicZFunction_eq_integral (sAdeleSchwartzFourier v) ⟨χ⁻¹, 1 - z, hd, rfl⟩).symm
+  have hc : ∀ᶠ z : ℂ in codiscrete ℂ, D g z = D f z *
+      ∏ v : S, if v.val ∈ Sₚ(p) then
+        (finiteLocalEulerFactor v.val (sLocalFiniteRestriction v (chart(χ) z)))⁻¹ else 1 := by
+    filter_upwards [heq g, heq f, sLocalRhoFactor_mul_dual χ,
+      sLocalIdelicZFunction_principalValue Sₚ(p) hₚ(p) f χ] with z hg hf hr hpv
+    have hn : R z ≠ 0 := left_ne_zero_of_mul
+      (hr.trans_ne ((Group.isUnit (QuotientGroup.mk (-1 : (SAdeleRing F S)ˣ) : Jₛ)).map
+        (chart(χ) z)).ne_zero)
+    apply mul_left_cancel₀ hn
+    rw [← mul_assoc, ← show Z f χ z = R z * D f z from hf,
+      ← show Z g χ z = R z * D g z from hg]
+    change sLocalIdelicZFunction (sAdelePrincipalValue F hₚ(p) f) _ = sLocalIdelicZFunction f _ * _
+    rw [hpv, div_eq_mul_inv, ← Finset.prod_inv_distrib]
+    congr 1
+    refine Finset.prod_congr rfl fun v _ ↦ ?_
+    split_ifs <;> simp
+  have ht : Tendsto (fun z : ℂ ↦ z + a) (𝓝[≠] 0) (𝓝[≠] a) := by
+    have h : Tendsto (fun z : ℂ ↦ z + a) (𝓝[≠] 0) (𝓝[≠] (0 + a)) :=
+      ((Homeomorph.addRight a).map_punctured_nhds_eq 0).le
+    simpa only [zero_add] using h
+  have hprod : fourierZeta(c) g =ᶠ[𝓝[≠] 0] fourierZeta(c) f * Q := by
+    filter_upwards [ht.eventually (nhdsNE_le_codiscrete a hc)] with z hz
+    simp only [c, hx, Q, normTwist_normTwist, sLocal_dual_normTwist, Pi.mul_apply]
+    refine hz.trans (congrArg (D f (z + a) * ·) ?_)
+    refine Finset.prod_congr rfl fun v _ ↦ ?_
+    split_ifs <;> rfl
+  obtain ⟨hQ, horder⟩ := sLocalOrbitalPrincipalPart_range_le_ker_prod Sₚ(p) c
+  have hg := sLocalOrbitalFourierZeta_analyticAt j g
+  have hf := sLocalOrbitalFourierZeta_analyticAt j f
+  have hm : ((sLocalFinitePoleMultiplicity Sₚ(p) c : ℕ) : WithTop ℤ) ≤
+      meromorphicOrderAt (fourierZeta(c) g) 0 := by
+    rw [meromorphicOrderAt_congr hprod, meromorphicOrderAt_mul hf.meromorphicAt hQ]
+    exact horder.trans (le_add_of_nonneg_left hf.meromorphicOrderAt_nonneg)
+  have ha : (sLocalFinitePoleMultiplicity Sₚ(p) c : ℕ∞) ≤ analyticOrderAt (fourierZeta(c) g) 0 := by
+    rw [hg.meromorphicOrderAt_eq] at hm
+    cases ho : analyticOrderAt (fourierZeta(c) g) 0 using ENat.recTopCoe with
+    | top => exact le_top
+    | coe n =>
+      rw [ho, ENat.map_natCast] at hm
+      exact_mod_cast hm
+  exact (natCast_le_analyticOrderAt_iff_iteratedDeriv_eq_zero hg).mp ha j.val.2 j.property.2
 
 /-- a unitary chart covers exactly the chosen norm-one component. -/
 private theorem sLocalOrbitalIndex_enumerable_or_empty_chart

@@ -9,6 +9,7 @@ import RiemannMasullo.AppB_AnalyticNT.Sec4b
 import all RiemannMasullo.Ch07_SchauderBasesZeta.Sec5
 import all RiemannMasullo.Ch03_IdelicZeta.Sec2
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec3b
+import Mathlib.Analysis.Normed.Group.Tannery
 
 /-! # From the trace formula to GRH
 
@@ -1130,6 +1131,21 @@ theorem introTraceApprox_primePower_inv_zero (h ρ : ℕ → ℝ → ℝ)
   apply image_eq_zero_of_notMem_tsupport
   exact fun ht ↦ hle.not_gt (introTraceApprox_support h ρ _hA n z ht)
 
+/-- Distinct pairs of a finite place and an exponent give distinct positive prime powers. -/
+private theorem introTraceApprox_primeSum_tendsto_injective :
+    Injective (fun p : V × ℕ ↦ p.1.asIdeal ^ (p.2 + 1)) := by
+  rintro ⟨v, k⟩ ⟨w, j⟩ hvw
+  simp only at hvw
+  have hv : v = w := by
+    have hd : v.asIdeal ∣ w.asIdeal ^ (j + 1) := hvw ▸ dvd_pow_self _ (Nat.succ_ne_zero k)
+    have hle : w.asIdeal ≤ v.asIdeal := Ideal.le_of_dvd (v.prime.dvd_of_dvd_pow hd)
+    exact HeightOneSpectrum.ext (w.isMaximal.eq_of_le v.isPrime.ne_top hle).symm
+  subst hv
+  have hm := congrArg (multiplicity v.asIdeal) hvw
+  rw [multiplicity_pow_self_of_prime v.prime, multiplicity_pow_self_of_prime v.prime] at hm
+  simp only [Prod.mk.injEq, true_and]
+  omega
+
 /-- Paper: §1.4.4, p. 29. The finite terms converge locally uniformly to
 the negative logarithmic derivative of the finite Hecke L-function.
 Deviation: The sign is negative by differentiation of the Euler product,
@@ -1139,7 +1155,175 @@ The local coefficients include the unit averaging in the corrected trace formula
 theorem introTraceApprox_primeSum_tendsto (χ : U𝔽) (h ρ : ℕ → ℝ → ℝ)
     (_hA : IsIntroTraceApproximation h ρ) :
     TendstoLocallyUniformlyOn (fun n z ↦ primeSum(χ, approx(h, ρ, n, z)))
-      (fun z ↦ -logDeriv finiteL(χ) (z + 1 / 2)) atTop right(1 / 2) := by sorry
+      (fun z ↦ -logDeriv finiteL(χ) (z + 1 / 2)) atTop right(1 / 2) := by
+  classical
+  let L := (finiteHeckeL_exists_continuation (F := F) χ).choose
+  have hL := (finiteHeckeL_exists_continuation (F := F) χ).choose_spec
+  let c := ideleClassNormTwist χ 0
+  -- The prime-power term of a radial profile, without the vanishing negative shell.
+  let T : (ℝ → ℂ) → V × ℕ → ℂ := fun A p ↦
+    if c.IsUnramifiedAt p.1 then
+      (Real.log q(p.1) : ℂ) * (c.localValue p.1 ^ (p.2 + 1) * A (q(p.1) ^ (p.2 + 1))) /
+        (q(p.1) : ℂ) ^ (((p.2 + 1 : ℕ) : ℂ) / 2)
+    else 0
+  have hT (A : ℝ → ℂ) (v : V) (k : ℕ) (hA0 : A ((q(v) ^ (k + 1))⁻¹) = 0) :
+      introTracePrimePower χ A v k = T A (v, k) := by
+    simp only [introTracePrimePower, T, hA0, mul_zero, add_zero]
+    rfl
+  have hq (v : V) : 1 < q(v) := by
+    exact_mod_cast NumberField.HeightOneSpectrum.one_lt_absNorm v
+  have hqm (v : V) (k : ℕ) : 1 < q(v) ^ (k + 1) := one_lt_pow₀ (hq v) (Nat.succ_ne_zero k)
+  -- The terms converge along `atTop ×ˢ 𝓝 z`.
+  have hconv (z : ℂ) (p : V × ℕ) :
+      Tendsto (fun r : ℕ × ℂ ↦ T approx(h, ρ, r.1, r.2) p) (atTop ×ˢ 𝓝 z)
+        (𝓝 (T (introTracePower z) p)) := by
+    by_cases hu : c.IsUnramifiedAt p.1
+    · simp only [T, if_pos hu]
+      exact (tendsto_const_nhds.mul (tendsto_const_nhds.mul
+        (introTraceApprox_mellin_tendsto_radial _hA z (hqm p.1 p.2)))).div_const _
+    · simp only [T, if_neg hu]
+      exact tendsto_const_nhds
+  have hconv' (z : ℂ) (p : V × ℕ) :
+      Tendsto (fun r : ℕ × ℂ ↦ T (introTracePower r.2) p) (atTop ×ˢ 𝓝 z)
+        (𝓝 (T (introTracePower z) p)) := by
+    by_cases hu : c.IsUnramifiedAt p.1
+    · simp only [T, if_pos hu]
+      exact (tendsto_const_nhds.mul (tendsto_const_nhds.mul
+        ((introTracePower_differentiable _).continuous.continuousAt.tendsto.comp tendsto_snd))).div_const _
+    · simp only [T, if_neg hu]
+      exact tendsto_const_nhds
+  -- Domination by a summable sequence.
+  have hdom (a : ℝ) (ha : 1 / 2 < a) : ∃ B : V × ℕ → ℝ, Summable B ∧
+      ∀ (A : ℝ → ℂ), (∀ t, 1 < t → ‖A t‖ ≤ ((1 / 2 : ℝ) ^ (-a) + 2 ^ (-a)) * t ^ (-a)) →
+        ∀ p, ‖T A p‖ ≤ B p := by
+    let C := (1 / 2 : ℝ) ^ (-a) + 2 ^ (-a)
+    let σ := a + 1 / 2
+    let r := (1 + σ) / 2
+    let ε := σ - r
+    have hr : 1 < r := by simp only [r, σ]; linarith
+    have hε : 0 < ε := by simp only [ε, r, σ]; linarith
+    have hC : 0 ≤ C := by positivity
+    let N : V × ℕ → ℝ := fun p ↦ ((p.1.asIdeal ^ (p.2 + 1)).absNorm : ℝ)
+    have hN (p : V × ℕ) : N p = q(p.1) ^ (p.2 + 1) := by simp [N, map_pow]
+    refine ⟨fun p ↦ C * (N p ^ (-r) / ε), ?_, fun A hA p ↦ ?_⟩
+    · exact (((summable_absNorm_rpow F hr).comp_injective
+        introTraceApprox_primeSum_tendsto_injective).div_const ε).mul_left C
+    have hB0 : 0 ≤ C * (N p ^ (-r) / ε) := by
+      have : 0 ≤ N p := by positivity
+      positivity
+    by_cases hu : c.IsUnramifiedAt p.1
+    swap
+    · simp only [T, if_neg hu, norm_zero]; exact hB0
+    simp only [T, if_pos hu]
+    set t := q(p.1) ^ (p.2 + 1)
+    have ht := hqm p.1 p.2
+    have ht0 : 0 < t := zero_lt_one.trans ht
+    have hq0 : 0 < q(p.1) := zero_lt_one.trans (hq p.1)
+    have hlog : 0 ≤ Real.log q(p.1) := Real.log_nonneg (hq p.1).le
+    rw [norm_div, norm_mul, norm_mul, norm_pow, norm_ideleClassNormTwist_zero_localValue, one_pow,
+      one_mul, Complex.norm_real, Real.norm_of_nonneg hlog,
+      Complex.norm_cpow_eq_rpow_re_of_pos hq0]
+    have hre : (((p.2 + 1 : ℕ) : ℂ) / 2).re = ((p.2 + 1 : ℕ) : ℝ) / 2 := by simp
+    rw [hre]
+    have hsq : q(p.1) ^ (((p.2 + 1 : ℕ) : ℝ) / 2) = t ^ (1 / 2 : ℝ) := by
+      rw [div_eq_mul_one_div, Real.rpow_mul hq0.le, Real.rpow_natCast]
+    have hNt : N p = t := hN p
+    rw [hsq, ← hNt]
+    have hN1 : 1 < N p := hNt ▸ ht
+    have hNpos : 0 < N p := zero_lt_one.trans hN1
+    have hqN : q(p.1) ≤ N p := by
+      rw [hNt]
+      calc q(p.1) = q(p.1) ^ 1 := (pow_one _).symm
+        _ ≤ t := pow_le_pow_right₀ (hq p.1).le (Nat.succ_pos _)
+    have key : N p ^ (-r) = N p ^ ε * N p ^ (-a) / N p ^ (1 / 2 : ℝ) := by
+      rw [show -r = ε + -a - 1 / 2 by simp only [ε, r, σ]; ring,
+        Real.rpow_sub hNpos, Real.rpow_add hNpos]
+    calc Real.log q(p.1) * ‖A (N p)‖ / N p ^ (1 / 2 : ℝ)
+        ≤ (N p ^ ε / ε) * (C * N p ^ (-a)) / N p ^ (1 / 2 : ℝ) := by
+          apply div_le_div_of_nonneg_right _ (Real.rpow_nonneg hNpos.le _)
+          exact mul_le_mul ((Real.log_le_log hq0 hqN).trans (Real.log_le_rpow_div hNpos.le hε))
+            (hA _ hN1) (norm_nonneg _) (div_nonneg (Real.rpow_nonneg hNpos.le _) hε.le)
+      _ = C * (N p ^ (-r) / ε) := by
+          rw [key]
+          ring
+  -- The limit is the logarithmic derivative on the half-plane.
+  have hid (w : ℂ) (hw : 1 / 2 < w.re) :
+      ∑' p, T (introTracePower w) p = -logDeriv L (w + 1 / 2) := by
+    have hs : w + 1 / 2 ∈ Complex.re ⁻¹' Ioi (1 : ℝ) := by
+      change 1 < (w + 1 / 2).re
+      simp only [Complex.add_re, Complex.div_ofNat_re, Complex.one_re]
+      linarith
+    have hS := (finiteHeckeL_logDeriv_hasSum_ideals χ L hL.1 hL.2 ⟨w + 1 / 2, hs⟩).2.2
+    let φ : V × ℕ → {I : Ideal (𝓞 F) // I ≠ ⊥} := fun p ↦
+      ⟨p.1.asIdeal ^ (p.2 + 1), pow_ne_zero _ p.1.ne_bot⟩
+    have hφ : Injective φ := fun p p' hp ↦
+      introTraceApprox_primeSum_tendsto_injective (congrArg Subtype.val hp)
+    have hzero : ∀ I ∉ range φ, -heckeIdealVonMangoldt (ideleClassNormTwist χ 0) I.val /
+        (I.val.absNorm : ℂ) ^ (w + 1 / 2) = 0 := by
+      intro I hI
+      have hΛ : idealVonMangoldt I.val = 0 := by
+        unfold idealVonMangoldt
+        rw [dif_neg]
+        rintro ⟨v, k, hk, hvk⟩
+        refine hI ⟨(v, k - 1), Subtype.ext ?_⟩
+        change v.asIdeal ^ (k - 1 + 1) = I.val
+        rw [Nat.sub_add_cancel hk, hvk]
+      simp [heckeIdealVonMangoldt, hΛ]
+    have hS' := ((hφ.hasSum_iff hzero).mpr hS).neg
+    rw [← hS'.tsum_eq]
+    congr 1
+    funext p
+    obtain ⟨v, k⟩ := p
+    change T (introTracePower w) (v, k) =
+      -(-heckeIdealVonMangoldt c (v.asIdeal ^ (k + 1)) /
+        ((v.asIdeal ^ (k + 1)).absNorm : ℂ) ^ (w + 1 / 2))
+    rw [neg_div, neg_neg, heckeIdealVonMangoldt, heckeIdealValue_prime_pow _ v (Nat.succ_pos k),
+      idealVonMangoldt_prime_pow v (Nat.succ_pos k)]
+    by_cases hu : c.IsUnramifiedAt v
+    swap
+    · simp [T, hu]
+    simp only [T, if_pos hu, introTracePower, if_pos (hqm v k)]
+    have hq0 : 0 < q(v) := zero_lt_one.trans (hq v)
+    set t := q(v) ^ (k + 1)
+    have ht0 : 0 < t := zero_lt_one.trans (hqm v k)
+    have hN : (((v.asIdeal ^ (k + 1)).absNorm : ℕ) : ℂ) = (t : ℂ) := by simp [t, map_pow]
+    have hsq : (q(v) : ℂ) ^ (((k + 1 : ℕ) : ℂ) / 2) = (t : ℂ) ^ (1 / 2 : ℂ) := by
+      have h1 : (((k + 1 : ℕ) : ℂ) / 2) = ((((k + 1 : ℕ) : ℝ) / 2 : ℝ) : ℂ) := by push_cast; ring
+      have h2 : (1 / 2 : ℂ) = ((1 / 2 : ℝ) : ℂ) := by push_cast; ring
+      rw [h1, h2, ← Complex.ofReal_cpow hq0.le, ← Complex.ofReal_cpow ht0.le]
+      congr 1
+      rw [div_eq_mul_one_div, Real.rpow_mul hq0.le, Real.rpow_natCast]
+    have ht0' : (t : ℂ) ≠ 0 := Complex.ofReal_ne_zero.mpr ht0.ne'
+    rw [hN, hsq, Complex.cpow_add _ _ ht0', Complex.cpow_neg]
+    field_simp
+  -- Assemble the locally uniform convergence.
+  apply (isOpen_Ioi.preimage Complex.continuous_re).tendstoLocallyUniformlyOn_iff_forall_tendsto.2
+  intro z hz
+  obtain ⟨a, hza, haz⟩ := exists_between (show (1 / 2 : ℝ) < z.re from hz)
+  obtain ⟨B, hB, hbd⟩ := hdom a hza
+  let l : Filter (ℕ × ℂ) := atTop ×ˢ 𝓝 z
+  have hnear : ∀ᶠ r : ℕ × ℂ in l, a ≤ r.2.re :=
+    (Complex.continuous_re.continuousAt.tendsto.comp tendsto_snd).eventually (le_mem_nhds haz)
+  have hpow : Tendsto (fun r : ℕ × ℂ ↦ -logDeriv L (r.2 + 1 / 2)) l
+      (𝓝 (-logDeriv L (z + 1 / 2))) := by
+    have hlim := tendsto_tsum_of_dominated_convergence (𝓕 := l) hB (hconv' z) (by
+      filter_upwards [hnear] with r hr p
+      exact hbd _ (fun t ht ↦ introTraceApprox_mellin_tendsto_power_bound (x := t) ht (by simp) hr) p)
+    rw [hid z hz] at hlim
+    refine hlim.congr' ?_
+    filter_upwards [hnear] with r hr
+    exact hid r.2 (hza.trans_le hr)
+  have happ : Tendsto (fun r : ℕ × ℂ ↦ ∑' p : V × ℕ, introTracePrimePower χ approx(h, ρ, r.1, r.2) p.1 p.2)
+      l (𝓝 (-logDeriv L (z + 1 / 2))) := by
+    have hlim := tendsto_tsum_of_dominated_convergence (𝓕 := l) hB (hconv z) (by
+      filter_upwards [hnear, (show Tendsto Prod.fst l atTop from tendsto_fst).eventually
+          (introTraceApprox_mellin_tendsto_cutoff_bound _hA a)] with r hr hc p
+      exact hbd _ (fun t ht ↦ hc r.2 t hr ht) p)
+    rw [hid z hz] at hlim
+    refine hlim.congr' (Eventually.of_forall fun r ↦ ?_)
+    refine tsum_congr fun p ↦ (hT _ p.1 p.2 ?_).symm
+    exact introTraceApprox_primePower_inv_zero h ρ _hA r.1 r.2 p.1 (p.2 + 1) (Nat.succ_pos _)
+  exact (hpow.prodMk_nhds happ).mono_right (nhds_le_uniformity _)
 
 open Classical in
 /-- Paper: §1.4.5, pp. 29–30. If the archimedean and zero terms together
@@ -1532,7 +1716,36 @@ theorem introTrace_transition_mellin_inv (S : Finset V) (χ : U𝔽)
       (isProperMap_sIdeleQuotientNorm F S).continuous c
     (fun s ↦ (outsideMass(S) * heckeEulerProductOutside S χ hχ s)⁻¹ *
       globalIdelicZFunction (sAdeleSchwartzToGlobal F S f) (ideleClassNormTwist χ s))
-      =ᶠ[𝓝[≠] (⟨1, t⟩ : ℂ)] (fun s ↦ sLocalIdelicZFunction f (twist s)) := by sorry
+      =ᶠ[𝓝[≠] (⟨1, t⟩ : ℂ)] (fun s ↦ sLocalIdelicZFunction f (twist s)) := by
+  let L := finiteL(χ)
+  let E := reciprocalPartialHeckeEulerProduct χ S
+  let z : ℂ := ⟨1, t⟩
+  have hL := (finiteHeckeL_exists_continuation χ).choose_spec
+  obtain ⟨hE, hEn⟩ := strongCoprimalityJetMatrix_det_ne_zero_euler χ S
+  have hm : MeromorphicOn (fun s ↦ E s * L s) univ :=
+    fun s hs ↦ (hE s).meromorphicAt.mul ((hL.1 hs).meromorphicAt)
+  have horder : meromorphicOrderAt (fun s ↦ E s * L s) z ≤ 0 := by
+    change meromorphicOrderAt (E * L) z ≤ 0
+    rw [meromorphicOrderAt_mul_of_ne_zero (hE z) (hEn z (by norm_num [z]))]
+    exact introTrace_finiteL_no_zeros_one_line χ t
+  have hnonzero : ∀ᶠ s in 𝓝[≠] z, E s * L s ≠ 0 :=
+    (meromorphicOrderAt_ne_top_iff_eventually_ne_zero (hm z (mem_univ z))).mp
+      (ne_top_of_le_ne_top (by simp) horder)
+  have houtside : heckeEulerProductOutside S χ hχ =ᶠ[𝓝[≠] z] (fun s ↦ E s * L s) := by
+    rw [heckeEulerProductOutside_eq_finite S χ hχ L hL.1 hL.2]
+    exact hm.toMeromorphicNFOn_eq_self_on_nhdsNE (mem_univ z)
+  have hmass : outsideMass(S) ≠ 0 := by
+    apply finprod_ne_zero
+    intro v
+    rw [finiteLocalMultiplicativeTamagawaMeasure_integerUnits, ENNReal.toReal_inv,
+      ENNReal.toReal_ofReal (Real.sqrt_nonneg _)]
+    exact Complex.ofReal_ne_zero.mpr (inv_ne_zero (Real.sqrt_pos_of_pos
+      (pow_pos (by exact_mod_cast (HeightOneSpectrum.one_lt_absNorm v.val).pos) _)).ne')
+  dsimp only
+  filter_upwards [(introTrace_transition_mellin S χ hχ f).filter_mono (nhdsNE_le_codiscrete z),
+    houtside, hnonzero] with s hEq hOut hNe
+  have hProd := mul_ne_zero hmass (hOut.symm ▸ hNe)
+  rw [hEq, mul_right_comm, inv_mul_cancel_left₀ hProd]
 
 /-- Paper: §1.4.7, p. 31. The continued product recovers the local Mellin value
 on the boundary after normalization at its removable singularities.
@@ -1546,7 +1759,44 @@ theorem introTrace_transition_mellin_inv_boundaryValue (S : Finset V) (χ : U�
       (isProperMap_sIdeleQuotientNorm F S).continuous c
     toMeromorphicNFOn (fun s ↦ (outsideMass(S) * heckeEulerProductOutside S χ hχ s)⁻¹ *
       globalIdelicZFunction (sAdeleSchwartzToGlobal F S f) (ideleClassNormTwist χ s)) univ ⟨1, t⟩ =
-        sLocalIdelicZFunction f (twist ⟨1, t⟩) := by sorry
+        sLocalIdelicZFunction f (twist ⟨1, t⟩) := by
+  let c := sIdeleRestriction F S ⟨ideleClassNormTwist χ 0, hχ⟩
+  let m := sIdeleQuotientNorm F S
+  let hm := (isProperMap_sIdeleQuotientNorm F S).continuous
+  let z : ℂ := ⟨1, t⟩
+  let Z (s : ℂ) := sLocalIdelicZFunction f (quasiCharacterNormTwist m hm c s)
+  let G (s : ℂ) := (outsideMass(S) * heckeEulerProductOutside S χ hχ s)⁻¹ *
+    globalIdelicZFunction (sAdeleSchwartzToGlobal F S f) (ideleClassNormTwist χ s)
+  change toMeromorphicNFOn G univ z = Z z
+  have hnorm (x : SIdeleQuotient F S) : ‖c x‖ = 1 := by
+    obtain ⟨g, rfl⟩ := QuotientGroup.mk_surjective x
+    change ‖(χ (QuotientGroup.mk (sIdeleInsertion F S g)) : ℂ) * _ ^ (0 : ℂ)‖ = 1
+    simp
+  let ψ : PontryaginDual (SIdeleQuotient F S) :=
+    { toFun := fun x ↦ ⟨c x, mem_sphere_zero_iff_norm.mpr (hnorm x)⟩
+      map_one' := Subtype.ext (map_one c)
+      map_mul' := fun x y ↦ Subtype.ext (map_mul c x y)
+      continuous_toFun := c.continuous.subtype_mk _ }
+  have hbase : c = (⟨Circle.coeHom, continuous_subtype_val⟩ : Circle →ₜ* ℂ).comp ψ :=
+    ContinuousMonoidHom.ext fun _ ↦ rfl
+  have hZ : AnalyticAt ℂ Z z := by
+    dsimp only [Z]
+    rw [hbase]
+    exact ((sLocalIdelicZetaIntegral_analyticOn f ψ).congr
+      (isOpen_Ioi.preimage Complex.continuous_re)
+      (fun s hs ↦ (sLocalIdelicZFunction_eq_integral f ⟨ψ, s, hs, rfl⟩).symm)) z
+      (by norm_num [z])
+  have hL := (finiteHeckeL_exists_continuation χ).choose_spec
+  have hOut : MeromorphicOn (heckeEulerProductOutside S χ hχ) univ := by
+    rw [heckeEulerProductOutside_eq_finite S χ hχ _ hL.1 hL.2]
+    exact (meromorphicNFOn_toMeromorphicNFOn _ _).meromorphicOn
+  have hG : MeromorphicOn G univ := fun s hs ↦
+    (analyticAt_const.meromorphicAt.mul (hOut s hs)).inv.mul
+      ((globalIdelicZFunction_meromorphic (sAdeleSchwartzToGlobal F S f) χ) hs).meromorphicAt
+  have hEq : G =ᶠ[𝓝[≠] z] Z := introTrace_transition_mellin_inv S χ hχ f t
+  rw [toMeromorphicNFOn_eq_toMeromorphicNFAt hG (mem_univ z)]
+  exact (toMeromorphicNFAt_eventuallyEq_nhds_congr hEq).eq_of_nhds.trans
+    (congrFun (toMeromorphicNFAt_eq_self.mpr hZ.meromorphicNFAt) z)
 
 -- The first and third growth inputs on p. 31 are already stated as
 -- finiteHeckeL_continuation_isBigO_rpow and finiteHeckeL_inv_isBigO_oneLine.
