@@ -970,7 +970,11 @@ theorem completedHeckeL_functionalEquation_conductorScale (χ : U[F]) (L Ldual :
     (hDualAgree : ∀ s : halfPlane, Ldual s = completedHeckeL χ⁻¹ s) :
     ∃ C : ℂ, C ≠ 0 ∧ ∀ s : ℂ, Ldual (1 - s) =
       C * Complex.exp ((heckeLogDiscriminantConductor χ : ℂ) * (s - 1 / 2)) * L s := by
-  sorry
+  obtain ⟨n, _, hn⟩ := exists_heckeConductorExponents χ
+  refine completedHeckeL_continuation_conductor_of_isLeast χ L Ldual hL hAgree hLdual hDualAgree
+    (fun v ↦ sInf (conductorExponents(χ, v))) (fun v ↦ ?_)
+  rw [(hn v).csInf_eq]
+  exact hn v
 
 /-- Paper: Equation (B.4.2.3), p. 614. The reflected logarithmic derivative
 and the discriminant–conductor term give the logarithmic derivative of the continuation.
