@@ -25,6 +25,44 @@ def positiveAngularProfile (μK : Measure K) (e : K × Multiplicative ℝ ≃ₜ
     (φ : G → ℂ) (ξ : PontryaginDual K) (t : ℝ) : ℂ :=
   ∫ k, φ (e (k,Multiplicative.ofAdd t)) * (ξ k : ℂ) ∂μK
 
+/-- Each positive compact-character fiber has finite real Fourier moments.
+The same moments sum absolutely over all fibers with any finite product of
+squared real angular frequencies. The inverse compact character in the
+joint Fourier transform preserves all these weights. -/
+theorem positiveAngularProfile_fourier_moments (μK : Measure K) [μK.IsHaarMeasure]
+    (e : K × Multiplicative ℝ ≃ₜ* G) (φ : SchwartzBruhat G) (j : ℕ)
+    (ρs : List (PontryaginDual K →ₜ* Multiplicative ℝ)) :
+    let p := positiveAngularProfile μK e φ.val
+    (∀ ξ, Integrable (fun u : ℝ ↦ (1+u^2)^j * ‖𝓕 (p ξ) u‖)) ∧
+      Summable (fun ξ : PontryaginDual K ↦ (ρs.map (fun ρ ↦ 1+((ρ ξ).toAdd)^2)).prod *
+        ∫ u : ℝ, (1+u^2)^j * ‖𝓕 (p ξ) u‖) := by
+  intro p
+  let : SecondCountableTopology Circle :=
+    inferInstanceAs (SecondCountableTopology (Metric.sphere (0 : ℂ) 1))
+  let : SecondCountableTopology (PontryaginDual K) :=
+    (ContinuousMonoidHom.isEmbedding_toContinuousMap K Circle).secondCountableTopology
+  let : Countable (PontryaginDual K) := countable_of_Lindelof_of_discrete
+  let μ := (μK.prod (volume : Measure ℝ)).map e
+  let : μ.IsHaarMeasure := split_log_chart_isHaarMeasure μK e
+  let : μ.Regular := inferInstance
+  obtain ⟨d,hd⟩ := exists_jointDual_chart e
+  have hraw : Integrable (fun q : K × Multiplicative ℝ ↦ φ.val (e q)) (μK.prod (volume : Measure ℝ)) :=
+    e.toHomeomorph.toMeasurableEquiv.measurableEmbedding.integrable_map_iff.mp (SchwartzBruhat.integrable μ φ)
+  have hf (ξ : PontryaginDual K) (u : ℝ) : 𝓕 (p ξ) u = lcaFourier μ φ.val (d (ξ⁻¹,Multiplicative.ofAdd u)) :=
+    fourier_angular_profile_eq μK e d hd φ.val hraw ξ u
+  constructor
+  · intro ξ
+    simp only [hf]
+    exact (angular_fourier_fiber_moments μ d j [] φ).1 ξ⁻¹
+  let w := fun ξ : PontryaginDual K ↦ (ρs.map (fun ρ ↦ 1+((ρ ξ).toAdd)^2)).prod
+  have hinv (ξ : PontryaginDual K) : w ξ⁻¹ = w ξ := by
+    simp only [w, map_inv,toAdd_inv,even_two.neg_pow]
+  have hb := (angular_fourier_fiber_moments μ d j ρs φ).2.comp_injective inv_injective
+  convert hb using 1
+  ext ξ
+  simp only [hf,Function.comp_apply]
+  exact congrArg (· * _) (hinv ξ).symm
+
 /-- The entire family of angular profiles of a compactly supported continuous
 Schwartz–Bruhat test has common support and smooth radial derivatives. Their
 physical L¹ norms are summable over all compact characters with arbitrarily
@@ -58,22 +96,8 @@ theorem summable_positiveAngularProfile_derivatives (μK : Measure K) [μK.IsHaa
     · exact ((hc.comp (e.continuous.comp (continuous_snd.prodMk (continuous_ofAdd.comp continuous_fst)))).mul
         (continuous_subtype_val.comp (ξ.continuous.comp continuous_snd))).continuousOn
     · simp
-  let : SecondCountableTopology Circle :=
-    inferInstanceAs (SecondCountableTopology (Metric.sphere (0 : ℂ) 1))
-  let : SecondCountableTopology (PontryaginDual K) :=
-    (ContinuousMonoidHom.isEmbedding_toContinuousMap K Circle).secondCountableTopology
-  let : Countable (PontryaginDual K) := countable_of_Lindelof_of_discrete
-  let μ := (μK.prod (volume : Measure ℝ)).map e
-  let : μ.IsHaarMeasure := split_log_chart_isHaarMeasure μK e
-  let : μ.Regular := inferInstance
-  obtain ⟨d,hd⟩ := exists_jointDual_chart e
-  have hraw : Integrable (fun q : K × Multiplicative ℝ ↦ φ.val (e q)) (μK.prod (volume : Measure ℝ)) :=
-    e.toHomeomorph.toMeasurableEquiv.measurableEmbedding.integrable_map_iff.mp (SchwartzBruhat.integrable μ φ)
-  have hf (ξ : PontryaginDual K) (u : ℝ) : 𝓕 (p ξ) u = lcaFourier μ φ.val (d (ξ⁻¹,Multiplicative.ofAdd u)) :=
-    fourier_angular_profile_eq μK e d hd φ.val hraw ξ u
-  have hm (ξ : PontryaginDual K) (j : ℕ) : Integrable (fun u : ℝ ↦ (1+u^2)^j * ‖𝓕 (p ξ) u‖) := by
-    simp only [hf]
-    exact (angular_fourier_fiber_moments μ d j [] φ).1 ξ⁻¹
+  have hm (ξ : PontryaginDual K) (j : ℕ) : Integrable (fun u : ℝ ↦ (1+u^2)^j * ‖𝓕 (p ξ) u‖) :=
+    (positiveAngularProfile_fourier_moments μK e φ j []).1 ξ
   have hcost (ξ : PontryaginDual K) :=
     smooth_physical_cost_of_fourier_moments hJ (p ξ) (hpc ξ) (hsupp ξ) (hm ξ)
   refine ⟨J,hJ,fun ξ ↦ ⟨hsupp ξ,(hcost ξ).1⟩,?_⟩
@@ -81,14 +105,7 @@ theorem summable_positiveAngularProfile_derivatives (μK : Measure K) [μK.IsHaa
   let w := fun ξ : PontryaginDual K ↦ (ρs.map (fun ρ ↦ 1+((ρ ξ).toAdd)^2)).prod
   have hpos (ξ : PontryaginDual K) : 0 ≤ w ξ :=
     List.prod_nonneg fun x hx ↦ by obtain ⟨_,_,rfl⟩ := List.mem_map.mp hx; positivity
-  have hinv (ξ : PontryaginDual K) : w ξ⁻¹ = w ξ := by
-    simp only [w, map_inv,toAdd_inv,even_two.neg_pow]
-  have hS : Summable (fun ξ ↦ w ξ * ∫ u : ℝ, (1+u^2)^j * ‖𝓕 (p ξ) u‖) := by
-    have hb := (angular_fourier_fiber_moments μ d j ρs φ).2.comp_injective inv_injective
-    convert hb using 1
-    ext ξ
-    simp only [hf,Function.comp_apply]
-    exact congrArg (· * _) (hinv ξ).symm
+  have hS := (positiveAngularProfile_fourier_moments μK e φ j ρs).2
   let C := volume.real J * (2*Real.pi)^j
   refine (hS.mul_left C).of_nonneg_of_le (fun ξ ↦ mul_nonneg (hpos ξ) (integral_nonneg fun _ ↦ norm_nonneg _)) ?_
   intro ξ
