@@ -1656,7 +1656,8 @@ private theorem integrable_logExponentialDecay_moment (f : logExponentialDecaySu
     (ae_of_all _ fun x ↦ le_of_eq ?_)
   rw [norm_mul, norm_pow, Complex.norm_real]
 
-private theorem mellin_logProfile (f : ℝ → ℂ) (s : ℂ) :
+/-- In logarithmic coordinates the scalar Mellin transform is the bilateral exponential integral. -/
+theorem mellin_logProfile (f : ℝ → ℂ) (s : ℂ) :
     mellin (fun t ↦ f (Real.log t)) s = ∫ x : ℝ, f x * Complex.exp (s * x) := by
   rw [mellin, ← integral_comp_exp]
   apply integral_congr_ae
@@ -5350,6 +5351,26 @@ private theorem sobolev_character_pull (hm : IsModulation m) (hsurj : Surjective
   refine ⟨M.comp T.toContinuousLinearMap, fun f ↦ hac.ae_eq ?_⟩
   filter_upwards [hM (T f), Lp.coeFn_compMeasurePreserving f hw] with x hx hx'
   exact hx.trans (congrArg (fun z ↦ v x * z) hx')
+
+/-- Pullback along the logarithmic modulation with a unitary character sends scalar
+interval Sobolev vectors continuously to the canonical group interval space. On
+exponential-decay tests the pullback has an ordinary Schwartz–Bruhat representative. -/
+theorem exists_modulatedIntervalSobolev_characterLogPullback (hm : IsModulation m) (hms : Surjective m)
+    (χ : PontryaginDual G) (a b s : ℝ) :
+    ∃ L : CompactIntervalSobolev volume id a b s →L[ℂ] ModulatedIntervalSobolev m hm a b s,
+      (∀ u, (L u : G → ℂ) =ᵐ[canonicalModulatedHaar m hm] (fun g ↦ (χ g : ℂ) * u (logModule m g))) ∧
+      ∀ f : PositiveRealExponentialDecay univ, ∃ v : SchwartzBruhat G,
+        ∀ g, v g = (χ g : ℂ) * f.val (logModule m g) := by
+  obtain ⟨L,hL⟩ := sobolev_character_pull m hm hms _ (continuous_intervalSobolevDensity' a b s)
+    (intervalSobolevDensity_pos a b s) (fun g ↦ (χ g : ℂ))
+    (continuous_subtype_val.comp χ.continuous) (fun _ ↦ Circle.norm_coe _)
+  refine ⟨L,hL,fun f ↦ ?_⟩
+  obtain ⟨τ,hτ⟩ := exists_section_of_surjective hm.1 hms
+  let u : ModulatedExponentialDecay m univ := ⟨f.val ∘ logModule m, sobolev_radial_decay m hm τ hτ f⟩
+  have hu : u.val ∈ schwartzBruhatSubmodule G := by
+    simpa only [modulationWeight_zero] using modulationWeight_mem_schwartzBruhat m univ ⟨0,mem_univ _⟩ u
+  obtain ⟨M,hM⟩ := schwartzBruhat_mul_unitaryCharacter χ
+  exact ⟨M ⟨u.val,hu⟩,hM _⟩
 
 /-- On the upper tail the reciprocal weight supplies either exponential decay or an
 integrable power. At the critical power the latter argument requires a strict inequality. -/
