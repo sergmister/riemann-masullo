@@ -62,6 +62,15 @@ local notation "zeroAdele" => Multiplicative.ofAdd (0 : 𝔸[F])
 local notation "classNormℝ" => fun (g : C[F]) ↦ ((ideleClassNorm F g : ℝ≥0) : ℝ)
 local notation "halfPlane" => Complex.re ⁻¹' Set.Ioi (1 : ℝ)
 
+set_option quotPrecheck false in
+local notation "finiteConductorLevels(" F ", " χ ", " v ")" =>
+  setOf (fun j : ℕ ↦ ∀ u : (HeightOneSpectrum.adicCompletion F v)ˣ, ‖Units.val u‖ = 1 →
+    ‖Units.val u - 1‖ ≤ (Ideal.absNorm (HeightOneSpectrum.asIdeal v) : ℝ) ^ (-(j : ℤ)) →
+      χ (IdeleClassGroup.ofAdicCompletion (𝓞 F) F v u) = 1)
+local notation "finiteConductorLog(" F ", " n ")" =>
+  (Real.log (Int.natAbs (NumberField.discr F)) + finsum (fun v : HeightOneSpectrum (𝓞 F) ↦
+    Real.log (Ideal.absNorm (HeightOneSpectrum.asIdeal v)) * (n v : ℝ)) : ℝ)
+
 section Hecke
 
 /-- Paper: §3.2.1, p. 122. Raising the positive idele class norm to a fixed
@@ -1641,10 +1650,9 @@ private theorem tate_chart_polar_model (f : ℬ[F]) (χ : U[F]) (p c : ℂ) (hp 
   exact (hAgree s hs).symm
 
 /-- Paper: Theorem 3.2.2.1(1)(a), p. 124. In each complex norm-twist chart the zeta
-integral on the half-plane `Re s > 1` extends to a function on the whole plane that is
-meromorphic and in normal form. Following Tate, the continuation is the sum of the two
-large-norm theta integrals of the test function and of its Fourier transform, plus two
-simple polar terms coming from adelic Riemann–Roch. -/
+integral on the half-plane `Re s > 1` extends to a meromorphic function in normal form on the
+whole plane. The proof normalizes the sum of the two large-norm theta integrals of the test
+function and its Fourier transform and the two simple polar terms from adelic Riemann–Roch. -/
 theorem globalIdelicZetaIntegral_exists_chartContinuation (f : ℬ[F]) (χ : U[F]) :
     ∃ G : ℂ → ℂ, MeromorphicNFOn G univ ∧
       ∀ s : ℂ, 1 < s.re → G s = globalIdelicZetaIntegral f (ideleClassNormTwist χ s) := by
@@ -2286,9 +2294,10 @@ private theorem archTest_mem (χ : PontryaginDual (IdeleClassGroup (𝓞 F) F)) 
 
 end ArchimedeanHeckeTest
 
-/-- Paper: Equations (3.4.3.3)–(3.4.3.6), p. 152. Choose archimedean Gaussians
+/-- Paper: Equations (3.4.3.3)–(3.4.3.6), p. 152. There are archimedean tests
 for a unitary character and its inverse whose zeta integrals equal their gamma factors.
-The trace-pairing Fourier transform exchanges the two Gaussians up to a nonzero scalar.
+The trace-pairing Fourier transform sends the first test to a nonzero multiple of the second.
+The proof chooses products of local Gaussians.
 Deviation: The complex monomials have angular weight opposite to the character. -/
 theorem exists_archimedeanHeckeTest_fourier (χ : U[F]) :
     ∃ (f fdual : SchwartzBruhat (Multiplicative (SAdeleRing F ∅))) (c : ℂ), c ≠ 0 ∧
@@ -2522,6 +2531,116 @@ private theorem finiteFourier_implies_unit_trivial (χ : PontryaginDual Kˣ) {y 
   apply Circle.coe_injective
   exact mul_right_cancel₀ hy (heq.trans (one_mul _).symm)
 
+/-- Principal units on which the character is trivial give additive periods of its unit test. -/
+private theorem finiteUnitTest_add_period (χ : PontryaginDual Kˣ) {r : ℝ} (hbl : r < 1)
+    (hunit : ∀ u : Kˣ, ‖u.val‖ = 1 → ‖u.val - 1‖ ≤ r → χ u = 1)
+    {t : K} (ht : ‖t‖ ≤ r) : ∀ x, finiteUnitTest v χ (t + x) = finiteUnitTest v χ x := by
+  intro x
+  have ht' := ht.trans_lt hbl
+  have heq : ‖t + x‖ = 1 ↔ ‖x‖ = 1 := by
+    constructor
+    · intro h
+      have he := IsUltrametricDist.norm_add_eq_max_of_norm_ne_norm (x := -t) (y := t + x)
+        (by rw [norm_neg, h]; exact ht'.ne)
+      simpa [h, norm_neg, max_eq_right ht'.le] using he
+    · intro h
+      rw [IsUltrametricDist.norm_add_eq_max_of_norm_ne_norm (by rw [h]; exact ht'.ne), h, max_eq_right ht'.le]
+  by_cases hx : ‖x‖ = 1
+  · have hx0 : x ≠ 0 := by intro hh; simp [hh] at hx
+    have hx' := heq.mpr hx
+    have hx0' : t + x ≠ 0 := by intro hh; simp [hh] at hx'
+    let u := Units.mk0 (t + x) hx0' / Units.mk0 x hx0
+    have hn : ‖u.val‖ = 1 := by change ‖(t + x) / x‖ = 1; rw [norm_div, hx', hx, div_one]
+    have hdiff : ‖u.val - 1‖ ≤ r := by
+      change ‖(t + x) / x - 1‖ ≤ _
+      rwa [div_sub_one hx0, add_sub_cancel_right, norm_div, hx, div_one]
+    have hχ := hunit u hn hdiff
+    have he : u.val * x = t + x := div_mul_cancel₀ _ hx0
+    rw [← he, finiteUnitTest_mul v χ u hn, hχ, Circle.coe_one, inv_one, one_mul]
+  · simp [finiteUnitTest, hx, heq.not.mpr hx]
+
+/-- For a ramified character the local conductor condition is equivalent to a
+bound for the radius of any nonzero Fourier coefficient of its unit test. -/
+private theorem finiteFourier_conductor_iff (χ : PontryaginDual Kˣ)
+    (hram : ∃ u : Kˣ, ‖u.val‖ = 1 ∧ χ u ≠ 1) {y : K}
+    (hy : tamagawaFourier μv ψ (finiteUnitTest v χ) y ≠ 0) (n : ℕ) :
+    (∀ u : Kˣ, ‖u.val‖ = 1 → ‖u.val - 1‖ ≤ (v.asIdeal.absNorm : ℝ) ^ (-(n : ℤ)) → χ u = 1) ↔
+      ‖y‖ ≤ radius * (v.asIdeal.absNorm : ℝ) ^ n := by
+  let q : ℝ := v.asIdeal.absNorm
+  have hq : 1 < q := by dsimp [q]; exact_mod_cast HeightOneSpectrum.one_lt_absNorm v
+  have hq₀ := zero_lt_one.trans hq
+  change (∀ u : Kˣ, ‖u.val‖ = 1 → ‖u.val - 1‖ ≤ q ^ (-(n : ℤ)) → χ u = 1) ↔ ‖y‖ ≤ radius * q ^ n
+  rw [zpow_neg, zpow_natCast]
+  constructor
+  · intro h
+    have hn : 0 < n := by
+      by_contra! hzero
+      obtain rfl := Nat.eq_zero_of_le_zero hzero
+      obtain ⟨u, hu, hne⟩ := hram
+      apply hne (h u hu ?_)
+      simpa [sub_eq_add_neg, hu] using IsUltrametricDist.norm_add_le_max u.val (-(1 : K))
+    let val : Valuation K (WithZero (Multiplicative ℤ)) := Valued.v
+    obtain ⟨π, hπ⟩ := val.exists_isUniformizer_of_isCyclic_of_nontrivial
+    let b := (π : K) ^ n
+    have hb : ‖b‖ = (q ^ n)⁻¹ := by
+      simp [b, q, norm_pow, norm_uniformizer_adicCompletion v _ hπ]
+    have hb₁ : ‖b‖ < 1 := by rw [hb]; exact inv_lt_one_of_one_lt₀ (one_lt_pow₀ hq hn.ne')
+    have hAnn : ∀ x ∈ (O : Set K), ψ (x * (b * y)) = 1 := by
+      intro x hx
+      have hx₁ : ‖x‖ ≤ 1 := Valued.toNormedField.norm_le_one_iff.mpr hx
+      have ht : ‖x * b‖ ≤ ‖b‖ := by rw [norm_mul]; exact mul_le_of_le_one_left (norm_nonneg _) hx₁
+      have he := finiteFourier_translate_kernel v
+        (finiteUnitTest_add_period v χ hb₁ (fun u hu hus ↦ h u hu (hus.trans_eq hb)) ht) hy
+      rwa [mul_assoc] at he
+    have h' := (trace_ball v _).mp hAnn
+    rw [norm_mul, hb, ← div_eq_inv_mul, div_le_iff₀ (pow_pos hq₀ n)] at h'
+    exact h'
+  · intro h u hu hus
+    apply finiteFourier_implies_unit_trivial v χ hy u hu
+    calc
+      ‖u.val - 1‖ * ‖y‖ ≤ (q ^ n)⁻¹ * (radius * q ^ n) :=
+        mul_le_mul hus h (norm_nonneg _) (by positivity)
+      _ = radius := by field_simp
+
+/-- Paper: Equation (3.3.2.24), p. 141. For a ramified unit character the Fourier
+shell has radius equal to the norm of the product of the different and its conductor. -/
+private theorem finiteFourier_conductor_radius (χ : PontryaginDual Kˣ)
+    (hram : ∃ u : Kˣ, ‖u.val‖ = 1 ∧ χ u ≠ 1) {y : K}
+    (hy : tamagawaFourier μv ψ (finiteUnitTest v χ) y ≠ 0) (n : ℕ)
+    (hn : IsLeast {m : ℕ | ∀ u : Kˣ, ‖u.val‖ = 1 →
+      ‖u.val - 1‖ ≤ (v.asIdeal.absNorm : ℝ) ^ (-(m : ℤ)) → χ u = 1} n) :
+    ‖y‖ = (v.asIdeal.absNorm : ℝ) ^ (multiplicity v.asIdeal (differentIdeal ℤ (𝓞 F)) + n) := by
+  let q : ℝ := v.asIdeal.absNorm
+  let d := multiplicity v.asIdeal (differentIdeal ℤ (𝓞 F))
+  have hq : 1 < q := by dsimp [q]; exact_mod_cast HeightOneSpectrum.one_lt_absNorm v
+  have hq₀ := (zero_lt_one.trans hq).ne'
+  have hy₀ : y ≠ 0 := by
+    rintro rfl
+    obtain ⟨u, hu, hne⟩ := hram
+    exact hne (finiteFourier_implies_unit_trivial v χ hy u hu (by simp))
+  have hval : (Valued.v y) ≠ 0 := (Valued.v : Valuation K (WithZero (Multiplicative ℤ))).ne_zero_iff.mpr hy₀
+  let j : ℤ := WithZero.log (Valued.v y)
+  have hj : ‖y‖ = q ^ j := by
+    rw [FinitePlace.norm_def, WithZeroMulInt.toNNReal_neg_apply _ hval]
+    norm_cast
+  have hp (k : ℕ) : radius * q ^ k = q ^ ((d : ℤ) + k) := by
+    rw [zpow_add₀ hq₀, zpow_natCast, zpow_natCast]
+  have hUpper := (finiteFourier_conductor_iff v χ hram hy n).mp hn.1
+  change ‖y‖ ≤ radius * q ^ n at hUpper
+  rw [hj, hp, zpow_le_zpow_iff_right₀ hq] at hUpper
+  cases n with
+  | zero =>
+    obtain ⟨u, hu, hne⟩ := hram
+    exfalso
+    apply hne (hn.1 u hu ?_)
+    simpa [sub_eq_add_neg, hu] using IsUltrametricDist.norm_add_le_max u.val (-(1 : K))
+  | succ k =>
+    have hLower : ¬ ‖y‖ ≤ radius * q ^ k := fun h ↦
+      (Nat.not_succ_le_self k) (hn.2 ((finiteFourier_conductor_iff v χ hram hy k).mpr h))
+    rw [hj, hp, zpow_le_zpow_iff_right₀ hq] at hLower
+    have he : j = ((d + (k + 1) : ℕ) : ℤ) := by omega
+    rw [hj, he, zpow_natCast]
+
 /-- The ramified unit test has Fourier support on a single valuation shell. A nonzero coefficient gives
 an additive period ball for the test, whose annihilator bounds every other nonzero coefficient. -/
 private theorem finiteFourier_common_radius (χ : PontryaginDual Kˣ)
@@ -2543,32 +2662,9 @@ private theorem finiteFourier_common_radius (χ : PontryaginDual Kˣ)
   let b : K := (π : K)⁻¹ ^ multiplicity v.asIdeal (differentIdeal ℤ (𝓞 F)) / y
   have hbn : ‖b‖ = radius / ‖y‖ := by simp [b, norm_div, norm_pow, norm_inv, hnπ]
   have hbl : ‖b‖ < 1 := by rw [hbn]; exact (div_lt_one (norm_pos_iff.mpr hy0)).mpr hbound
-  have hadd {t : K} (ht : ‖t‖ ≤ ‖b‖) :
-      ∀ x, finiteUnitTest v χ (t + x) = finiteUnitTest v χ x := by
-    intro x
-    have ht' := ht.trans_lt hbl
-    have heq : ‖t + x‖ = 1 ↔ ‖x‖ = 1 := by
-      constructor
-      · intro h
-        have he := IsUltrametricDist.norm_add_eq_max_of_norm_ne_norm (x := -t) (y := t + x)
-          (by rw [norm_neg, h]; exact ht'.ne)
-        simpa [h, norm_neg, max_eq_right ht'.le] using he
-      · intro h
-        rw [IsUltrametricDist.norm_add_eq_max_of_norm_ne_norm (by rw [h]; exact ht'.ne), h, max_eq_right ht'.le]
-    by_cases hx : ‖x‖ = 1
-    · have hx0 : x ≠ 0 := by intro hh; simp [hh] at hx
-      have hx' := heq.mpr hx
-      have hx0' : t + x ≠ 0 := by intro hh; simp [hh] at hx'
-      let u := Units.mk0 (t + x) hx0' / Units.mk0 x hx0
-      have hn : ‖u.val‖ = 1 := by change ‖(t + x) / x‖ = 1; rw [norm_div, hx', hx, div_one]
-      have hdiff : ‖u.val - 1‖ * ‖y‖ ≤ radius := by
-        change ‖(t + x) / x - 1‖ * ‖y‖ ≤ _
-        rw [div_sub_one hx0, add_sub_cancel_right, norm_div, hx, div_one]
-        exact (le_div_iff₀ (norm_pos_iff.mpr hy0)).mp (ht.trans_eq hbn)
-      have hχ := finiteFourier_implies_unit_trivial v χ hy u hn hdiff
-      have he : u.val * x = t + x := div_mul_cancel₀ _ hx0
-      rw [← he, finiteUnitTest_mul v χ u hn, hχ, Circle.coe_one, inv_one, one_mul]
-    · simp [finiteUnitTest, hx, heq.not.mpr hx]
+  have hadd {t : K} (ht : ‖t‖ ≤ ‖b‖) :=
+    finiteUnitTest_add_period v χ hbl (fun u hu hus ↦ finiteFourier_implies_unit_trivial v χ hy u hu
+      ((le_div_iff₀ (norm_pos_iff.mpr hy0)).mp (hus.trans_eq hbn))) ht
   have hAnn : ∀ x ∈ (O : Set K), ψ (x * (b * z)) = 1 := by
     intro x hx
     have hx' : ‖x‖ ≤ 1 := Valued.toNormedField.norm_le_one_iff.mpr hx
@@ -2754,11 +2850,13 @@ private theorem diskTest_regular : IsLocallyConstant (diskTest v) ∧ HasCompact
   · filter_upwards [hc.isClosed.isOpen_compl.mem_nhds hx] with y hy
     simp [diskTest, hx, show y ∉ O from hy]
 
-/-- The two finite-place Mellin transforms are Euler factors times nonzero constants,
-with one positive radial scale for the Fourier transform. -/
-private theorem finite_pair (χ : Unitary) :
+/-- The Mellin transforms of the local test and its Fourier transform expose
+the different and conductor in their radial scale. -/
+private theorem finite_pair_with_conductor (χ : Unitary) :
     ∃ (f : K → ℂ) (a b : ℂ) (q : ℝ), IsLocallyConstant f ∧ HasCompactSupport f ∧
       a ≠ 0 ∧ b ≠ 0 ∧ 0 < q ∧
+      (∀ n : ℕ, IsLeast (finiteConductorLevels(F, χ, v)) n →
+        q = (v.asIdeal.absNorm : ℝ) ^ (multiplicity v.asIdeal (differentIdeal ℤ (𝓞 F)) + n)) ∧
       (∀ s : Complex.re ⁻¹' Ioi (1 : ℝ), primeMellin v χ f s = a * finiteHeckeEulerFactor χ v s) ∧
       (∀ s : Complex.re ⁻¹' Ioi (1 : ℝ), primeMellin v χ⁻¹ (tamagawaFourier μv ψv f) s =
         b * (q : ℂ) ^ (s : ℂ) * finiteHeckeEulerFactor χ⁻¹ v s) := by
@@ -2793,8 +2891,13 @@ private theorem finite_pair (χ : Unitary) :
         change ¬ ‖(t * u).val‖ ≤ D
         rw [Units.val_mul, norm_mul, ht]
         exact (lt_mul_of_one_lt_right hD (lt_of_not_ge (hu ∘ Valued.toNormedField.norm_le_one_iff.mp))).not_ge
+    have hscale (n : ℕ) (hn : IsLeast (finiteConductorLevels(F, χ, v)) n) :
+        D = (v.asIdeal.absNorm : ℝ) ^ (d + n) := by
+      have hz : 0 ∈ finiteConductorLevels(F, χ, v) :=
+        fun u hu _ ↦ (finiteUnitary_unramified v χ).mp h u hu
+      simp [Nat.eq_zero_of_le_zero (hn.2 hz), D]
     refine ⟨diskTest v, m, M * (finiteUnitary v χ⁻¹ t : ℂ) * m, D, (diskTest_regular v).1, (diskTest_regular v).2, hm,
-      mul_ne_zero (mul_ne_zero hmass (Circle.coe_ne_zero _)) hm, hD, unramified_disk_zeta v χ h, ?_⟩
+      mul_ne_zero (mul_ne_zero hmass (Circle.coe_ne_zero _)) hm, hD, hscale, unramified_disk_zeta v χ h, ?_⟩
     intro s
     unfold primeMellin
     rw [← integral_mul_left_eq_self (μ := νv) _ t]
@@ -2822,7 +2925,7 @@ private theorem finite_pair (χ : Unitary) :
     have hdual (u : Kˣ) : (finiteUnitary v χ⁻¹ u : ℂ) = (ρ u : ℂ)⁻¹ := rfl
     refine ⟨f, m, m * g y * (finiteUnitary v χ⁻¹ t : ℂ), ‖y‖, (finiteUnitTest_regularity v ρ).1,
       (finiteUnitTest_regularity v ρ).2, hm, mul_ne_zero (mul_ne_zero hm hy) (Circle.coe_ne_zero _),
-      norm_pos_iff.mpr hy0, ?_, ?_⟩
+      norm_pos_iff.mpr hy0, fun n hn ↦ finiteFourier_conductor_radius v ρ hram hy n hn, ?_, ?_⟩
     · intro s
       have hz := shell_zeta v χ f 1 (fun u hu ↦ by simp [f, finiteUnitTest_unit] at hu ⊢; exact fun h ↦ (hu h).elim)
         (fun u hu ↦ by simp [f, ρ, finiteUnitTest_unit, hu, finiteUnitTest]) (s : ℂ)
@@ -2834,6 +2937,17 @@ private theorem finite_pair (χ : Unitary) :
           (finiteFourier_common_radius v ρ hram hn hy)))
         (fun u hu ↦ by rw [mul_comm, hdual, inv_inv]; exact finiteFourier_unit_covariant v ρ u hu y) (s : ℂ)
       simpa only [primeMellin, m, g, f, t, Units.val_mk0, finiteHeckeEulerFactor, ite_eq_right ((inverse_unramified v χ).not.mpr h), mul_one] using hz
+
+/-- The two finite-place Mellin transforms are Euler factors times nonzero constants,
+with one positive radial scale for the Fourier transform. -/
+private theorem finite_pair (χ : Unitary) :
+    ∃ (f : K → ℂ) (a b : ℂ) (q : ℝ), IsLocallyConstant f ∧ HasCompactSupport f ∧
+      a ≠ 0 ∧ b ≠ 0 ∧ 0 < q ∧
+      (∀ s : Complex.re ⁻¹' Ioi (1 : ℝ), primeMellin v χ f s = a * finiteHeckeEulerFactor χ v s) ∧
+      (∀ s : Complex.re ⁻¹' Ioi (1 : ℝ), primeMellin v χ⁻¹ (tamagawaFourier μv ψv f) s =
+        b * (q : ℂ) ^ (s : ℂ) * finiteHeckeEulerFactor χ⁻¹ v s) := by
+  obtain ⟨f, a, b, q, hf, hfc, ha, hb, hq, _, hM, hN⟩ := finite_pair_with_conductor v χ
+  exact ⟨f, a, b, q, hf, hfc, ha, hb, hq, hM, hN⟩
 
 end FinitePlaceHeckeTests
 
@@ -3230,6 +3344,46 @@ private theorem tailDual_eq_integers (S : Finset V)
   rw [hd v hv, pow_zero]
   exact Valued.toNormedField.norm_le_one_iff
 
+/-- At a stage containing the different, the Fourier lift formula has the same
+integer tail on both sides and no factor from the omitted places. -/
+theorem adeleSchwartzFourier_sAdeleSchwartzToGlobal_of_different (S : Finset V)
+    (hgood : ∀ v : HeightOneSpectrum (𝓞 F), v.asIdeal ∣ differentIdeal ℤ (𝓞 F) → v ∈ S)
+    (f g : SchwartzBruhat (Multiplicative (SAdeleRing F S)))
+    (hg :
+      letI : MeasurableSpace (SAdeleRing F S) :=
+        (@MeasurableSpace.pi _ _ (fun w : InfinitePlace F ↦ borel w.Completion)).prod
+          (@MeasurableSpace.pi _ _ (fun v : S ↦ borel (v.val.adicCompletion F)))
+      tamagawaFourier (sAdditiveTamagawaMeasure F S) (sAdeleStandardCharacter F S)
+        (fun x ↦ f (Multiplicative.ofAdd x)) = fun y ↦ g (Multiplicative.ofAdd y)) :
+    adeleSchwartzFourier (sAdeleSchwartzToGlobal F S f) =
+      sAdeleSchwartzToGlobal F S g := by
+  classical
+  have hd (v : HeightOneSpectrum (𝓞 F)) (hv : v ∉ S) :
+      multiplicity v.asIdeal (differentIdeal ℤ (𝓞 F)) = 0 :=
+    multiplicity_eq_zero_of_not_dvd (fun h ↦ hv (hgood v h))
+  have hp := sAdeleProjection_restrict F S ∅ (Finset.disjoint_empty_right _)
+    (by simpa only [Finset.union_empty] using hd) (fun _ ↦ Set.univ)
+    (fun _ ↦ MeasurableSet.univ) 1 (by simp)
+  have hft := tamagawaFourier_sAdeleLift F S 1 (by simpa using hp)
+    (fun x ↦ f (Multiplicative.ofAdd x)) (partialTensor_integrable F S f)
+  dsimp only at hft
+  rw [tailDual_eq_integers F S hd, NNReal.coe_one, one_smul, hg] at hft
+  let I : Set 𝔸[F] := integralAdelesOutside F S
+  have hlift (g : SchwartzBruhat (Multiplicative (SAdeleRing F S))) (x : 𝔸[F]) :
+      sAdeleSchwartzToGlobal F S g (Multiplicative.ofAdd x) =
+      I.indicator ((fun z ↦ g (Multiplicative.ofAdd z)) ∘ adeleProjection F S) x := by
+    rw [sAdeleSchwartzToGlobal_apply]
+    by_cases hx : x ∈ integralAdelesOutside F S
+    · rw [Set.indicator_of_mem hx, ite_eq_left ((integralTail_iff F S x).mp hx)]; rfl
+    · rw [Set.indicator_of_notMem hx, ite_eq_right ((integralTail_iff F S x).not.mp hx)]
+  apply Subtype.ext
+  funext y
+  let : MeasurableSpace 𝔸[F] := borel _
+  let ft : (𝔸[F] → ℂ) → 𝔸[F] → ℂ := tamagawaFourier (additiveTamagawaMeasure F) (adeleStandardCharacter F)
+  change ft (fun x ↦ sAdeleSchwartzToGlobal F S f (Multiplicative.ofAdd x)) y.toAdd = _
+  exact (congrArg (fun g ↦ ft g y.toAdd) (funext (hlift f))).trans
+    ((congrFun hft y.toAdd).trans (hlift g y.toAdd).symm)
+
 private theorem partialTensor_lift_apply (S : Finset V) (A : Arch)
     (p : (v : S) → v.val.adicCompletion F → ℂ)
     (f : SchwartzBruhat (Multiplicative (SAdeleRing F S)))
@@ -3343,17 +3497,50 @@ local notation "V" => HeightOneSpectrum (𝓞 F)
 local notation "Arch" => SchwartzBruhat (Multiplicative (SAdeleRing F ∅))
 local notation "Global" => SchwartzBruhat (Multiplicative (AdeleRing (𝓞 F) F))
 
-/-- Paper: Proposition 3.2.1.3(3), p. 123 and Equations (3.4.3.7)–(3.4.3.9),
-p. 152. Extend the archimedean test by integer-ring indicators at unramified finite places
-and inverse character weights on integer units at ramified places. In the right half-plane,
-the finite factors of the two zeta integrals are the Euler products for the character and
-its inverse. The Fourier-transformed finite test gives a nonzero scalar and a positive
-real scale raised to the exponent, from the different and the character conductor. -/
-theorem exists_globalHeckeTest_fourier (χ : U[F])
+/-- Multiplying the local Fourier scales adds the logarithms of the absolute
+discriminant and of the finite conductor. -/
+private theorem hecke_log_prod_conductor_scale (S : Finset (HeightOneSpectrum (𝓞 F)))
+    (n : HeightOneSpectrum (𝓞 F) → ℕ) (q : HeightOneSpectrum (𝓞 F) → ℝ)
+    (hd : ∀ v ∉ S, multiplicity v.asIdeal (differentIdeal ℤ (𝓞 F)) = 0)
+    (hn : ∀ v ∉ S, n v = 0)
+    (hq : ∀ v ∈ S, q v = (v.asIdeal.absNorm : ℝ) ^ (multiplicity v.asIdeal (differentIdeal ℤ (𝓞 F)) + n v)) :
+    Real.log (∏ v ∈ S, q v) = Real.log ((NumberField.discr F).natAbs : ℝ) +
+      ∑ᶠ v, Real.log (v.asIdeal.absNorm : ℝ) * (n v : ℝ) := by
+  classical
+  let J := differentIdeal ℤ (𝓞 F)
+  let d (v : HeightOneSpectrum (𝓞 F)) := multiplicity v.asIdeal J
+  have hnorm (v : HeightOneSpectrum (𝓞 F)) : 0 < (v.asIdeal.absNorm : ℝ) := by
+    exact_mod_cast (HeightOneSpectrum.one_lt_absNorm v).trans' Nat.zero_lt_one
+  have hfactor : ∏ v ∈ S, v.asIdeal ^ d v = J := by
+    rw [← finprod_eq_finsetProd_of_mulSupport_subset (f := fun v ↦ v.asIdeal ^ d v)]
+    · exact Ideal.finprod_heightOneSpectrum_pow_multiplicity differentIdeal_ne_bot
+    · intro v hv
+      by_contra hx
+      exact hv (by simp [d, J, hd v hx])
+  have hD : (∏ v ∈ S, (v.asIdeal.absNorm : ℝ) ^ d v) = ((NumberField.discr F).natAbs : ℝ) := by
+    exact_mod_cast (by
+      simpa only [map_prod, map_pow, J, NumberField.absNorm_differentIdeal F (𝓞 F)] using
+        congrArg (fun I : Ideal (𝓞 F) ↦ Ideal.absNorm I) hfactor :
+        (∏ v ∈ S, v.asIdeal.absNorm ^ d v) = (NumberField.discr F).natAbs)
+  have hs : Function.support (fun v : HeightOneSpectrum (𝓞 F) ↦ Real.log (v.asIdeal.absNorm : ℝ) *
+      (n v : ℝ)) ⊆ S := by
+    intro v hv
+    by_contra hx
+    exact hv (by simp [hn v hx])
+  rw [← hD, Real.log_prod (fun v hv ↦ (hq v hv).symm ▸ pow_ne_zero _ (hnorm v).ne'),
+    Real.log_prod (fun v _ ↦ pow_ne_zero _ (hnorm v).ne'), finsum_eq_sum_of_support_subset _ hs,
+    ← Finset.sum_add_distrib]
+  refine Finset.sum_congr rfl fun v hv ↦ ?_
+  rw [hq v hv, Real.log_pow, Real.log_pow, Nat.cast_add, add_mul, mul_comm (n v : ℝ)]
+
+/-- The explicit finite Fourier scales multiply to the discriminant times the conductor. -/
+private theorem exists_globalHeckeTest_fourier_with_conductor (χ : U[F])
     (fArch fArchDual : SchwartzBruhat (Multiplicative (SAdeleRing F ∅)))
     (c : ℂ) (hc : c ≠ 0)
     (hFourier : ∀ y, archimedeanFourier fArch y = c * fArchDual (Multiplicative.ofAdd y)) :
     ∃ (f : ℬ[F]) (a b : ℂ) (q : ℝ), a ≠ 0 ∧ b ≠ 0 ∧ 0 < q ∧
+      (∀ n : V → ℕ, (∀ v, IsLeast (finiteConductorLevels(F, χ, v)) (n v)) →
+        Real.log q = finiteConductorLog(F, n)) ∧
       (∀ s : halfPlane, globalIdelicZetaIntegral f (ideleClassNormTwist χ s) =
         a * (archimedeanZeta fArch (ideleClassNormTwist χ s) * finiteHeckeL χ s)) ∧
       (∀ s : halfPlane,
@@ -3371,7 +3558,7 @@ theorem exists_globalHeckeTest_fourier (χ : U[F])
     exact hv (Finset.mem_union_right T (by simpa [D] using h))
   have hχ (v : V) (hv : v ∉ S) : (ideleClassNormTwist χ 0).IsUnramifiedAt v :=
     hT v (fun h ↦ hv (Finset.mem_union_left _ h))
-  choose p a b q hp hpc ha hb hq hM hN using fun v : V ↦ finite_pair v χ
+  choose p a b q hp hpc ha hb hq hscale hM hN using fun v : V ↦ finite_pair_with_conductor v χ
   let r (v : V) := finiteFT F v (p v)
   obtain ⟨f, k, hk, hf, hg⟩ := globalTensor_fourier F S hd fArch fArchDual c hc hFourier
     (fun v ↦ p v.val) (fun v ↦ ⟨hp v.val, hpc v.val⟩)
@@ -3395,7 +3582,12 @@ theorem exists_globalHeckeTest_fourier (χ : U[F])
     Finset.prod_congr rfl fun v hv ↦ ite_eq_left hv
   refine ⟨f, ∏ v ∈ S, a v, (∏ v ∈ S, b v) * k, ∏ v ∈ S, q v,
     Finset.prod_ne_zero_iff.mpr (fun v _ ↦ ha v),
-    mul_ne_zero (Finset.prod_ne_zero_iff.mpr (fun v _ ↦ hb v)) hk, Finset.prod_pos (fun v _ ↦ hq v), ?_, ?_⟩
+    mul_ne_zero (Finset.prod_ne_zero_iff.mpr (fun v _ ↦ hb v)) hk, Finset.prod_pos (fun v _ ↦ hq v), ?_, ?_, ?_⟩
+  · intro n hn
+    apply hecke_log_prod_conductor_scale S n q hd _ (fun v _ ↦ hscale v (n v) (hn v))
+    intro v hv
+    exact Nat.eq_zero_of_le_zero ((hn v).2
+      (fun u hu _ ↦ (finiteUnitary_unramified v χ).mp (hχ v hv) u hu))
   · intro s
     have hloc (v : V) : primeMellin v χ (extend p v) s = weight a v * finiteHeckeEulerFactor χ v s := by
       by_cases hv : v ∈ S
@@ -3422,13 +3614,36 @@ theorem exists_globalHeckeTest_fourier (χ : U[F])
     have rearrange (a b c d e : ℂ) : a * b * ((c * d) * e) = a * c * b * (d * e) := by ring
     exact (congrArg₂ (· * ·) hm (congrArg (· * finiteHeckeL χ⁻¹ s) harch)).trans (rearrange _ _ _ _ _)
 
+/-- Paper: Equations (3.4.3.7)–(3.4.3.9), p. 152. Given two archimedean tests
+related by Fourier transform up to a nonzero scalar, there is a global test whose zeta
+integral and whose Fourier transform's zeta integral have the respective archimedean
+zeta factors and finite Euler products on the right half-plane. The equalities allow
+nonzero scalar factors and, on the Fourier side, a positive scale raised to the exponent.
+The proof tensors the first test with integer-ring indicators at unramified places and
+inverse character weights on integer units at ramified places. The different and the
+character conductor determine the Fourier-side scale. See also Proposition 3.2.1.3(3), p. 123. -/
+theorem exists_globalHeckeTest_fourier (χ : U[F])
+    (fArch fArchDual : SchwartzBruhat (Multiplicative (SAdeleRing F ∅)))
+    (c : ℂ) (hc : c ≠ 0)
+    (hFourier : ∀ y, archimedeanFourier fArch y = c * fArchDual (Multiplicative.ofAdd y)) :
+    ∃ (f : ℬ[F]) (a b : ℂ) (q : ℝ), a ≠ 0 ∧ b ≠ 0 ∧ 0 < q ∧
+      (∀ s : halfPlane, globalIdelicZetaIntegral f (ideleClassNormTwist χ s) =
+        a * (archimedeanZeta fArch (ideleClassNormTwist χ s) * finiteHeckeL χ s)) ∧
+      (∀ s : halfPlane,
+        globalIdelicZetaIntegral (adeleSchwartzFourier f) (ideleClassNormTwist χ⁻¹ s) =
+          (b * (q : ℂ) ^ (s : ℂ)) *
+            (archimedeanZeta fArchDual (ideleClassNormTwist χ⁻¹ s) * finiteHeckeL χ⁻¹ s)) := by
+  obtain ⟨f, a, b, q, ha, hb, hq, _, hM, hN⟩ :=
+    exists_globalHeckeTest_fourier_with_conductor χ fArch fArchDual c hc hFourier
+  exact ⟨f, a, b, q, ha, hb, hq, hM, hN⟩
+
 end
 
 
 
-/-- Paper: Equations (3.4.3.3)–(3.4.3.6), p. 152. The archimedean test function
-given by the product of the local Gaussians has zeta integral equal to the gamma
-factor of the unitary character in the half-plane of absolute convergence.
+/-- Paper: Equations (3.4.3.3)–(3.4.3.6), p. 152. There is an archimedean test
+function whose zeta integral equals the gamma factor of the unitary character in the
+half-plane of absolute convergence. The proof uses a product of local Gaussians.
 Deviation: The complex monomial is chosen with angular weight opposite to the character. -/
 theorem exists_archimedeanHeckeTest (χ : U[F]) :
     ∃ f : SchwartzBruhat (Multiplicative (SAdeleRing F ∅)), ∀ s : halfPlane,
@@ -3436,9 +3651,10 @@ theorem exists_archimedeanHeckeTest (χ : U[F]) :
   obtain ⟨f, _, _, _, _, hf, _⟩ := exists_archimedeanHeckeTest_fourier χ
   exact ⟨f, hf⟩
 
-/-- Paper: Equations (3.4.3.7)–(3.4.3.9), p. 152. Tensoring an archimedean test
-with integer-ring indicators at unramified places and inverse character weights
-on integer units at ramified places contributes the finite Hecke Euler product.
+/-- Paper: Equations (3.4.3.7)–(3.4.3.9), p. 152. For a given archimedean test
+there is a global test whose zeta integral is the archimedean zeta integral times the finite
+Euler product and a nonzero constant. The proof uses a tensor with integer-ring indicators
+at unramified places and inverse character weights on integer units at ramified places.
 Deviation: The finite integer-unit Tamagawa masses give a nonzero scalar independent of `s`. -/
 theorem exists_globalHeckeTest (χ : U[F])
     (fArch : SchwartzBruhat (Multiplicative (SAdeleRing F ∅))) :
@@ -4075,18 +4291,20 @@ theorem globalIdelicZFunction_residue_one (f : ℬ[F]) :
     (ideleClassNormTwist (1 : U[F]) (1 - s))) = _
   rw [← hZ, ← neg_mul, neg_sub]
 
-/-- The test functions give an epsilon factor whose reciprocal is bounded on every fixed vertical strip. -/
-private theorem completedHeckeL_bounded_epsilon (χ : U[F]) (L Ldual : ℂ → ℂ)
+/-- Before centering the functional equation, its scale comes from the
+Fourier transform of the finite part of the global test. -/
+private theorem completedHeckeL_conductor_data (χ : U[F]) (L Ldual : ℂ → ℂ)
     (hL : MeromorphicNFOn L univ) (h : ∀ s : halfPlane, L s = completedHeckeL χ s)
     (hLdual : MeromorphicNFOn Ldual univ)
     (hdual : ∀ s : halfPlane, Ldual s = completedHeckeL χ⁻¹ s) :
-    ∃ ε : ℂ → ℂ, Differentiable ℂ ε ∧ (∀ s, ε s ≠ 0) ∧
-      (∀ u v : ℝ, ∃ K : ℝ, 0 < K ∧ ∀ z : ℂ, u ≤ z.re → z.re ≤ v → ‖(ε z)⁻¹‖ ≤ K) ∧
-      ∀ s, Ldual (1 - s) = ε s * L s := by
+    ∃ (a b : ℂ) (q : ℝ), a ≠ 0 ∧ b ≠ 0 ∧ 0 < q ∧
+      (∀ n : HeightOneSpectrum (𝓞 F) → ℕ, (∀ v, IsLeast (finiteConductorLevels(F, χ, v)) (n v)) →
+        Real.log q = finiteConductorLog(F, n)) ∧
+      ∀ s, Ldual (1 - s) = (b * (q : ℂ) ^ (1 - s))⁻¹ * a * L s := by
   obtain ⟨fArch, fArchDual, c, hc, hFourier, hArch, hArchDual⟩ :=
     exists_archimedeanHeckeTest_fourier χ
-  obtain ⟨f, a, b, q, ha, hb, hq, hf, hFourierIntegral⟩ :=
-    exists_globalHeckeTest_fourier χ fArch fArchDual c hc hFourier
+  obtain ⟨f, a, b, q, ha, hb, hq, hscale, hf, hFourierIntegral⟩ :=
+    exists_globalHeckeTest_fourier_with_conductor χ fArch fArchDual c hc hFourier
   let B (s : ℂ) := b * (q : ℂ) ^ s
   have hq₀ : (q : ℂ) ≠ 0 := Complex.ofReal_ne_zero.mpr hq.ne'
   have hB : Differentiable ℂ B :=
@@ -4101,24 +4319,70 @@ private theorem completedHeckeL_bounded_epsilon (χ : U[F]) (L Ldual : ℂ → �
     (adeleSchwartzFourier f) χ⁻¹ Ldual B hLdual hdual hB hB₀ (fun s ↦ by
       rw [hFourierIntegral s, hArchDual s]
       rfl)
+  refine ⟨a, b, q, ha, hb, hq, hscale, fun s ↦ ?_⟩
+  change Ldual (1 - s) = (B (1 - s))⁻¹ * a * L s
+  have hEq := globalIdelicZFunction_functionalEquation f (ideleClassNormTwist χ s)
+  rw [dualQuasiCharacter_ideleClassNormTwist, hZ s, hZdual (1 - s)] at hEq
+  rw [mul_assoc, hEq, ← mul_assoc, inv_mul_cancel₀ (hB₀ (1 - s)), one_mul]
+
+/-- Center the radial scale at the fixed point of the reflection. -/
+private theorem hecke_scale_center (a b : ℂ) (hb : b ≠ 0) (q : ℝ) (hq : 0 < q) (s : ℂ) :
+    (b * (q : ℂ) ^ (1 - s))⁻¹ * a =
+      ((b * (q : ℂ) ^ (1 / 2 : ℂ))⁻¹ * a) * Complex.exp ((Real.log q : ℂ) * (s - 1 / 2)) := by
+  have hq' := Complex.ofReal_ne_zero.mpr hq.ne'
+  rw [Complex.ofReal_log hq.le, ← Complex.cpow_def_of_ne_zero hq']
+  have he : (q : ℂ) ^ (1 / 2 : ℂ) = (q : ℂ) ^ (1 - s) * (q : ℂ) ^ (s - 1 / 2) := by
+    rw [← Complex.cpow_add _ _ hq']
+    ring_nf
+  rw [he]
+  field_simp [Complex.cpow_ne_zero_iff.mpr (Or.inl hq')]
+
+/-- Paper: Proposition 3.2.1.3(3), p. 123, and Equation (3.3.2.24), p. 141.
+The epsilon factor of the completed functional equation is a nonzero constant
+times the discriminant–conductor scale to the exponent `s - 1/2`.
+Deviation: Equation (3.3.1.30), p. 136, omits the conductor power that
+appears in (3.3.2.24). The finite exponents use the local principal-unit filtration. -/
+theorem completedHeckeL_continuation_conductor_of_isLeast (χ : U[F]) (L Ldual : ℂ → ℂ)
+    (hL : MeromorphicNFOn L univ) (h : ∀ s : halfPlane, L s = completedHeckeL χ s)
+    (hLdual : MeromorphicNFOn Ldual univ) (hdual : ∀ s : halfPlane, Ldual s = completedHeckeL χ⁻¹ s)
+    (n : HeightOneSpectrum (𝓞 F) → ℕ) (hn : ∀ v, IsLeast (finiteConductorLevels(F, χ, v)) (n v)) :
+    ∃ C : ℂ, C ≠ 0 ∧ ∀ s : ℂ, Ldual (1 - s) =
+      C * Complex.exp ((finiteConductorLog(F, n) : ℂ) * (s - 1 / 2)) * L s := by
+  obtain ⟨a, b, q, ha, hb, hq, hscale, hEq⟩ := completedHeckeL_conductor_data χ L Ldual hL h hLdual hdual
+  refine ⟨(b * (q : ℂ) ^ (1 / 2 : ℂ))⁻¹ * a, mul_ne_zero (inv_ne_zero (mul_ne_zero hb
+    (Complex.cpow_ne_zero_iff.mpr (Or.inl (Complex.ofReal_ne_zero.mpr hq.ne'))))) ha, fun s ↦ ?_⟩
+  rw [hEq, ← hscale n hn, hecke_scale_center a b hb q hq]
+
+/-- The test functions give an epsilon factor whose reciprocal is bounded on every fixed vertical strip. -/
+private theorem completedHeckeL_bounded_epsilon (χ : U[F]) (L Ldual : ℂ → ℂ)
+    (hL : MeromorphicNFOn L univ) (h : ∀ s : halfPlane, L s = completedHeckeL χ s)
+    (hLdual : MeromorphicNFOn Ldual univ)
+    (hdual : ∀ s : halfPlane, Ldual s = completedHeckeL χ⁻¹ s) :
+    ∃ ε : ℂ → ℂ, Differentiable ℂ ε ∧ (∀ s, ε s ≠ 0) ∧
+      (∀ u v : ℝ, ∃ K : ℝ, 0 < K ∧ ∀ z : ℂ, u ≤ z.re → z.re ≤ v → ‖(ε z)⁻¹‖ ≤ K) ∧
+      ∀ s, Ldual (1 - s) = ε s * L s := by
+  obtain ⟨a, b, q, ha, hb, hq, _, hEq⟩ := completedHeckeL_conductor_data χ L Ldual hL h hLdual hdual
+  let B (s : ℂ) := b * (q : ℂ) ^ s
+  have hq₀ : (q : ℂ) ≠ 0 := Complex.ofReal_ne_zero.mpr hq.ne'
+  have hB : Differentiable ℂ B :=
+    (differentiable_id.const_cpow (Or.inl hq₀)).const_mul b
+  have hB₀ (s : ℂ) : B s ≠ 0 :=
+    mul_ne_zero hb (fun hz ↦ hq₀ ((Complex.cpow_eq_zero_iff _ _).mp hz).1)
   have hReflect : Differentiable ℂ (fun s : ℂ ↦ 1 - s) :=
     (differentiable_const (1 : ℂ)).sub differentiable_id
   refine ⟨fun s ↦ (B (1 - s))⁻¹ * a,
     ((hB.comp hReflect).inv (fun s ↦ hB₀ (1 - s))).mul_const a,
-    fun s ↦ mul_ne_zero (inv_ne_zero (hB₀ (1 - s))) ha, ?_, fun s ↦ ?_⟩
-  · intro u v
-    let bnd (x : ℝ) := ‖b‖ * q ^ (1 - x) * ‖a‖⁻¹
-    have hcont : Continuous bnd := by dsimp [bnd]; fun_prop (disch := positivity)
-    obtain ⟨K, hK⟩ := isCompact_Icc (a := u) (b := v) |>.exists_bound_of_continuousOn hcont.continuousOn
-    refine ⟨max 1 K, lt_of_lt_of_le zero_lt_one (le_max_left _ _), fun z hu hv ↦ ?_⟩
-    have hp : 0 ≤ bnd z.re := by dsimp [bnd]; positivity
-    have hbnd := hK z.re ⟨hu, hv⟩
-    rw [Real.norm_of_nonneg hp] at hbnd
-    simpa only [norm_inv, norm_mul, mul_inv, inv_inv, B, Complex.norm_cpow_eq_rpow_re_of_pos hq,
-      Complex.sub_re, Complex.one_re, mul_comm ‖a‖⁻¹, bnd] using hbnd.trans (le_max_right 1 K)
-  · have hEq := globalIdelicZFunction_functionalEquation f (ideleClassNormTwist χ s)
-    rw [dualQuasiCharacter_ideleClassNormTwist, hZ s, hZdual (1 - s)] at hEq
-    rw [mul_assoc, hEq, ← mul_assoc, inv_mul_cancel₀ (hB₀ (1 - s)), one_mul]
+    fun s ↦ mul_ne_zero (inv_ne_zero (hB₀ (1 - s))) ha, ?_, hEq⟩
+  intro u v
+  let bnd (x : ℝ) := ‖b‖ * q ^ (1 - x) * ‖a‖⁻¹
+  have hcont : Continuous bnd := by dsimp [bnd]; fun_prop (disch := positivity)
+  obtain ⟨K, hK⟩ := isCompact_Icc (a := u) (b := v) |>.exists_bound_of_continuousOn hcont.continuousOn
+  refine ⟨max 1 K, lt_of_lt_of_le zero_lt_one (le_max_left _ _), fun z hu hv ↦ ?_⟩
+  have hp : 0 ≤ bnd z.re := by dsimp [bnd]; positivity
+  have hbnd := hK z.re ⟨hu, hv⟩
+  rw [Real.norm_of_nonneg hp] at hbnd
+  simpa only [norm_inv, norm_mul, mul_inv, inv_inv, B, Complex.norm_cpow_eq_rpow_re_of_pos hq,
+    Complex.sub_re, Complex.one_re, mul_comm ‖a‖⁻¹, bnd] using hbnd.trans (le_max_right 1 K)
 
 /-- Paper: Proposition 3.2.1.3(3), p. 123. Reflecting the continuation of the
 inverse unitary character gives the original continuation times a nowhere-vanishing
@@ -4493,8 +4757,9 @@ theorem globalIdelicZFunction_entire_of_nontrivial (f : ℬ[F]) (χ : U[F])
   simp
 
 set_option maxHeartbeats 1000000 in
-/-- Paper: §3.4.3.1, p. 152. On the half-plane of absolute convergence, the idelic
-zeta integral of a normalized adelic Gaussian gives the completed Euler product.
+/-- Paper: §3.4.3.1, p. 152. There is an adelic test function whose idelic zeta
+integral equals the completed Euler product on the half-plane of absolute convergence.
+The proof chooses a normalized adelic Gaussian.
 Deviation: The finite Tamagawa unit masses are absorbed by scaling the test function.
 The complex Gaussian uses the opposite angular weight to the character. -/
 theorem exists_globalIdelicZetaIntegral_eq_completedHeckeL (χ : U[F]) :
@@ -4560,7 +4825,7 @@ section HeckeZeros
 local notation "χ₀(" χ ")" => ideleClassNormTwist χ 0
 
 /-- The Euler product gives a nonzero value in its half-plane of absolute convergence. -/
-private theorem finiteHeckeL_ne_zero_of_one_lt_re (χ : U[F]) (s : halfPlane) :
+theorem finiteHeckeL_ne_zero_of_one_lt_re (χ : U[F]) (s : halfPlane) :
     finiteHeckeL χ s ≠ 0 := by
   have hs : 1 < (s : ℂ).re := s.property
   rw [← (finiteHeckeL_hasProd χ s).tprod_eq]
