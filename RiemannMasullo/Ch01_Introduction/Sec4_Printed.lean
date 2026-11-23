@@ -474,7 +474,16 @@ def Printed.introTraceApprox_archimedean_montel : Prop :=
 one and the closed disk of radius one quarter about two, the real term at
 the interior point two diverges along every cutoff subsequence. -/
 theorem Printed.introTraceApprox_archimedean_montel_false :
-    ¬ Printed.introTraceApprox_archimedean_montel := by sorry
+    ¬ Printed.introTraceApprox_archimedean_montel := by
+  classical
+  intro hall
+  obtain ⟨h, ρ, A, B, hA, hConv, _, _, _⟩ :=
+    hall ℚ 1 1 (fun _ ↦ rfl) one_pos _ (isCompact_closedBall _ _)
+      printedTrace_disk.1 ⟨2, printedTrace_disk.2⟩
+  have ht := tendsto_atTop_mono (fun n ↦ printedTrace_rat_real_lower h ρ hA n)
+    (introTraceApprox_rat_archimedean_tendsto_atTop h ρ hA)
+  exact not_tendsto_nhds_of_tendsto_atTop ht _
+    (Complex.continuous_re.continuousAt.tendsto.comp (hConv.tendsto_at printedTrace_disk.2.1))
 
 /-- Paper: §1.4.3, p. 29. The spectral sums of the cutoff family converge
 to a holomorphic function on the interior of the compact set outside the
