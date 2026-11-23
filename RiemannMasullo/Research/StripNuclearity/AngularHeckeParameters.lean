@@ -75,8 +75,9 @@ private theorem complexParameters_mul (χ ψ : U) (v : InfinitePlace F) (hv : v.
   rw [Complex.cpow_add _ _ hq, zpow_add₀ (div_ne_zero x.ne_zero hn)]
   ring
 
-/-- The signed angular order from the local complex character. Real places
-are assigned zero since their sign parity is already bounded by one. -/
+/-- Paper: Equation (3.2.1.5), p. 123. The signed angular order of the local
+complex character. Real places are assigned zero since their sign parity is
+already bounded by one. -/
 def heckeArchimedeanAngularOrder (χ : U) (v : InfinitePlace F) : ℤ :=
   open Classical in
   if hv : v.IsReal then 0 else
