@@ -1,6 +1,9 @@
 module
 
 public import RiemannMasullo.Ch01_Introduction.Sec4
+import Mathlib.Analysis.Fourier.FiniteAbelian.PontryaginDuality
+import Mathlib.NumberTheory.Padics.HeightOneSpectrum
+import RiemannMasullo.AppD_SchwartzBruhat.Sec3a
 import Mathlib.NumberTheory.NumberField.Cyclotomic.Basic
 import Mathlib.Topology.Algebra.IsOpenUnits
 import RiemannMasullo.ForMathlib.Analysis.Normed.Field.ProperSpace
@@ -145,6 +148,87 @@ def Printed.introTraceApprox_conjugateWeight : Prop :=
       (χ (g * u.val) : ℂ) * approx(h, ρ, n, z) (N[F](g * u.val)) =
         star (χ u.val : ℂ) * ((χ g : ℂ) * approx(h, ρ, n, z) (N[F](g)))
 
+private theorem printedTrace_localResidue_continuous (p : ℕ) [Fact p.Prime] :
+    Continuous (PadicInt.toZMod : ℤ_[p] →+* ZMod p) := by
+  apply continuous_of_continuousAt_zero (PadicInt.toZMod : ℤ_[p] →+* ZMod p)
+  refine (tendsto_pure.mpr ?_).mono_right (pure_le_nhds _)
+  filter_upwards [Metric.ball_mem_nhds (0 : ℤ_[p]) one_pos] with x hx
+  rw [map_zero, ← RingHom.mem_ker, PadicInt.ker_toZMod, IsLocalRing.mem_maximalIdeal,
+    PadicInt.mem_nonunits]
+  simpa using hx
+
+private theorem printedTrace_local_five_character :
+    ∃ (v : HeightOneSpectrum (𝓞 ℚ)) (c : (v.adicCompletionIntegers ℚ)ˣ →ₜ* Circle)
+      (a : (v.adicCompletionIntegers ℚ)ˣ), c a ^ 2 ≠ 1 := by
+  classical
+  let p : Nat.Primes := ⟨5, by decide⟩
+  let : Fact (Nat.Prime (p : ℕ)) := ⟨p.property⟩
+  let v : HeightOneSpectrum (𝓞 ℚ) := (Rat.HeightOneSpectrum.primesEquiv (R := 𝓞 ℚ)).symm p
+  let E := PadicInt.adicCompletionIntegersEquiv (𝓞 ℚ) p
+  let φ : v.adicCompletionIntegers ℚ →+* ZMod 5 :=
+    (PadicInt.toZMod : ℤ_[p] →+* ZMod p).comp E.symm.toRingEquiv.toRingHom
+  have hφ : Continuous φ := (printedTrace_localResidue_continuous p).comp E.symm.continuous
+  let r : (ZMod 5)ˣ := Units.mk0 2 (by decide)
+  have hr : (Additive.ofMul (r ^ 2)) ≠ 0  := by
+    intro he
+    have hh := congrArg (fun u : (ZMod 5)ˣ ↦ (u : ZMod 5)) (show r^2 = 1 from he)
+    exact (by decide : (2 : ZMod 5)^2 ≠ 1) hh
+  obtain ⟨ψ₀, hψ₀⟩ := AddChar.exists_apply_ne_zero.mpr hr
+  let ψ : (ZMod 5)ˣ →* Circle := (AddChar.circleEquivComplex.symm ψ₀).toMonoidHom
+  have hψ : ψ (r ^ 2) ≠ 1 := fun h ↦ hψ₀ (congrArg (fun z : Circle ↦ (z : ℂ)) h)
+  have hunit : IsUnit (2 : ℤ_[p]) := by
+    apply IsLocalRing.notMem_maximalIdeal.mp
+    rw [← PadicInt.ker_toZMod, RingHom.mem_ker]
+    change PadicInt.toZMod (2 : ℤ_[5]) ≠ 0
+    rw [show PadicInt.toZMod (2 : ℤ_[5]) = (2 : ZMod 5) from map_ofNat _ _]
+    decide
+  let a := Units.map E.toRingEquiv.toMonoidHom hunit.unit
+  have ha : Units.map φ.toMonoidHom a = r := by
+    apply Units.ext
+    change PadicInt.toZMod (E.symm (E (hunit.unit : ℤ_[p]))) = 2
+    rw [E.symm_apply_apply, hunit.unit_spec]
+    exact map_ofNat _ _
+  let c := ψ.comp (Units.map φ.toMonoidHom)
+  have hc : Continuous c :=
+    (continuous_of_discreteTopology (f := (ψ : (ZMod 5)ˣ → Circle))).comp (hφ.units_map _)
+  refine ⟨v, ⟨c, hc⟩, a, ?_⟩
+  change ψ (Units.map φ.toMonoidHom a) ^ 2 ≠ 1
+  rw [ha, ← map_pow]
+  exact hψ
+
+private theorem printedTrace_ratIdeleClasses_norm_on_integral_units
+    (e : (ℝ≥0ˣ × ((v : HeightOneSpectrum (𝓞 ℚ)) → (v.adicCompletionIntegers ℚ)ˣ)) ≃ₜ*
+      IdeleClassGroup (𝓞 ℚ) ℚ) :
+    ∀ u, ideleClassNorm ℚ (e (1, u)) = 1 := by
+  let U := (v : HeightOneSpectrum (𝓞 ℚ)) → (v.adicCompletionIntegers ℚ)ˣ
+  let (v : HeightOneSpectrum (𝓞 ℚ)) : CompactSpace (v.adicCompletionIntegers ℚ) :=
+    compactSpace_adicCompletionIntegers v
+  let : CompactSpace U := by dsimp [U]; infer_instance
+  let j : U →ₜ* IdeleClassGroup (𝓞 ℚ) ℚ :=
+    ⟨e.toMonoidHom.comp (MonoidHom.inr ℝ≥0ˣ U), e.continuous.comp (continuous_const.prodMk continuous_id)⟩
+  let n : IdeleClassGroup (𝓞 ℚ) ℚ →ₜ* ℝ≥0ˣ :=
+    ⟨ideleClassNorm ℚ, (isProperMap_ideleClassNorm ℚ).continuous⟩
+  have h := compactSubgroup_le_modulation_ker (n.comp j) ⊤
+    (by simpa using (isCompact_univ : IsCompact (Set.univ : Set U)))
+  exact fun u ↦ h (Subgroup.mem_top u)
+
+private theorem printedTrace_exists_rat_quartic_twist :
+    ∃ (χ : PontryaginDual (IdeleClassGroup (𝓞 ℚ) ℚ)) (u : (ideleClassNorm ℚ).ker),
+      χ u.val ^ 2 ≠ 1 := by
+  classical
+  obtain ⟨v, c, a, ha⟩ := printedTrace_local_five_character
+  obtain ⟨e, _⟩ := ratIdeleClassGroup_decomposition
+  let units : (w : HeightOneSpectrum (𝓞 ℚ)) → (w.adicCompletionIntegers ℚ)ˣ := Pi.mulSingle v a
+  let u : (ideleClassNorm ℚ).ker := ⟨e (1, units), printedTrace_ratIdeleClasses_norm_on_integral_units e units⟩
+  let χh := c.toMonoidHom.comp ((Pi.evalMonoidHom _ v).comp ((MonoidHom.snd _ _).comp e.symm.toMonoidHom))
+  let χ : PontryaginDual (IdeleClassGroup (𝓞 ℚ) ℚ) :=
+    ⟨χh, c.continuous.comp ((continuous_apply v).comp (continuous_snd.comp e.symm.continuous))⟩
+  have hχu : χ u.val = c a := calc
+    χ u.val = c ((e.symm (e (1, units))).2 v) := rfl
+    _ = c (units v) := by rw [e.symm_apply_apply]
+    _ = c a := by simp [units]
+  exact ⟨χ, u, hχu ▸ ha⟩
+
 /-- Paper: §§1.4.2–1.4.3, pp. 28–29. Use an order-four character modulo
 five over the rationals with value `i` at two and let `u` have local unit
 two at five and components one elsewhere. At norm two and parameter two,
@@ -152,7 +236,35 @@ the radial value is nonzero for all sufficiently late approximants.
 Right translation by `u` multiplies the displayed test by `i`, while the
 asserted conjugate weight would multiply it by `-i`. -/
 theorem Printed.introTraceApprox_conjugateWeight_false :
-    ¬ Printed.introTraceApprox_conjugateWeight := by sorry
+    ¬ Printed.introTraceApprox_conjugateWeight := by
+  intro hall
+  obtain ⟨χ, u, hu⟩ := printedTrace_exists_rat_quartic_twist
+  have hb : (∀ v : (ideleClassNorm ℚ).ker, χ v.val = 1) → χ = 1 := by
+    intro ht
+    exact (hu (by simp [ht u])).elim
+  obtain ⟨h, ρ, hA, heq⟩ := hall ℚ χ hb
+  have ht := introTraceApprox_tendsto h ρ hA 2 2 (by norm_num) (by norm_num)
+  have hval : introTracePower 2 2 ≠ 0 := by rw [introTracePower_two.1]; norm_num
+  obtain ⟨n, hn⟩ := (ht.eventually_ne hval).exists
+  let two : ℝ≥0ˣ := Units.mk0 2 (by norm_num)
+  have hsurj : Surjective (ideleClassNorm ℚ) := (ideleGroup_quotient.{0, 0} ℚ).2.2.2.2.2.2.2.2.2.1
+  obtain ⟨g, hg⟩ := hsurj two
+  have hgu : ideleClassNorm ℚ (g * u.val) = two := by rw [map_mul, u.property, mul_one, hg]
+  have he := heq n 2 g u
+  rw [hgu, hg] at he
+  change (χ (g * u.val) : ℂ) * introTraceApprox (h n) (ρ n) 2 2 =
+    star (χ u.val : ℂ) * ((χ g : ℂ) * introTraceApprox (h n) (ρ n) 2 2) at he
+  rw [map_mul, Circle.coe_mul] at he
+  have hc : (χ u.val : ℂ) = star (χ u.val : ℂ) := by
+    apply mul_left_cancel₀ (Circle.coe_ne_zero (χ g))
+    apply mul_right_cancel₀ hn
+    calc
+      _ = _ := he
+      _ = _ := by ring
+  have hci : χ u.val = (χ u.val)⁻¹ := Subtype.ext (hc.trans (Circle.coe_inv_eq_conj _).symm)
+  apply hu
+  calc χ u.val ^ 2 = χ u.val * χ u.val := sq _
+       _ = 1 := by nth_rw 2 [hci]; simp
 
 open Classical in
 /-- Paper: §1.4.3, p. 29. The printed real and complex archimedean
