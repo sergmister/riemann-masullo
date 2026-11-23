@@ -18,6 +18,9 @@ import Mathlib.Analysis.Normed.Operator.Extend
 import Mathlib.Analysis.Normed.Operator.NormedSpace
 import RiemannMasullo.External.TauCeti.Analysis.SpecialFunctions.SmoothTransition
 import Mathlib.MeasureTheory.Measure.Prod
+import Mathlib.LinearAlgebra.Eigenspace.Pi
+import Mathlib.Algebra.Polynomial.Basis
+import Mathlib.Algebra.Polynomial.Roots
 import all RiemannMasullo.Ch09_HardySobolev.Sec2
 import all RiemannMasullo.Ch09_HardySobolev.Sec3
 
@@ -2030,6 +2033,211 @@ theorem spectralStripJet_memLp (χ : PontryaginDual C₁ → PontryaginDual C�
   rw [spectralZeroJet_norm_sq,
     ENNReal.toReal_ofReal (inv_nonneg.mpr (symmIntervalSobolevDensity_pos _hα s (logNorm g)).le),
     stripJet_integrand_eq _hα]
+
+section
+
+open Polynomial
+open scoped Polynomial
+
+/-- Multiplying distinct powers of an additive coordinate by one character preserves
+linear independence when the coordinate has infinite range. -/
+private theorem jetPowers_independent {G : Type*} [Group G] (χ : G →* ℂ)
+    (L : G → ℂ) (hL : (range L).Infinite) :
+    LinearIndependent ℂ (fun n : ℕ ↦ fun g ↦ χ g * (L g) ^ n) := by
+  let E : ℂ[X] →ₗ[ℂ] (G → ℂ) :=
+    { toFun := fun p g ↦ χ g * p.eval (L g)
+      map_add' := fun p q ↦ funext fun g ↦ by simp [mul_add]
+      map_smul' := fun r p ↦ funext fun g ↦ by simp [smul_eq_mul, mul_left_comm] }
+  have einj : Injective E := by
+    intro p q h
+    apply Polynomial.eq_of_infinite_eval_eq
+    refine hL.mono ?_
+    rintro _ ⟨g, rfl⟩
+    exact mul_left_cancel₀ ((Group.isUnit g).map χ).ne_zero (congrFun h g)
+  have h := (Polynomial.basisMonomials ℂ).linearIndependent.map' E (LinearMap.ker_eq_bot.mpr einj)
+  simpa only [Function.comp_def, Polynomial.coe_basisMonomials, E, LinearMap.coe_mk, AddHom.coe_mk,
+    Polynomial.eval_monomial, one_mul] using h
+
+/-- Translations put the character times the mth power of an additive coordinate in
+the simultaneous generalized eigenspace of that character. -/
+private theorem jetPowers_mem_weight {G : Type*} [CommGroup G] (χ : G →* ℂ) (L : G → ℂ)
+    (hL : ∀ g y, L (g * y) = L g + L y)
+    (τ : G → Module.End ℂ (G → ℂ)) (hτ : ∀ g f y, τ g f y = f (g * y)) (m : ℕ) :
+    (fun g ↦ χ g * (L g) ^ m) ∈ ⨅ g, (τ g).maxGenEigenspace (χ g) := by
+  apply (Submodule.mem_iInf _).mpr
+  intro g
+  let v (i : ℕ) (y : G) := χ y * (L y) ^ i
+  let δ := τ g - χ g • (1 : Module.End ℂ (G → ℂ))
+  change v m ∈ (τ g).maxGenEigenspace (χ g)
+  induction m using Nat.strong_induction_on with | ind m ih => ?_
+  let c (i : ℕ) := χ g * (L g) ^ (m - i) * (m.choose i : ℂ)
+  have diff : δ (v m) = ∑ i ∈ Finset.range m, c i • v i := by
+    funext y
+    change τ g (v m) y - χ g * v m y = _
+    rw [hτ]
+    have hsum : v m (g * y) = ∑ i ∈ Finset.range (m+1), c i * v i y := by
+      simp only [v, map_mul, hL]
+      rw [add_comm (L g), add_pow, Finset.mul_sum]
+      refine Finset.sum_congr rfl fun i hi ↦ ?_
+      dsimp only [c]
+      ring
+    rw [hsum, Finset.sum_range_succ]
+    simp [c, Finset.sum_apply]
+  have hmem : δ (v m) ∈ (τ g).maxGenEigenspace (χ g) := by
+    rw [diff]
+    exact Submodule.sum_mem _ fun i hi ↦ Submodule.smul_mem _ _ (ih i (Finset.mem_range.mp hi))
+  obtain ⟨k, hk⟩ := (Module.End.mem_maxGenEigenspace _ _ _).mp hmem
+  apply (Module.End.mem_maxGenEigenspace _ _ _).mpr
+  exact ⟨k+1, by simpa only [pow_succ, mul_apply_eq_comp] using hk⟩
+
+/-- Exponential polynomials attached to distinct characters have independent coefficients. -/
+private theorem jetPowers_all_independent {G Z : Type*} [CommGroup G]
+    (χ : Z → G →* ℂ) (hc : Injective χ) (L : G → ℂ)
+    (hL : ∀ g y, L (g * y) = L g + L y) (hi : (range L).Infinite) :
+    LinearIndependent ℂ (fun zn : (_ : Z) × ℕ ↦ fun g ↦ χ zn.1 g * (L g) ^ zn.2) := by
+  let τ (g : G) : Module.End ℂ (G → ℂ) :=
+    { toFun := fun f y ↦ f (g * y), map_add' := by intros; rfl, map_smul' := by intros; rfl }
+  have ht (g f y) : τ g f y = f (g * y) := rfl
+  have hcomm (a b : G) : Commute (τ a) (τ b) := by
+    apply LinearMap.ext
+    intro f
+    funext y
+    change f (b * (a * y)) = f (a * (b * y))
+    rw [mul_left_comm]
+  have hind : iSupIndep (fun ψ : G → ℂ ↦ ⨅ g, (τ g).maxGenEigenspace (ψ g)) :=
+    Module.End.independent_iInf_maxGenEigenspace_of_forall_mapsTo τ
+    (fun i j p ↦ Module.End.mapsTo_maxGenEigenspace_of_comm (hcomm j i) p)
+  let V (z : Z) (n : ℕ) := fun g ↦ χ z g * (L g) ^ n
+  have hiχ : Injective (fun z g ↦ χ z g) := fun _ _ h ↦ hc (MonoidHom.ext (congrFun h))
+  have hspaces : iSupIndep fun z ↦ Submodule.span ℂ (range (V z)) :=
+    (hind.comp hiχ).mono (by
+      intro z
+      apply Submodule.span_le.mpr
+      rintro _ ⟨n, rfl⟩
+      exact jetPowers_mem_weight (χ z) L hL τ ht n)
+  apply linearIndependent_iUnion_finite (f := V) (fun z ↦ jetPowers_independent (χ z) L hi)
+  exact fun _ _ _ hz ↦ hspaces.disjoint_biSup hz
+
+section StripJetIndependence
+
+private theorem spectralStripJet_twist_injective
+    (χ : PontryaginDual C₁ → PontryaginDual C𝔽) (hχ : IsSpectralBasepointChoice χ) :
+    Injective (fun p : PontryaginDual C₁ × ℂ ↦ (ideleClassNormTwist (χ p.1) p.2).toMonoidHom) := by
+  have hres (ω : PontryaginDual C₁) (z : ℂ) (g : C₁) :
+      ideleClassNormTwist (χ ω) z g.val = (ω g : ℂ) := by
+    change (χ ω g.val : ℂ) * ((((ideleClassNorm F g.val).val : ℝ) : ℂ) ^ z) = _
+    rw [show ideleClassNorm F g.val = 1 from g.property]
+    simp only [Units.val_one, NNReal.coe_one, Complex.ofReal_one, Complex.one_cpow, mul_one]
+    exact congrArg ((↑) : Circle → ℂ) (DFunLike.congr_fun (hχ ω) g)
+  rintro ⟨ω, z⟩ ⟨η, w⟩ he
+  have htw : ideleClassNormTwist (χ ω) z = ideleClassNormTwist (χ η) w :=
+    ContinuousMonoidHom.ext fun g ↦ DFunLike.congr_fun he g
+  have hω : ω = η := by
+    ext g : 1
+    apply Subtype.ext
+    exact (hres ω z g).symm.trans ((DFunLike.congr_fun htw g.val).trans (hres η w g))
+  subst η
+  have hu := hχ.existsUnique_normTwist ω (ideleClassNormTwist (χ ω) z) (hres ω z)
+  exact Prod.ext rfl (hu.unique rfl htw)
+
+/-- Distinct choices of base character, both real coordinates of a norm twist, or
+logarithmic degree give linearly independent functions on the idele class group. -/
+private theorem spectralAdelicJet_linearIndependent
+    (χ : PontryaginDual C₁ → PontryaginDual C𝔽) (hχ : IsSpectralBasepointChoice χ) :
+    LinearIndependent ℂ (fun j : PontryaginDual C₁ × ℝ × ℝ × ℕ ↦
+      spectralZeroJet (χ j.1) j.2.1 j.2.2.1 j.2.2.2) := by
+  let L (g : C𝔽) : ℂ := logNorm g
+  have hadd (g y : C𝔽) : L (g * y) = L g + L y := by
+    dsimp only [L]
+    rw [map_mul, Units.val_mul, NNReal.coe_mul, Real.log_mul
+      (NNReal.coe_ne_zero.2 (ideleClassNorm F g).ne_zero)
+      (NNReal.coe_ne_zero.2 (ideleClassNorm F y).ne_zero), Complex.ofReal_add]
+  have hinf : (range L).Infinite := by
+    refine (Set.infinite_range_of_injective Complex.ofReal_injective).mono ?_
+    rintro _ ⟨r, rfl⟩
+    let e : ℝ ≃ₜ ℝ≥0ˣ := Real.expOrderIso.toHomeomorph.trans (Nonneg.unitsHomeomorphPos ℝ).symm
+    let g : C𝔽 := QuotientGroup.mk (canonicalIdeleNormSection F (e r))
+    have hg : ideleClassNorm F g = e r := canonicalIdeleNormSection_rightInverse F _
+    refine ⟨g, ?_⟩
+    change (Real.log ((ideleClassNorm F g).val : ℝ) : ℂ) = r
+    rw [hg]
+    exact congrArg ((↑) : ℝ → ℂ) (Real.log_exp r)
+  let char (p : PontryaginDual C₁ × ℂ) := (ideleClassNormTwist (χ p.1) p.2).toMonoidHom
+  let key (j : PontryaginDual C₁ × ℝ × ℝ × ℕ) : (_ : PontryaginDual C₁ × ℂ) × ℕ :=
+    ⟨(j.1, shift(j.2.1, j.2.2.1)), j.2.2.2⟩
+  have hk : Injective key := by
+    intro i j he
+    have hω := congrArg (fun p ↦ p.1.1) he
+    have hre := congrArg (fun p ↦ p.1.2.re) he
+    have him := congrArg (fun p ↦ p.1.2.im) he
+    have hn : i.2.2.2 = j.2.2.2 := eq_of_heq (Sigma.mk.inj he).2
+    exact Prod.ext hω (Prod.ext (by simpa [key] using hre) (Prod.ext (by simpa [key] using him) hn))
+  exact (jetPowers_all_independent char (spectralStripJet_twist_injective χ hχ) L hadd hinf).comp key hk
+
+private theorem spectralStripJet_raw_linearIndependent
+    (χ : PontryaginDual C₁ → PontryaginDual C𝔽) (hχ : IsSpectralBasepointChoice χ) (a α s : ℝ) :
+    LinearIndependent ℂ (fun j : SpectralStripJetIndex χ a α s ↦
+      spectralZeroJet (χ j.val.1) j.val.2.1 j.val.2.2.1 j.val.2.2.2) :=
+  (spectralAdelicJet_linearIndependent χ hχ).comp Subtype.val Subtype.val_injective
+
+open Filter MeasureTheory
+
+/-- Continuous representatives remain linearly independent in L² when a measure positive
+on open sets is absolutely continuous with respect to the L² measure. -/
+private theorem jetFunctions_toLp_independent {X I : Type*} [TopologicalSpace X]
+    [MeasurableSpace X] (μ ν : Measure X) [μ.IsOpenPosMeasure] (hμ : μ ≪ ν)
+    (f : I → X → ℂ) (hc : ∀ i, Continuous (f i)) (hm : ∀ i, MemLp (f i) 2 ν)
+    (hi : LinearIndependent ℂ f) :
+    LinearIndependent ℂ (fun i ↦ (hm i).toLp (f i)) := by
+  rw [linearIndependent_iff'] at hi ⊢
+  intro t c hz
+  apply hi t c
+  have he (i : I) : ((c i • (hm i).toLp (f i) : Lp ℂ 2 ν) : X → ℂ) =ᵐ[ν] c i • f i :=
+    (Lp.coeFn_smul _ _).trans ((hm i).coeFn_toLp.const_smul _)
+  have hsum : (⇑(∑ i ∈ t, c i • (hm i).toLp (f i)) : X → ℂ) =ᵐ[ν] ∑ i ∈ t, c i • f i :=
+    (Lp.coeFn_finsetSum _ _).trans (eventuallyEq_sum fun i _ ↦ he i)
+  rw [hz] at hsum
+  apply MeasureTheory.Measure.eq_of_ae_eq (hμ.ae_le (hsum.symm.trans (Lp.coeFn_zero _ _ _)))
+  · have hfun : (∑ i ∈ t, c i • f i) = fun x ↦ ∑ i ∈ t, (c i • f i) x := by
+      funext x
+      exact Finset.sum_apply _ _ _
+    rw [hfun]
+    exact continuous_finsetSum t fun i _ ↦ (hc i).const_smul (c i)
+  · exact continuous_zero
+
+/-- Paper: Theorem 10.2.2.1, p. 446. The surviving strip jets form a linearly
+independent family in reciprocal-weight L². This holds already for finite
+linear combinations, before passing to any quotient or choosing interpolants. -/
+theorem spectralStripJet_toLp_linearIndependent
+    (χ : PontryaginDual C₁ → PontryaginDual C𝔽) (hχ : IsSpectralBasepointChoice χ)
+    (a : ℝ) {α s : ℝ} (hα : 0 ≤ α) (hs : 0 ≤ s) :
+    LinearIndependent ℂ (fun j : SpectralStripJetIndex χ a α s ↦
+      (spectralStripJet_memLp χ hα hs j).toLp (spectralZeroJet
+        (χ j.val.1) j.val.2.1 j.val.2.2.1 j.val.2.2.2)) := by
+  let μ := ideleClassTamagawaMeasure F
+  let w (g : C𝔽) := intervalSobolevDensity (-α) α s (logNorm g)
+  let ν := μ.withDensity (fun g ↦ ENNReal.ofReal (w g)⁻¹)
+  have hw : Measurable w := by
+    have hD : Continuous (intervalSobolevDensity (-α) α s) := by
+      unfold intervalSobolevDensity
+      fun_prop
+    exact hD.measurable.comp ((NNReal.continuous_coe.comp
+      (Units.continuous_val.comp (isProperMap_ideleClassNorm F).continuous)).measurable.log)
+  have habs : μ ≪ ν := by
+    refine withDensity_absolutelyContinuous' hw.inv.ennreal_ofReal.aemeasurable (.of_forall fun g ↦ ?_)
+    refine ENNReal.ofReal_ne_zero_iff.mpr (inv_pos.mpr ?_)
+    exact mul_pos (lt_max_of_lt_left (Real.exp_pos _)) (Real.rpow_pos_of_pos (by positivity) _)
+  have hlog : Continuous logNorm := (NNReal.continuous_coe.comp
+    (Units.continuous_val.comp (isProperMap_ideleClassNorm F).continuous)).log
+      (fun g ↦ NNReal.coe_ne_zero.2 (ideleClassNorm F g).ne_zero)
+  apply jetFunctions_toLp_independent μ ν habs _ (fun j ↦ ?_) _
+    (spectralStripJet_raw_linearIndependent χ hχ a α s)
+  exact (ideleClassNormTwist (χ j.val.1) (shift(j.val.2.1, j.val.2.2.1))).continuous.mul
+    ((Complex.continuous_ofReal.comp hlog).pow _)
+
+end StripJetIndependence
+
+end
 
 local notation "stripI(" hα ")" => (neg_nonpos.mpr hα |>.trans hα)
 local notation "stripU(" χ ", " hα ", " hs ")" =>
