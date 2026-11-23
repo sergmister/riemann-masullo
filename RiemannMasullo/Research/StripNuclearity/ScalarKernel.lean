@@ -25,12 +25,20 @@ private instance : radialHaar.IsHaarMeasure := by
     ⟨fun t ↦ (measurePreserving_add_left (volume : Measure ℝ) t.toAdd).map_eq⟩
   constructor
 
-private def radialExp : Multiplicative ℝ ≃ₜ* ℝ≥0ˣ :=
+/-- The exponential group isomorphism from logarithmic real coordinates to
+positive multiplicative units. -/
+def radialExponential : Multiplicative ℝ ≃ₜ* ℝ≥0ˣ :=
   { Real.expOrderIso.toHomeomorph.trans (Nonneg.unitsHomeomorphPos ℝ).symm with
     map_mul' := fun x y ↦ by
       apply Units.ext
       apply NNReal.eq
       exact Real.exp_add x.toAdd y.toAdd }
+
+private def radialExp : Multiplicative ℝ ≃ₜ* ℝ≥0ˣ := radialExponential
+
+/-- The underlying real value of the logarithmic-coordinate exponential. -/
+@[simp] theorem radialExponential_val (t : ℝ) :
+    ((radialExponential (Multiplicative.ofAdd t)).val : ℝ) = Real.exp t := rfl
 
 private def radialModule : Multiplicative ℝ →ₜ* ℝ≥0ˣ := ⟨radialExp,radialExp.continuous⟩
 

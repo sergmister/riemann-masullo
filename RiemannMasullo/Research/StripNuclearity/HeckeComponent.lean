@@ -68,28 +68,38 @@ private theorem hecke_zeroCount (χ : U𝔽) (a : ℝ) :
     (finiteHeckeL_continuation_isBigO_rpow χ L hL hSeries) (hLine.mono fun _ ht ↦ ht.2)
     hInv (1 / 2) a
 
-/-- The actual closed-strip divisor of a fixed unitary Hecke character gives
-a nuclear projected resolvent on the weighted radial Sobolev space. The
-resolvent is identified on dense tests by its Mellin symbol. -/
-theorem exists_projected_hecke_resolvent (χ : U𝔽) {α s : ℝ} (ha : 0 ≤ α) (hs : 1 < s) :
-    let D := MeromorphicOn.divisor (continuedCompletedHeckeL χ) univ
-    let Z := {z : ℂ // 0 < D z ∧ |z.re - 1/2| ≤ α}
-    let w := fun z : Z ↦ (⟨z.val.re - 1/2, z.val.im⟩ : ℂ)
-    let m := fun z : Z ↦ spectralStripMultiplicity α s (w z).re (D z.val).toNat
+/-- For fixed strip parameters, the projected resolvent for every unitary
+Hecke character uses the same operator and constant. Its trace norm is bounded
+by that constant times the square of one plus the weighted admitted divisor
+mass. Each boundary jet obeys the strict Sobolev cutoff. -/
+theorem exists_projected_hecke_resolvent_uniform {α s : ℝ} (ha : 0 ≤ α) (hs : 1 < s) :
     let d := α+s+2
     let E := CompactIntervalSobolev volume id (-α) α s
     let I := Ioo (-d) d
-    let J := Σ z, Fin (m z)
     let r := fun z : ℂ ↦ (((d+1 : ℝ) : ℂ)^2-z^2)⁻¹
-    ∃ (j : PositiveRealExponentialDecay I →L[ℂ] E) (R : E →L[ℂ] E) (Λ : J → StrongDual ℂ E),
+    ∃ (j : PositiveRealExponentialDecay I →L[ℂ] E) (R : E →L[ℂ] E) (C : ℝ), 0 ≤ C ∧
       DenseRange j ∧ (∀ p, (j p : ℝ → ℂ) =ᵐ[volume] p.val) ∧
       (∀ p, ∃ q : PositiveRealExponentialDecay I, R (j p) = j q ∧
         ∀ z, z.re ∈ I → mellin (fun t ↦ q.val (Real.log t)) z =
           r z * mellin (fun t ↦ p.val (Real.log t)) z) ∧
-      (∀ (l : J) p, Λ l (j p) = iteratedDeriv l.2.val
-        (mellin (fun t ↦ p.val (Real.log t))) (w l.1)) ∧
-      IsNuclearOperator (R.adjoint.comp ((⨅ l, (Λ l).ker).orthogonal.starProjection)) := by
-  intro D Z w m d E I J r
+      ∀ χ : U𝔽,
+        let D := MeromorphicOn.divisor (continuedCompletedHeckeL χ) univ
+        let Z := {z : ℂ // 0 < D z ∧ |z.re - 1/2| ≤ α}
+        let w := fun z : Z ↦ (⟨z.val.re - 1/2, z.val.im⟩ : ℂ)
+        let m := fun z : Z ↦ spectralStripMultiplicity α s (w z).re (D z.val).toNat
+        let J := Σ z, Fin (m z)
+        let W := ∑' z : Z, (m z : ℝ)/(1+|(w z).im|)^2
+        ∃ Λ : J → StrongDual ℂ E,
+          (∀ (l : J) p, Λ l (j p) = iteratedDeriv l.2.val
+            (mellin (fun t ↦ p.val (Real.log t))) (w l.1)) ∧
+          let P := (⨅ l, (Λ l).ker).orthogonal.starProjection
+          ∃ hn : IsNuclearOperator (R.adjoint.comp P),
+            traceNorm ⟨R.adjoint.comp P,hn⟩ ≤ C*(1+W)^(2:ℕ) := by
+  intro d E I r
+  obtain ⟨j,R,C,hC,hdense,hjrep,hr,hu⟩ :=
+    exists_scalar_resolvent_on_admitted_jets_uniform.{0} ha (by linarith : 0 ≤ s)
+  refine ⟨j,R,C,hC,hdense,hjrep,hr,?_⟩
+  intro χ D Z w m J W
   let wide (z : Z) : windowZeros(χ, α+1) :=
     ⟨z.val, z.property.1, z.property.2.trans_lt (lt_add_one _)⟩
   have hemb : Injective wide := fun x y h ↦ Subtype.ext (congrArg (fun z : windowZeros(χ, α+1) ↦ z.val) h)
@@ -127,6 +137,32 @@ theorem exists_projected_hecke_resolvent (χ : U𝔽) {α s : ℝ} (ha : 0 ≤ �
         omega
       exact_mod_cast hn'
     exact div_le_div_of_nonneg_right hreal (sq_nonneg _)
-  exact exists_scalar_resolvent_on_admitted_jets w m hm hsum ha (le_of_lt (by linarith)) hj
+  exact hu w m hm hsum hj
+
+/-- The actual closed-strip divisor of a fixed unitary Hecke character gives
+a nuclear projected resolvent on the weighted radial Sobolev space. The
+resolvent is identified on dense tests by its Mellin symbol. -/
+theorem exists_projected_hecke_resolvent (χ : U𝔽) {α s : ℝ} (ha : 0 ≤ α) (hs : 1 < s) :
+    let D := MeromorphicOn.divisor (continuedCompletedHeckeL χ) univ
+    let Z := {z : ℂ // 0 < D z ∧ |z.re - 1/2| ≤ α}
+    let w := fun z : Z ↦ (⟨z.val.re - 1/2, z.val.im⟩ : ℂ)
+    let m := fun z : Z ↦ spectralStripMultiplicity α s (w z).re (D z.val).toNat
+    let d := α+s+2
+    let E := CompactIntervalSobolev volume id (-α) α s
+    let I := Ioo (-d) d
+    let J := Σ z, Fin (m z)
+    let r := fun z : ℂ ↦ (((d+1 : ℝ) : ℂ)^2-z^2)⁻¹
+    ∃ (j : PositiveRealExponentialDecay I →L[ℂ] E) (R : E →L[ℂ] E) (Λ : J → StrongDual ℂ E),
+      DenseRange j ∧ (∀ p, (j p : ℝ → ℂ) =ᵐ[volume] p.val) ∧
+      (∀ p, ∃ q : PositiveRealExponentialDecay I, R (j p) = j q ∧
+        ∀ z, z.re ∈ I → mellin (fun t ↦ q.val (Real.log t)) z =
+          r z * mellin (fun t ↦ p.val (Real.log t)) z) ∧
+      (∀ (l : J) p, Λ l (j p) = iteratedDeriv l.2.val
+        (mellin (fun t ↦ p.val (Real.log t))) (w l.1)) ∧
+      IsNuclearOperator (R.adjoint.comp ((⨅ l, (Λ l).ker).orthogonal.starProjection)) := by
+  intro D Z w m d E I J r
+  obtain ⟨j,R,C,-,hdense,hj,hr,hu⟩ := exists_projected_hecke_resolvent_uniform (F := F) ha hs
+  obtain ⟨Λ,hΛ,hn,-⟩ := hu χ
+  exact ⟨j,R,Λ,hdense,hj,hr,hΛ,hn⟩
 
 end RiemannMasullo.StripNuclearity
