@@ -1780,6 +1780,476 @@ local notation "stripI(" hα ")" => (neg_nonpos.mpr hα |>.trans hα)
 local notation "stripU(" χ ", " hα ", " hs ")" =>
   (fun j ↦ (spectralStripJet_memLp χ hα hs j).toLp (stripJet(χ, j)))
 
+section StripThetaAnnihilation
+
+local notation "ℬ" => SchwartzBruhat (Multiplicative (AdeleRing (𝓞 F) F))
+
+/-- Factorization on a right half-plane determines the equality of meromorphic
+orders everywhere. -/
+private theorem stripTheta_order_of_factor {Z L A : ℂ → ℂ} (hZ : Differentiable ℂ Z)
+    (hL : MeromorphicOn L univ) (hA : AnalyticOnNhd ℂ A univ)
+    (heq : ∀ z : ℂ, 1 < z.re → Z z = L z * A z) (w : ℂ) :
+    meromorphicOrderAt Z w = meromorphicOrderAt L w + meromorphicOrderAt A w := by
+  have hLA : MeromorphicOn (L * A) univ := hL.mul (fun z hz ↦ (hA z hz).meromorphicAt)
+  have hzM : MeromorphicOn Z univ := fun z _ ↦ (hZ.analyticAt z).meromorphicAt
+  have hd : MeromorphicOn (Z - L * A) univ := hzM.sub hLA
+  have ho : meromorphicOrderAt (Z - L * A) 2 = ⊤ := by
+    apply meromorphicOrderAt_eq_top_iff.mpr
+    have hnear : ∀ᶠ z in 𝓝 (2 : ℂ), 1 < z.re :=
+      (isOpen_lt continuous_const Complex.continuous_re).mem_nhds (by norm_num)
+    filter_upwards [hnear.filter_mono nhdsWithin_le_nhds] with z hz using sub_eq_zero.mpr (heq z hz)
+  have hw := hd.meromorphicOrderAt_eq_top_of_isPreconnected isPreconnected_univ
+    (mem_univ (2 : ℂ)) (mem_univ w) ho
+  have he : Z =ᶠ[𝓝[≠] w] L * A :=
+    (meromorphicOrderAt_eq_top_iff.mp hw).mono fun z hz ↦ sub_eq_zero.mp hz
+  rw [meromorphicOrderAt_congr he, meromorphicOrderAt_mul (hL w (mem_univ w)) (hA w (mem_univ w)).meromorphicAt]
+
+private theorem stripTheta_deriv_of_order {Z L : ℂ → ℂ} {w : ℂ} (hZ : AnalyticAt ℂ Z w)
+    (ho : meromorphicOrderAt L w ≤ meromorphicOrderAt Z w) {k : ℕ}
+    (hk : k < (meromorphicOrderAt L w).untop₀.toNat) : iteratedDeriv k Z w = 0 := by
+  have hlt : (k : WithTop ℤ) < meromorphicOrderAt L w := by
+    cases h : meromorphicOrderAt L w with
+    | top => simp
+    | coe n =>
+      rw [h, WithTop.untop₀_coe] at hk
+      exact WithTop.coe_lt_coe.mpr (by omega)
+  have hl := hlt.trans_le ho
+  rw [hZ.meromorphicOrderAt_eq] at hl
+  apply (natCast_le_analyticOrderAt_iff_iteratedDeriv_eq_zero (n := k+1) hZ).mp _ k (Nat.lt_succ_self k)
+  cases h : analyticOrderAt Z w with
+  | top => simp
+  | coe n =>
+    rw [h, ENat.map_natCast] at hl
+    exact WithTop.coe_le_coe.mpr (by exact_mod_cast (show (k : ℤ) < n from WithTop.coe_lt_coe.mp hl))
+
+/-- The normalized eigendistribution is the entire test factor and the two
+orders add at every point. -/
+private theorem stripTheta_mellin_factor_order (χ : PontryaginDual C𝔽) (f : adelePolarSubspace F) (w : ℂ) :
+    let Z := fun z ↦ globalThetaMellinIntegral f.val (ideleClassNormTwist χ z)
+    let L := continuedCompletedHeckeL χ
+    let Φ := fun z ↦ (adelicEigendistribution_normalized χ).choose z f.val
+    AnalyticAt ℂ Φ w ∧ meromorphicOrderAt Z w = meromorphicOrderAt L w + meromorphicOrderAt Φ w := by
+  let Z (z : ℂ) := globalThetaMellinIntegral f.val (ideleClassNormTwist χ z)
+  let L := continuedCompletedHeckeL χ
+  obtain ⟨hf, hf'⟩ := (mem_adelePolarSubspace f.val).mp f.property
+  have hZ : Differentiable ℂ Z := globalThetaMellinIntegral_entire_of_vanishing f.val hf hf' χ
+  let D := (adelicEigendistribution_normalized χ).choose
+  have hD := (adelicEigendistribution_normalized χ).choose_spec
+  let d : ℂ := ((Real.sqrt |(NumberField.discr F : ℝ)|)⁻¹ : ℝ)
+  let A (z : ℂ) := d * D z f.val
+  have hE : AnalyticOnNhd ℂ (fun z ↦ D z f.val) univ := by
+    let e : StrongDual ℂ ℬ →L[ℂ] ℂ := ContinuousLinearMap.applyₗ ℂ (RingHom.id ℂ) f.val
+    have hE : Differentiable ℂ (e ∘ D) := by
+      intro z
+      have hd := hD.1.hasFDerivAt (isOpen_univ.mem_nhds (mem_univ z))
+      have he : HasFDerivAt (e ∘ D) (e.comp (fderiv ℂ D z)) z := by
+        apply HasFDerivAt.of_isLittleOTVS
+        simpa only [Function.comp_def, ContinuousLinearMap.comp_apply, map_sub]
+          using e.isBigOTVS_comp.trans_isLittleOTVS hd.isLittleOTVS
+      exact he.differentiableAt
+    exact fun z _ ↦ hE.analyticAt z
+  have hA : AnalyticOnNhd ℂ A univ := analyticOnNhd_const.mul hE
+  have hσ (ψ : PontryaginDual C𝔽) (z : ℂ) := quasiCharacterAbscissa_of_unitary_twist
+    (ideleClassNorm F) (isProperMap_ideleClassNorm F) (ideleClassNorm_ne_one (F := F))
+    (ideleClassNormTwist ψ z) ψ z (fun _ ↦ rfl)
+  have hfact (z : ℂ) (hz : 1 < z.re) : Z z = L z * A z := by
+    let σ := quasiCharacterAbscissa (ideleClassNorm F) (isProperMap_ideleClassNorm F) (ideleClassNorm_ne_one (F := F))
+    have h0 : σ 1 = 0 := by
+      change Real.log ‖(1 : ℂ)‖ / _ = 0
+      rw [norm_one, Real.log_one, zero_div]
+    have hn : ideleClassNormTwist χ z ≠ 1 := fun h ↦ (zero_lt_one.trans hz).ne'
+      ((hσ χ z).symm.trans ((congrArg σ h).trans h0))
+    have hn' : ideleClassNormTwist χ z ≠ ideleClassNormTwist (1 : PontryaginDual C𝔽) 1 :=
+      fun h ↦ hz.ne' ((hσ χ z).symm.trans ((congrArg σ h).trans (hσ _ 1)))
+    have hzeta := congrFun (globalThetaMellinIntegral_eq_continuation_of_vanishing f.val hf hf')
+      (ideleClassNormTwist χ z)
+    refine hzeta.trans ((hD.2.2 z hn hn' f.val).trans ?_)
+    rw [gaussianCompletedHeckeL_eq_completedHeckeL χ z hz]
+    have h := (continuedCompletedHeckeL_spec χ).2 ⟨z,hz⟩
+    change d * completedHeckeL χ ⟨z,hz⟩ * D z f.val = L z * (d * D z f.val)
+    rw [← h]
+    ring
+  have he := stripTheta_order_of_factor hZ (continuedCompletedHeckeL_spec χ).1.meromorphicOn hA hfact w
+  have hd : d ≠ 0 := Complex.ofReal_ne_zero.mpr (inv_ne_zero (Real.sqrt_pos.mpr
+    (abs_pos.mpr (by exact_mod_cast NumberField.discr_ne_zero F))).ne')
+  have ha : meromorphicOrderAt A w = meromorphicOrderAt (fun z ↦ D z f.val) w :=
+    meromorphicOrderAt_mul_of_ne_zero (g := fun _ ↦ d) analyticAt_const hd
+  exact ⟨hE w (mem_univ w), he.trans (congrArg (meromorphicOrderAt L w + ·) ha)⟩
+
+/-- The completed L-function divides each polar-free theta Mellin transform as
+a germ; equality of orders holds wherever the normalized eigendistribution is nonzero. -/
+private theorem stripTheta_mellin_order (χ : PontryaginDual C𝔽) (f : adelePolarSubspace F) (w : ℂ) :
+    let Z := fun z ↦ globalThetaMellinIntegral f.val (ideleClassNormTwist χ z)
+    let L := continuedCompletedHeckeL χ
+    meromorphicOrderAt L w ≤ meromorphicOrderAt Z w ∧
+      ((adelicEigendistribution_normalized χ).choose w f.val ≠ 0 →
+        meromorphicOrderAt Z w = meromorphicOrderAt L w) := by
+  obtain ⟨hA, he⟩ := stripTheta_mellin_factor_order χ f w
+  refine ⟨(le_add_of_nonneg_right hA.meromorphicOrderAt_nonneg).trans he.symm.le, fun hu ↦ ?_⟩
+  exact he.trans (by rw [hA.meromorphicNFAt.meromorphicOrderAt_eq_zero_iff.mpr hu, add_zero])
+
+/-- The Mellin derivatives below the completed L-function’s order vanish. -/
+private theorem stripTheta_mellin_zero (χ : PontryaginDual C𝔽) (f : adelePolarSubspace F)
+    (w : ℂ) (k : ℕ) (hk : k < (meromorphicOrderAt (continuedCompletedHeckeL χ) w).untop₀.toNat) :
+    iteratedDeriv k (fun z ↦ globalThetaMellinIntegral f.val (ideleClassNormTwist χ z)) w = 0 := by
+  obtain ⟨hf, hf'⟩ := (mem_adelePolarSubspace f.val).mp f.property
+  exact stripTheta_deriv_of_order (globalThetaMellinIntegral_entire_of_vanishing f.val hf hf' χ |>.analyticAt w)
+    (stripTheta_mellin_order χ f w).1 hk
+
+/-- Two translation differences kill the polar coordinates while preserving a
+nonzero eigenfunctional of any distinct weight. -/
+private theorem polarShift_preserve {E G : Type*} [AddCommGroup E] [Module ℂ E]
+    (P : E →ₗ[ℂ] ℂ × ℂ) (D : E →ₗ[ℂ] ℂ) (τ : G → E → E) (c₀ c₁ c : G → ℂ)
+    (hp₀ : ∀ g f, (P (τ g f)).1 = c₀ g * (P f).1)
+    (hp₁ : ∀ g f, (P (τ g f)).2 = c₁ g * (P f).2)
+    (hd : ∀ g f, D (τ g f) = c g * D f) (f : E) (hf : D f ≠ 0)
+    {g h : G} (hg : c g ≠ c₀ g) (hh : c h ≠ c₁ h) : ∃ f' : P.ker, D f'.val ≠ 0 := by
+  let x := τ g f - c₀ g • f
+  let y := τ h x - c₁ h • x
+  have h₀ : (P x).1 = 0 := by simp [x, hp₀]
+  have hP : P y = 0 := by
+    ext <;> simp [y, hp₀, hp₁, h₀]
+  refine ⟨⟨y, hP⟩, ?_⟩
+  have hval : D y = (c h - c₁ h) * (c g - c₀ g) * D f := by
+    simp [y, x, hd]
+    ring
+  exact hval ▸ mul_ne_zero (mul_ne_zero (sub_ne_zero.mpr hh) (sub_ne_zero.mpr hg)) hf
+
+private theorem stripTheta_normalized_nonzero_on_polar (χ : PontryaginDual C𝔽) (w : ℂ)
+    (h₀ : ideleClassNormTwist χ w ≠ 1)
+    (h₁ : ideleClassNormTwist χ w ≠ ideleClassNormTwist (1 : PontryaginDual C𝔽) 1) :
+    ∃ f : adelePolarSubspace F, (adelicEigendistribution_normalized χ).choose w f.val ≠ 0 := by
+  classical
+  let c := ideleClassNormTwist χ w
+  let n := ideleClassNormTwist (1 : PontryaginDual C𝔽) 1
+  let D := (adelicEigendistribution_normalized χ).choose w
+  have hD := ((adelicEigendistribution_normalized χ).choose_spec.2.1 w D).mp rfl
+  let π : IdeleGroup (𝓞 F) F → C𝔽 := QuotientGroup.mk
+  have hsep (d : QuasiCharacter C𝔽) (hne : c ≠ d) : ∃ g, c (π g) ≠ d (π g) := by
+    by_contra! hall
+    apply hne
+    ext x
+    obtain ⟨g, rfl⟩ := QuotientGroup.mk_surjective x
+    exact hall g
+  obtain ⟨g,hg⟩ := hsep 1 h₀
+  obtain ⟨h,hh⟩ := hsep n h₁
+  let P := adelePolarValues (F := F)
+  let τ := schwartzBruhatUnitTranslate (R := AdeleRing (𝓞 F) F)
+  let K := (adelicThetaLinearMap F).ker
+  have hact := (existsUnique_globalThetaAction (F := F)).exists.choose_spec.2
+  have hp₀ (g : IdeleGroup (𝓞 F) F) (f : ℬ) : (P (τ g f)).1 = (1 : QuasiCharacter C𝔽) (π g) * (P f).1 := by
+    change (τ g f) (Multiplicative.ofAdd 0) = 1 * f (Multiplicative.ofAdd 0)
+    rw [schwartzBruhatUnitTranslate_apply, mul_zero, one_mul]
+  have hp₁ (g : IdeleGroup (𝓞 F) F) (f : ℬ) : (P (τ g f)).2 = n (π g) * (P f).2 := by
+    have hh := globalThetaPolarValues_snd_translate (π g) (K.mkQL f)
+    have hraw : (P (τ g f)).2 = ((ideleClassNorm F (π g)).val : ℝ) * (P f).2 :=
+      (congrArg (fun x ↦ (globalThetaPolarValues (F := F) x).2) (hact g f).symm).trans hh
+    change _ = ((1 : ℂ) * ((((ideleClassNorm F (π g)).val : ℝ) : ℂ) ^ (1 : ℂ))) * _
+    simpa only [Complex.cpow_one, one_mul] using hraw
+  exact polarShift_preserve P D.toLinearMap τ _ _ _ hp₀ hp₁ hD.1 (adelicStandardGaussian χ)
+    (hD.2.trans_ne one_ne_zero) hg hh
+
+/-- Paper: Theorem 3.4.3.3(2), p. 153, and Theorem 10.2.1.1, pp. 441–442.
+At each twist away from the trivial character and the idelic norm, one polar-free
+test attains the order of the completed Hecke L-function in its Mellin transform. -/
+private theorem exists_globalThetaMellinIntegral_order_eq_of_regular (χ : PontryaginDual C𝔽) (w : ℂ)
+    (h₀ : ideleClassNormTwist χ w ≠ 1)
+    (h₁ : ideleClassNormTwist χ w ≠ ideleClassNormTwist (1 : PontryaginDual C𝔽) 1) :
+    ∃ f : adelePolarSubspace F,
+      meromorphicOrderAt (fun z ↦ globalThetaMellinIntegral f.val (ideleClassNormTwist χ z)) w =
+        meromorphicOrderAt (continuedCompletedHeckeL χ) w := by
+  obtain ⟨f, hf⟩ := stripTheta_normalized_nonzero_on_polar χ w h₀ h₁
+  exact ⟨f, (stripTheta_mellin_order χ f w).2 hf⟩
+
+/-- Paper: Proposition 3.2.1.3(2), p. 123. In a unitary chart the trivial
+quasi-character and the idelic norm correspond to simple poles of the completed L-function. -/
+private theorem continuedCompletedHeckeL_order_of_exceptional (χ : PontryaginDual C𝔽) (w : ℂ)
+    (he : ideleClassNormTwist χ w = 1 ∨
+      ideleClassNormTwist χ w = ideleClassNormTwist (1 : PontryaginDual C𝔽) 1) :
+    meromorphicOrderAt (continuedCompletedHeckeL χ) w = -1 := by
+  have h0 : ideleClassNormTwist (1 : PontryaginDual C𝔽) 0 = 1 := by
+    ext1 g
+    change 1 * ((((ideleClassNorm F g).val : ℝ) : ℂ) ^ (0 : ℂ)) = 1
+    simp
+  obtain ⟨z, hz, hc⟩ : ∃ z : ℂ, (z = 0 ∨ z = 1) ∧ ideleClassNormTwist χ w = ideleClassNormTwist (1 : PontryaginDual C𝔽) z := by
+    rcases he with he | he
+    · exact ⟨0, Or.inl rfl, he.trans h0.symm⟩
+    · exact ⟨1, Or.inr rfl, he⟩
+  have hres : χ.toMonoidHom.comp (ideleClassNorm F).ker.subtype = 1 := by
+    ext g : 1
+    apply Subtype.ext
+    have hu := DFunLike.congr_fun hc g.val
+    change (χ g.val : ℂ) * ((((ideleClassNorm F g.val).val : ℝ) : ℂ) ^ w) =
+      1 * ((((ideleClassNorm F g.val).val : ℝ) : ℂ) ^ z) at hu
+    rw [g.property] at hu
+    change (χ g.val : ℂ) = 1
+    simpa only [Units.val_one, NNReal.coe_one, Complex.ofReal_one, Complex.one_cpow, mul_one] using hu
+  obtain ⟨t, ⟨ht, hp₀, hp₁, _⟩, _⟩ := completedHeckeL_continuation_simplePoles χ _
+    (continuedCompletedHeckeL_spec χ).1 (continuedCompletedHeckeL_spec χ).2 hres
+  have heq : ideleClassNormTwist (1 : PontryaginDual C𝔽) (-Complex.I * (t : ℂ) + w) =
+      ideleClassNormTwist (1 : PontryaginDual C𝔽) z := by
+    simpa only [zero_add] using (ideleClassNormTwist_add_of_eq ht w).symm.trans (by simpa only [zero_add] using hc)
+  let γ := quasiCharacterNormTwist (MonoidHom.id ℝ≥0ˣ) continuous_id 1 z
+  have hγ (u : ℝ≥0ˣ) : γ u = ((u.val : ℝ) : ℂ) ^ z := one_mul _
+  have hc' : z = -Complex.I * (t : ℂ) + w := by
+    apply (existsUnique_complexPower γ).unique hγ
+    intro u
+    let g : C𝔽 := QuotientGroup.mk (canonicalIdeleNormSection F u)
+    have hg : ideleClassNorm F g = u := canonicalIdeleNormSection_rightInverse F u
+    have hu := DFunLike.congr_fun heq g
+    change 1 * ((((ideleClassNorm F g).val : ℝ) : ℂ) ^ (-Complex.I * (t : ℂ) + w)) = 1 * ((((ideleClassNorm F g).val : ℝ) : ℂ) ^ z) at hu
+    rw [hg, one_mul, one_mul] at hu
+    exact (hγ u).trans hu.symm
+  rcases hz with rfl | rfl
+  · exact (congrArg (meromorphicOrderAt (continuedCompletedHeckeL χ)) (by linear_combination -hc' : w = Complex.I * t)).trans hp₀
+  · exact (congrArg (meromorphicOrderAt (continuedCompletedHeckeL χ)) (by linear_combination -hc' : w = 1 + Complex.I * t)).trans hp₁
+
+/-- Paper: Theorem 10.2.1.1, pp. 441–442, and Theorem 10.2.2.1, p. 446.
+At every zero of the completed Hecke L-function, some polar-free theta test has
+a Mellin transform with exactly its multiplicity. -/
+private theorem exists_globalThetaMellinIntegral_order_eq_of_zero (χ : PontryaginDual C𝔽) (w : ℂ)
+    (hw : 0 < meromorphicOrderAt (continuedCompletedHeckeL χ) w) :
+    ∃ f : adelePolarSubspace F,
+      meromorphicOrderAt (fun z ↦ globalThetaMellinIntegral f.val (ideleClassNormTwist χ z)) w =
+        meromorphicOrderAt (continuedCompletedHeckeL χ) w := by
+  have hn : ¬ (ideleClassNormTwist χ w = 1 ∨
+      ideleClassNormTwist χ w = ideleClassNormTwist (1 : PontryaginDual C𝔽) 1) := by
+    intro h
+    rw [continuedCompletedHeckeL_order_of_exceptional χ w h] at hw
+    exact (by decide : ¬ (0 : WithTop ℤ) < -1) hw
+  exact exists_globalThetaMellinIntegral_order_eq_of_regular χ w (not_or.mp hn).1 (not_or.mp hn).2
+
+/-- Paper: Theorem 10.2.2.1, p. 446, and (3.4.3.15), p. 153. On a polar-free test
+the first nonvanishing Mellin derivative can attain the full Hecke multiplicity at
+each admitted strip jet.
+Deviation: This statement concerns derivatives of the test function's Mellin transform.
+Only orders below the strict cutoff give continuous Sobolev moments at the boundary. -/
+theorem SpectralStripJetIndex.exists_thetaMellin_first_nonvanishing
+    {χ : PontryaginDual C₁ → PontryaginDual C𝔽} {a α s : ℝ} (j : SpectralStripJetIndex χ a α s) :
+    let w := shift(a + j.val.2.1, j.val.2.2.1)
+    let n := (meromorphicOrderAt (continuedCompletedHeckeL (χ j.val.1)) w).untop₀.toNat
+    ∃ f : adelePolarSubspace F,
+      let Z := fun u ↦ globalThetaMellinIntegral f.val (ideleClassNormTwist (χ j.val.1) u)
+      (∀ k < n, iteratedDeriv k Z w = 0) ∧ iteratedDeriv n Z w ≠ 0 := by
+  intro w n
+  let L := continuedCompletedHeckeL (χ j.val.1)
+  have hn : 0 < n := by
+    have h : j.val.2.2.2 < spectralStripMultiplicity α s j.val.2.1 n := j.property
+    unfold spectralStripMultiplicity spectralBoundaryMultiplicity at h
+    split_ifs at h <;> omega
+  have hn' : 0 < meromorphicOrderAt L w ∧ meromorphicOrderAt L w = (n : WithTop ℤ) := by
+    change 0 < (meromorphicOrderAt L w).untop₀.toNat at hn
+    change 0 < meromorphicOrderAt L w ∧ meromorphicOrderAt L w = ((meromorphicOrderAt L w).untop₀.toNat : WithTop ℤ)
+    cases h : meromorphicOrderAt L w with
+    | top => simp [h] at hn
+    | coe z =>
+      rw [h, WithTop.untop₀_coe] at hn
+      rw [WithTop.untop₀_coe]
+      exact ⟨WithTop.coe_lt_coe.mpr (by omega), WithTop.coe_eq_coe.mpr (by omega)⟩
+  obtain ⟨f, hf⟩ := exists_globalThetaMellinIntegral_order_eq_of_zero (χ j.val.1) w hn'.1
+  let Z := fun u ↦ globalThetaMellinIntegral f.val (ideleClassNormTwist (χ j.val.1) u)
+  obtain ⟨hf₀,hf₁⟩ := (mem_adelePolarSubspace f.val).mp f.property
+  have hZ : AnalyticAt ℂ Z w := (globalThetaMellinIntegral_entire_of_vanishing f.val hf₀ hf₁ (χ j.val.1)).analyticAt w
+  have hz : meromorphicOrderAt Z w = (n : WithTop ℤ) := hf.trans hn'.2
+  rw [hZ.meromorphicOrderAt_eq] at hz
+  refine ⟨f, (analyticOrderAt_eq_nat_iff_iteratedDeriv_eq_zero hZ).mp ?_⟩
+  cases h : analyticOrderAt Z w with
+  | top => simp [h] at hz
+  | coe r =>
+    rw [h, ENat.map_natCast] at hz
+    congr 1
+    exact_mod_cast (WithTop.coe_eq_coe.mp hz)
+
+/-- A character with nonzero logarithmic derivative crosses each polar weight simply. -/
+private theorem stripTheta_polarFactor_order {B : ℂ → ℂ} {w d : ℂ} (hB : AnalyticAt ℂ B w)
+    (hD : HasDerivAt B d w) (hd : d ≠ 0) (hw : B w = 1 ∨ B w = 2) :
+    meromorphicOrderAt (fun z ↦ (B z - 2) * (B z - 1)) w = 1 := by
+  let A := fun z ↦ (B z - 2) * (B z - 1)
+  have ha : AnalyticAt ℂ A w := (hB.sub analyticAt_const).mul (hB.sub analyticAt_const)
+  have hv : A w = 0 := by rcases hw with h | h <;> simp [A, h]
+  have hda : HasDerivAt A (d * (B w - 1) + (B w - 2) * d) w :=
+    (hD.sub_const _).mul (hD.sub_const _)
+  have hn : deriv A w ≠ 0 := by
+    rw [hda.deriv]
+    rcases hw with h | h <;> norm_num [h, hd]
+  have ho : analyticOrderAt A w = 1 := (analyticOrderAt_eq_nat_iff_iteratedDeriv_eq_zero (n := 1) ha).mpr
+    ⟨fun k hk ↦ by simpa [Nat.lt_one_iff.mp hk] using hv, by simpa using hn⟩
+  change meromorphicOrderAt A w = 1
+  rw [ha.meromorphicOrderAt_eq, ho]
+  rfl
+
+/-- A double difference of the standard Gaussian removes both polar values. At
+either exceptional weight its normalized Mellin factor has a simple zero. -/
+private theorem stripTheta_exists_normalized_order_one (χ : PontryaginDual C𝔽) (w : ℂ)
+    (he : ideleClassNormTwist χ w = 1 ∨ ideleClassNormTwist χ w = ideleClassNormTwist (1 : PontryaginDual C𝔽) 1) :
+    ∃ f : adelePolarSubspace F,
+      meromorphicOrderAt (fun z ↦ (adelicEigendistribution_normalized χ).choose z f.val) w = 1 := by
+  let r : ℝ≥0ˣ := Units.mk0 2 (by norm_num)
+  let g := canonicalIdeleNormSection F r
+  let y : C𝔽 := QuotientGroup.mk g
+  have hy : ideleClassNorm F y = r := canonicalIdeleNormSection_rightInverse F r
+  let τ := schwartzBruhatUnitTranslate (R := AdeleRing (𝓞 F) F) g
+  let G := adelicStandardGaussian χ
+  let x := τ G - G
+  let f := τ x - (2 : ℂ) • x
+  let P := adelePolarValues (F := F)
+  have h₀ (v : ℬ) : (P (τ v)).1 = (P v).1 := by
+    change schwartzBruhatUnitTranslate g v (Multiplicative.ofAdd 0) = v (Multiplicative.ofAdd 0)
+    rw [schwartzBruhatUnitTranslate_apply, mul_zero]
+  have h₁ (v : ℬ) : (P (τ v)).2 = 2 * (P v).2 := by
+    let K := (adelicThetaLinearMap F).ker
+    have hact := (existsUnique_globalThetaAction (F := F)).exists.choose_spec.2 g v
+    have hn := globalThetaPolarValues_snd_translate y (K.mkQL v)
+    have hu : (P (τ v)).2 = ((ideleClassNorm F y).val : ℝ) * (P v).2 :=
+      (congrArg (fun u ↦ (globalThetaPolarValues (F := F) u).2) hact.symm).trans hn
+    rw [hy] at hu
+    exact hu
+  have hsub : f ∈ adelePolarSubspace F := by
+    change P f = 0
+    have hsa : (P x).1 = 0 := by simp [x, h₀]
+    ext <;> simp [f, h₀, h₁, hsa]
+  refine ⟨⟨f,hsub⟩, ?_⟩
+  let D := (adelicEigendistribution_normalized χ).choose
+  let B := fun z ↦ ideleClassNormTwist χ z y
+  have hval : (fun z ↦ D z f) = fun z ↦ (B z - 2) * (B z - 1) := by
+    funext z
+    have hN := ((adelicEigendistribution_normalized χ).choose_spec.2.1 z (D z)).mp rfl
+    have hD (v : ℬ) : D z (τ v) = B z * D z v := hN.1 g v
+    have hG : D z G = 1 := hN.2
+    simp [f, x, hD, hG]
+    ring
+  change meromorphicOrderAt (fun z ↦ D z f) w = 1
+  rw [hval]
+  have hB : B = fun z ↦ (χ y : ℂ) * Complex.exp (((Real.log 2 : ℝ) : ℂ) * z) := by
+    funext z
+    change (χ y : ℂ) * ((((ideleClassNorm F y).val : ℝ) : ℂ) ^ z) = _
+    rw [hy]
+    change (χ y : ℂ) * ((2 : ℂ) ^ z) = _
+    rw [Complex.cpow_def_of_ne_zero (by norm_num : (2 : ℂ) ≠ 0)]
+    congr 3
+    norm_cast
+  have hd : HasDerivAt B ((χ y : ℂ) * (Complex.exp (((Real.log 2 : ℝ) : ℂ) * w) * (Real.log 2 : ℝ))) w := by
+    rw [hB]
+    exact (((hasDerivAt_id w).const_mul _).cexp.const_mul _).congr_deriv (by simp)
+  apply stripTheta_polarFactor_order (B := B) (by rw [hB]; fun_prop) hd
+  · exact mul_ne_zero (Circle.coe_ne_zero _) (mul_ne_zero (Complex.exp_ne_zero _) (Complex.ofReal_ne_zero.mpr (Real.log_pos (by norm_num)).ne'))
+  · rcases he with he | he
+    · exact Or.inl (DFunLike.congr_fun he y)
+    · refine Or.inr ((DFunLike.congr_fun he y).trans ?_)
+      change 1 * ((((ideleClassNorm F y).val : ℝ) : ℂ) ^ (1 : ℂ)) = 2
+      rw [hy, Complex.cpow_one, one_mul]
+      rfl
+
+/-- Paper: Theorems 3.4.3.3(2), p. 153, and 10.2.2.1, p. 446. At each fixed
+point, the minimum vanishing order over all entire polar-free theta Mellin
+transforms is the positive part of the completed Hecke divisor there.
+Deviation: This pointwise consequence uses the Gaussian-normalized factorization
+with its nonzero Tamagawa scalar. It includes both simple poles after cancellation. -/
+theorem isLeast_globalThetaMellinIntegral_orders (χ : PontryaginDual C𝔽) (w : ℂ) :
+    IsLeast (Set.range fun f : adelePolarSubspace F ↦
+      meromorphicOrderAt (fun z ↦ globalThetaMellinIntegral f.val (ideleClassNormTwist χ z)) w)
+      (max 0 (meromorphicOrderAt (continuedCompletedHeckeL χ) w)) := by
+  let Z (f : adelePolarSubspace F) (z : ℂ) := globalThetaMellinIntegral f.val (ideleClassNormTwist χ z)
+  let L := continuedCompletedHeckeL χ
+  have hZ (f : adelePolarSubspace F) : 0 ≤ meromorphicOrderAt (Z f) w := by
+    obtain ⟨hf, hf'⟩ := (mem_adelePolarSubspace f.val).mp f.property
+    exact (globalThetaMellinIntegral_entire_of_vanishing f.val hf hf' χ |>.analyticAt w).meromorphicOrderAt_nonneg
+  refine ⟨?_, ?_⟩
+  · by_cases he : ideleClassNormTwist χ w = 1 ∨
+        ideleClassNormTwist χ w = ideleClassNormTwist (1 : PontryaginDual C𝔽) 1
+    · obtain ⟨f, hf⟩ := stripTheta_exists_normalized_order_one χ w he
+      have hp : meromorphicOrderAt L w = -1 := continuedCompletedHeckeL_order_of_exceptional χ w he
+      have h := (stripTheta_mellin_factor_order χ f w).2
+      refine ⟨f, ?_⟩
+      change meromorphicOrderAt (Z f) w = max 0 (meromorphicOrderAt L w)
+      exact h.trans (by rw [hf, hp]; decide)
+    · obtain ⟨f,hf⟩ := exists_globalThetaMellinIntegral_order_eq_of_regular χ w (not_or.mp he).1 (not_or.mp he).2
+      exact ⟨f, hf.trans (max_eq_right (hf ▸ hZ f)).symm⟩
+  · rintro _ ⟨f,rfl⟩
+    exact max_le (hZ f) (stripTheta_mellin_order χ f w).1
+
+/-- The unweighted Haar integral of a weighted polar-free theta function against an
+admitted zero jet vanishes, including the center shift in its multiplicity. -/
+private theorem stripTheta_weighted_moment_zero (χ : PontryaginDual C𝔽)
+    (f : adelePolarSubspace F) (a b t : ℝ) (k : ℕ)
+    (hk : k < (meromorphicOrderAt (continuedCompletedHeckeL χ) (shift(a + b, t))).untop₀.toNat) :
+    ∫ g, modulationWeight m𝔽 a (adelicTheta f.val) g * spectralZeroJet χ b t k g ∂μ𝔽 = 0 := by
+  let χq : QuasiCharacter C𝔽 :=
+    (⟨Circle.coeHom, continuous_subtype_val⟩ : Circle →ₜ* ℂ).comp χ
+  obtain ⟨hf, hf'⟩ := (mem_adelePolarSubspace f.val).mp f.property
+  have hi := globalThetaMellinIntegral_integrable_of_vanishing f.val hf hf'
+  have hz : (shift(a + b, t)).re ∈ Ioo (a+b-1) (a+b+1) := by simp
+  obtain ⟨_, _, hderiv⟩ := iteratedDeriv_normTwist_moment m𝔽 μ𝔽 χq
+    (fun σ _ n ↦ spectralLineJet_functional_moment m𝔽 μ𝔽 χq (adelicTheta f.val) hi σ n) k hz
+  have h : (∫ g, modulationWeight m𝔽 a (adelicTheta f.val) g * spectralZeroJet χ b t k g ∂μ𝔽) =
+      iteratedDeriv k (fun z ↦ globalThetaMellinIntegral f.val (ideleClassNormTwist χ z)) (shift(a+b,t)) := by
+    refine (integral_congr_ae (ae_of_all _ fun g ↦ ?_)).trans hderiv.symm
+    have hpos : 0 < ((m𝔽 g).val : ℝ) := NNReal.coe_pos.mpr (Units.zero_lt _)
+    change ((((m𝔽 g).val : ℝ) ^ a : ℝ) : ℂ) * adelicTheta f.val g *
+        (quasiCharacterNormTwist (m𝔽).toMonoidHom (m𝔽).continuous χq (shift(b,t)) g * (logNorm g : ℂ)^k) =
+      adelicTheta f.val g * (logNorm g : ℂ)^k *
+        quasiCharacterNormTwist (m𝔽).toMonoidHom (m𝔽).continuous χq (shift(a+b,t)) g
+    rw [quasiCharacterNormTwist_eq_exp, quasiCharacterNormTwist_eq_exp,
+      Real.rpow_def_of_pos hpos, Complex.ofReal_exp, Complex.ofReal_mul]
+    have e : Complex.exp ((shift(a+b,t)) * (logNorm g : ℂ)) =
+        Complex.exp ((logNorm g : ℂ) * (a : ℂ)) * Complex.exp ((shift(b,t)) * (logNorm g : ℂ)) := by
+      rw [← Complex.exp_add]
+      congr 1
+      push_cast
+      ring
+    change Complex.exp ((logNorm g : ℂ) * (a : ℂ)) * adelicTheta f.val g *
+        (χq g * Complex.exp ((shift(b,t)) * (logNorm g : ℂ)) * (logNorm g : ℂ)^k) =
+      adelicTheta f.val g * (logNorm g : ℂ)^k * (χq g * Complex.exp ((shift(a+b,t)) * (logNorm g : ℂ)))
+    rw [e]
+    ring
+  exact h.trans (stripTheta_mellin_zero χ f _ k hk)
+
+/-- Paper: Theorem 10.2.2.1, p. 446. Every strip jet annihilates the closed
+weighted polar-free theta image.
+Deviation: At a strip endpoint the jet order must be strictly below (s − 1) / 2. -/
+theorem spectralStripJet_commonKernel_forward (χ : PontryaginDual C₁ → PontryaginDual C𝔽)
+    {a α s : ℝ} (hα : 0 ≤ α) (hs : 0 ≤ s) (y : W(-α, α, s))
+    (hy : y ∈ globalThetaSobolev F a (stripI(hα)) hs) (j : SpectralStripJetIndex χ a α s) :
+    spectralSobolevPairing y ((spectralStripJet_memLp χ hα hs j).toLp (stripJet(χ, j))) = 0 := by
+  let u : W'(-α, α, s) := (spectralStripJet_memLp χ hα hs j).toLp (stripJet(χ, j))
+  let T := (modulatedIntervalSobolev_dual m𝔽 hm𝔽 μ𝔽 (-α) α s (stripI(hα)) hs).exists.choose
+  let Λ := T.symm u
+  have hp (v : W(-α, α, s)) : Λ v = spectralSobolevPairing v u :=
+    (spectralSobolevPairing_dual (stripI(hα)) hs Λ v).2.trans
+      (congrArg (spectralSobolevPairing v) (T.apply_symm_apply u))
+  have habs : μ𝔽 ≪ L2μ'(-α, α, s) :=
+    withDensity_absolutelyContinuous' (symmIntervalSobolevDensity_inv_continuous hα s).measurable.ennreal_ofReal.aemeasurable
+      (.of_forall fun g ↦ ENNReal.ofReal_ne_zero_iff.mpr (inv_pos.mpr (symmIntervalSobolevDensity_pos hα s (logNorm g))))
+  have hrep : (u : C𝔽 → ℂ) =ᵐ[μ𝔽] stripJet(χ, j) := habs.ae_le (MemLp.coeFn_toLp _)
+  let E := (existsUnique_globalThetaSobolevEmbedding (F := F) a (-α) α s (stripI(hα)) hs).exists.choose
+  have hgen (f : adelePolarSubspace F) : Λ (E (Submodule.Quotient.mk f)) = 0 := by
+    rw [hp]
+    have hE := (existsUnique_globalThetaSobolevEmbedding (F := F) a (-α) α s (stripI(hα)) hs).exists.choose_spec.2 f
+    have hN {b : ℝ} (N : ℕ) : spectralStripMultiplicity α s b N ≤ N := by
+      unfold spectralStripMultiplicity spectralBoundaryMultiplicity
+      split_ifs <;> first | exact le_rfl | exact min_le_left _ _ | exact Nat.zero_le _
+    exact (integral_congr_ae (hE.mul hrep)).trans (stripTheta_weighted_moment_zero
+      (χ j.val.1) f a j.val.2.1 j.val.2.2.1 j.val.2.2.2 (j.property.trans_le (hN _)))
+  have hR : E.toLinearMap.range ≤ Λ.ker := by
+    rintro _ ⟨v, rfl⟩
+    induction v using Submodule.Quotient.induction_on with
+    | H f => exact hgen f
+  exact (hp y).symm.trans ((E.toLinearMap.range.topologicalClosure_minimal hR Λ.isClosed_ker) hy)
+
+/-- Paper: Theorem 10.2.2.1, p. 446. A Sobolev vector whose strip moments vanish
+can be approximated in the strip norm by weighted polar-free theta tests.
+Deviation: The boundary moments use the strict reciprocal-weight cutoff.
+Gap: The finite-band projection argument on p. 443 does not construct these
+approximants. The complementary projections only exhaust the span of the jet representers. -/
+theorem spectralStripJet_approximation (χ : PontryaginDual C₁ → PontryaginDual C𝔽)
+    (_hχ : IsSpectralBasepointChoice χ) {a α s : ℝ} (hα : 0 ≤ α) (hs : 0 ≤ s) :
+    let u : SpectralStripJetIndex χ a α s → W'(-α, α, s) := stripU(χ, hα, hs)
+    let E := (existsUnique_globalThetaSobolevEmbedding (F := F) a (-α) α s (stripI(hα)) hs).exists.choose
+    ∀ y : W(-α, α, s), (∀ j, spectralSobolevPairing y (u j) = 0) → ∀ ε > (0 : ℝ),
+      ∃ f : adelePolarSubspace F, ‖y - E (Submodule.Quotient.mk f)‖ < ε := by sorry
+
+end StripThetaAnnihilation
+
 /-- Paper: Theorem 10.2.2.1, p. 446. The weighted theta closure is the common
 kernel of all surviving strip evaluations.
 Gap: The complementary projections of §9.3 exhaust the orthogonal of the
@@ -1788,7 +2258,14 @@ requires a separate approximation in the strip norm. -/
 theorem spectralStripJet_commonKernel (χ : PontryaginDual C₁ → PontryaginDual C𝔽)
     (_hχ : IsSpectralBasepointChoice χ) {a α s : ℝ} (hα : 0 ≤ α) (hs : 0 ≤ s) :
     let u : SpectralStripJetIndex χ a α s → W'(-α, α, s) := stripU(χ, hα, hs)
-    JetKernel(a, stripI(hα), hs, u) := by sorry
+    JetKernel(a, stripI(hα), hs, u) := by
+  intro u y
+  refine ⟨spectralStripJet_commonKernel_forward χ hα hs y, fun hy ↦ ?_⟩
+  let E := (existsUnique_globalThetaSobolevEmbedding (F := F) a (-α) α s (stripI(hα)) hs).exists.choose
+  change y ∈ closure (E.toLinearMap.range : Set W(-α, α, s))
+  refine Metric.mem_closure_iff.mpr fun ε hε ↦ ?_
+  obtain ⟨f, hf⟩ := spectralStripJet_approximation χ _hχ hα hs y hy ε hε
+  exact ⟨_, ⟨Submodule.Quotient.mk f, rfl⟩, (dist_eq_norm _ _).trans_lt hf⟩
 
 /-- Paper: Theorem 10.2.2.1, p. 446. The individual strip jets admit
 interpolants whose classes span densely in the geometric quotient.
