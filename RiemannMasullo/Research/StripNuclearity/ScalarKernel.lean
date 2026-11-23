@@ -2,6 +2,7 @@ module
 
 public import RiemannMasullo.Ch09_HardySobolev.Sec3
 public import RiemannMasullo.Research.StripNuclearity.RadialConvolution
+public import RiemannMasullo.Research.StripNuclearity.CompactYoung
 
 /-!
 # Compactly supported convolution on additive radial coordinates
@@ -73,6 +74,48 @@ theorem exists_scalar_weighted_convolution (a b s : ℝ) (hab : a ≤ b) (hs : 0
   simp only [sub_eq_neg_add]
   convert hx using 1
   rfl
+
+/-- On a fixed compact set in the real logarithmic coordinate, every smooth
+kernel acts on the weighted Sobolev space with operator norm at most a common
+constant times its ordinary L¹ norm. An a.e. convolution formula suffices
+to identify the operator. -/
+theorem scalar_convolution_uniform_on_compact (a b s : ℝ) (hab : a ≤ b) (hs : 0 ≤ s)
+    {J : Set ℝ} (hJ : IsCompact J) :
+    let E := CompactIntervalSobolev volume id a b s
+    ∃ C : ℝ, 0 ≤ C ∧ ∀ (κ : ℝ → ℂ), tsupport κ ⊆ J → ContDiff ℝ ∞ κ →
+      ∀ A : E →L[ℂ] E, (∀ u, ∀ᵐ x ∂volume, A u x = ∫ y : ℝ, κ y*u (x-y)) →
+        ‖A‖ ≤ C * ∫ y : ℝ, ‖κ y‖ := by
+  intro E
+  let μ := radialHaar
+  let m := radialModule
+  let ℓ (g : Multiplicative ℝ) := Real.log ((m g).val : ℝ)
+  have hlog : ℓ = (id : ℝ → ℝ) := funext fun g ↦ Real.log_exp g
+  let acts (l : Multiplicative ℝ → ℝ) : Prop :=
+    let H := CompactIntervalSobolev μ l a b s
+    ∃ C : ℝ, 0 ≤ C ∧ ∀ (κ : ℝ → ℂ), tsupport κ ⊆ J → ContDiff ℝ ∞ κ →
+      ∀ A : H →L[ℂ] H, (∀ u, ∀ᵐ (x : ℝ) ∂volume, A u (Multiplicative.ofAdd x) =
+        ∫ y : ℝ, κ y*u (Multiplicative.ofAdd (x-y))) →
+        ‖A‖ ≤ C * ∫ y : ℝ, ‖κ y‖
+  suffices h : acts ℓ from (congrArg acts hlog).mp h
+  let ρ := hardySobolevTranslation μ m a b s hab hs
+  have hρ := (exists_hardySobolevTranslation μ m a b s hab hs).choose_spec.2
+  obtain ⟨C,hC,h⟩ := norm_bruhatRegularizedAction_le_on_compact μ ρ hρ (J := J) hJ
+  refine ⟨C,hC,fun κ hK hsm A hA ↦ ?_⟩
+  let φ : BruhatCompactSupport (Multiplicative ℝ) := ⟨κ,(mem_bruhatCompactSupportSubmodule_real_iff _).mpr
+    ⟨hsm,hJ.of_isClosed_subset isClosed_closure hK⟩⟩
+  apply A.opNorm_le_bound (mul_nonneg hC (integral_nonneg fun _ ↦ norm_nonneg _))
+  intro u
+  have he : A u = hardySobolevTestAction μ m a b s hab hs φ u := by
+    apply Lp.ext
+    apply (withDensity_absolutelyContinuous μ _).ae_eq
+    have htest := hardySobolevTestAction_apply μ m a b s hab hs φ u
+    filter_upwards [hA u,htest] with x hx hy
+    change A u x = _ at hx
+    rw [hy,hx]
+    change (∫ y : ℝ, κ y*u (x.toAdd-y)) = ∫ y : ℝ, κ y*u (-y+x.toAdd)
+    simp only [sub_eq_neg_add]
+  rw [he]
+  exact h φ hK u
 
 /-- A smooth compactly supported real convolution kernel with two L² masks
 is trace class on the weighted measure. The masks may be fixed independently

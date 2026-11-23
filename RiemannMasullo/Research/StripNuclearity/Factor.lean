@@ -54,8 +54,10 @@ theorem compact_weighted_dense {w : ℝ → ℝ} (hw : Continuous w) (hp : ∀ x
 /-- Away from the corner of the weight, a bounded operator with the weighted
 adjoint convolution kernel factors through the Mellin resolvent. The source
 mask ensures that convolution by the kernel and its two derivatives sees
-only the indicated smooth branch of the output weight. -/
-theorem exists_masked_resolvent_factor {I : Set ℝ} (ho : IsOpen I) (hi : OrdConnected I)
+only the indicated smooth branch of the output weight. The factor norm is
+bounded linearly in the three convolution operator norms, with the same
+constant for every kernel at the chosen mask. -/
+theorem exists_masked_resolvent_factor_uniform {I : Set ℝ} (ho : IsOpen I) (hi : OrdConnected I)
     (hne : I.Nonempty) {c : ℝ} (hno : ∀ z : ℂ, z.re ∈ I → (c : ℂ)^2-z^2 ≠ 0)
     {w : ℝ → ℝ} (hw : Continuous w) (hp : ∀ x, 0 < w x)
     (j : PositiveRealExponentialDecay I →L[ℂ] H[w]) (R : H[w] →L[ℂ] H[w])
@@ -63,16 +65,15 @@ theorem exists_masked_resolvent_factor {I : Set ℝ} (ho : IsOpen I) (hi : OrdCo
     (hr : ∀ p, ∃ q : PositiveRealExponentialDecay I, R (j p) = j q ∧
       ∀ z, z.re ∈ I → mellin (fun t ↦ q.val (Real.log t)) z =
         ((c : ℂ)^2-z^2)⁻¹ * mellin (fun t ↦ p.val (Real.log t)) z)
-    (κ : ℝ → ℂ) (hc : HasCompactSupport κ) (hs : ContDiff ℝ ∞ κ)
-    (B₀ B₁ B₂ : H[w] →L[ℂ] H[w])
-    (hB₀ : HasWeightedAdjointKernel w κ B₀)
-    (hB₁ : HasWeightedAdjointKernel w (deriv κ) B₁)
-    (hB₂ : HasWeightedAdjointKernel w (deriv (deriv κ)) B₂)
     (b s : ℝ) (a : ℝ → ℝ) (ha : Continuous a) (M : H[w] →L[ℂ] H[w])
-    (hM : ∀ u, (M u : ℝ → ℂ) =ᵐ[volume] fun x ↦ (a x : ℂ)*u x)
-    (hside : ∀ x y, a y ≠ 0 → x-y ∈ tsupport κ →
-      (w x)⁻¹ = Real.exp (-b*x-(s/2)*Real.log (1+x^2))) :
-    ∃ D : H[w] →L[ℂ] H[w], R.comp D = B₀.comp M := by
+    (hM : ∀ u, (M u : ℝ → ℂ) =ᵐ[volume] fun x ↦ (a x : ℂ)*u x) :
+    ∃ C : ℝ, 0 ≤ C ∧ ∀ (κ : ℝ → ℂ) (_ : HasCompactSupport κ) (_ : ContDiff ℝ ∞ κ)
+      (B₀ B₁ B₂ : H[w] →L[ℂ] H[w]) (_ : HasWeightedAdjointKernel w κ B₀)
+      (_ : HasWeightedAdjointKernel w (deriv κ) B₁)
+      (_ : HasWeightedAdjointKernel w (deriv (deriv κ)) B₂)
+      (_ : ∀ x y, a y ≠ 0 → x-y ∈ tsupport κ →
+        (w x)⁻¹ = Real.exp (-b*x-(s/2)*Real.log (1+x^2))),
+      ∃ D : H[w] →L[ℂ] H[w], R.comp D = B₀.comp M ∧ ‖D‖ ≤ C * (‖B₀‖ + ‖B₁‖ + ‖B₂‖) := by
   let v := fun x : ℝ ↦ Real.exp (-b*x-(s/2)*Real.log (1+x^2))
   let p := fun x : ℝ ↦ -b-s*x/(1+x^2)
   let q := fun x : ℝ ↦ (p x)^2-s*(1-x^2)/(1+x^2)^2
@@ -85,8 +86,27 @@ theorem exists_masked_resolvent_factor {I : Set ℝ} (ho : IsOpen I) (hi : OrdCo
   obtain ⟨Q,hQ⟩ := exists_weight_multiplier hw hp (fun x ↦ c^2-q x)
     (continuous_const.sub hqC).measurable hqB
   obtain ⟨P,hP⟩ := exists_weight_multiplier hw hp p hpC.measurable ⟨_,hCoef.2.2.1⟩
+  let C := (‖Q‖ + 2*‖P‖ + 1) * ‖M‖
+  refine ⟨C,by dsimp [C]; positivity,?_⟩
+  intro κ hc hs B₀ B₁ B₂ hB₀ hB₁ hB₂ hside
   let D := (Q.comp B₀ - (2 : ℂ) • (P.comp B₁) - B₂).comp M
-  refine ⟨D,?_⟩
+  have hnorm : ‖D‖ ≤ C * (‖B₀‖ + ‖B₁‖ + ‖B₂‖) := by
+    let S := ‖B₀‖ + ‖B₁‖ + ‖B₂‖
+    have h0 : ‖B₀‖ ≤ S := by dsimp [S]; linarith [norm_nonneg B₁,norm_nonneg B₂]
+    have h1 : ‖B₁‖ ≤ S := by dsimp [S]; linarith [norm_nonneg B₀,norm_nonneg B₂]
+    have h2 : ‖B₂‖ ≤ S := by dsimp [S]; linarith [norm_nonneg B₀,norm_nonneg B₁]
+    have hQ0 : ‖Q.comp B₀‖ ≤ ‖Q‖ * S :=
+      (Q.opNorm_comp_le B₀).trans (mul_le_mul_of_nonneg_left h0 (norm_nonneg _))
+    have hP1 : ‖(2 : ℂ) • P.comp B₁‖ ≤ 2*(‖P‖ * S) := by
+      rw [norm_smul,Complex.norm_ofNat]
+      exact mul_le_mul_of_nonneg_left ((P.opNorm_comp_le B₁).trans
+        (mul_le_mul_of_nonneg_left h1 (norm_nonneg _))) (by norm_num)
+    calc ‖D‖ ≤ ‖Q.comp B₀ - (2 : ℂ) • P.comp B₁ - B₂‖ * ‖M‖ := ContinuousLinearMap.opNorm_comp_le _ _
+      _ ≤ ((‖Q‖*S + 2*(‖P‖*S)) + S) * ‖M‖ := by
+        apply mul_le_mul_of_nonneg_right _ (norm_nonneg _)
+        exact (norm_sub_le _ _).trans (add_le_add ((norm_sub_le _ _).trans (add_le_add hQ0 hP1)) h2)
+      _ = _ := by dsimp [C,S]; ring
+  refine ⟨D,?_,hnorm⟩
   apply ContinuousLinearMap.ext
   intro u
   have closed : IsClosed {v : H[w] | R (D v) = B₀ (M v)} :=
@@ -146,5 +166,32 @@ theorem exists_masked_resolvent_factor {I : Set ℝ} (ho : IsOpen I) (hi : OrdCo
     ring
   change R (D f) = B₀ (M f)
   rw [hDc,hBc,hRd]
+
+/-- Away from the corner of the weight, a bounded operator with the weighted
+adjoint convolution kernel factors through the Mellin resolvent. The source
+mask ensures that convolution by the kernel and its two derivatives sees
+only the indicated smooth branch of the output weight. -/
+theorem exists_masked_resolvent_factor {I : Set ℝ} (ho : IsOpen I) (hi : OrdConnected I)
+    (hne : I.Nonempty) {c : ℝ} (hno : ∀ z : ℂ, z.re ∈ I → (c : ℂ)^2-z^2 ≠ 0)
+    {w : ℝ → ℝ} (hw : Continuous w) (hp : ∀ x, 0 < w x)
+    (j : PositiveRealExponentialDecay I →L[ℂ] H[w]) (R : H[w] →L[ℂ] H[w])
+    (hj : ∀ p, (j p : ℝ → ℂ) =ᵐ[volume] p.val)
+    (hr : ∀ p, ∃ q : PositiveRealExponentialDecay I, R (j p) = j q ∧
+      ∀ z, z.re ∈ I → mellin (fun t ↦ q.val (Real.log t)) z =
+        ((c : ℂ)^2-z^2)⁻¹ * mellin (fun t ↦ p.val (Real.log t)) z)
+    (κ : ℝ → ℂ) (hc : HasCompactSupport κ) (hs : ContDiff ℝ ∞ κ)
+    (B₀ B₁ B₂ : H[w] →L[ℂ] H[w])
+    (hB₀ : HasWeightedAdjointKernel w κ B₀)
+    (hB₁ : HasWeightedAdjointKernel w (deriv κ) B₁)
+    (hB₂ : HasWeightedAdjointKernel w (deriv (deriv κ)) B₂)
+    (b s : ℝ) (a : ℝ → ℝ) (ha : Continuous a) (M : H[w] →L[ℂ] H[w])
+    (hM : ∀ u, (M u : ℝ → ℂ) =ᵐ[volume] fun x ↦ (a x : ℂ)*u x)
+    (hside : ∀ x y, a y ≠ 0 → x-y ∈ tsupport κ →
+      (w x)⁻¹ = Real.exp (-b*x-(s/2)*Real.log (1+x^2))) :
+    ∃ D : H[w] →L[ℂ] H[w], R.comp D = B₀.comp M := by
+
+  obtain ⟨_,_,h⟩ := exists_masked_resolvent_factor_uniform ho hi hne hno hw hp j R hj hr b s a ha M hM
+  obtain ⟨D,hD,_⟩ := h κ hc hs B₀ B₁ B₂ hB₀ hB₁ hB₂ hside
+  exact ⟨D,hD⟩
 
 end RiemannMasullo.StripNuclearity

@@ -1,5 +1,6 @@
 module
 public import RiemannMasullo.Research.StripNuclearity.Local
+public import RiemannMasullo.Research.StripNuclearity.TraceResolventSplit
 import Mathlib.Analysis.SpecialFunctions.SmoothTransition
 
 /-!
@@ -8,66 +9,46 @@ import Mathlib.Analysis.SpecialFunctions.SmoothTransition
 
 @[expose] public noncomputable section
 open Function Filter MeasureTheory Set
-open scoped Topology ContDiff Convolution ComplexConjugate
+open scoped Topology ContDiff Convolution ComplexConjugate FourierTransform
 
 namespace RiemannMasullo.StripNuclearity
 
 local notation "ν[" w "]" => (volume.withDensity fun x : ℝ ↦ ENNReal.ofReal ((w : ℝ → ℝ) x))
 local notation "H[" w "]" => Lp ℂ 2 ν[w]
 
-private theorem nuclear_adjoint {H : Type*} [NormedAddCommGroup H]
-    [InnerProductSpace ℂ H] [CompleteSpace H] (T : H →L[ℂ] H) (hT : IsNuclearOperator T) :
-    IsNuclearOperator T.adjoint := by
-  have hTc := (mem_traceClassOperators_iff_isNuclearOperator T).mpr hT
-  refine (mem_traceClassOperators_iff_isNuclearOperator T.adjoint).mp ?_
-  change IsCompactOperator T.adjoint ∧ Summable (fun n ↦ approximationNumber T.adjoint n ^ (1 : ℝ))
-  refine ⟨isCompactOperator_adjoint_of_compact T hTc.1, hTc.2.congr fun n ↦ ?_⟩
-  congr 1
-  by_cases hn : (n : Cardinal) < Module.rank ℂ H
-  · exact approximationNumber_adjoint T hTc.1 n hn
-  · have hle : Module.rank ℂ H ≤ (n : Cardinal) := le_of_not_gt hn
-    have hzero (A : H →L[ℂ] H) : approximationNumber A n = 0 := by
-      unfold approximationNumber
-      refine le_antisymm ?_ (Real.sInf_nonneg ?_)
-      · refine csInf_le ⟨0,?_⟩ ?_
-        · rintro _ ⟨S,_,rfl⟩
-          exact norm_nonneg _
-        · exact ⟨A,(Submodule.rank_le _).trans hle, by simp⟩
-      · rintro _ ⟨S,_,rfl⟩
-        exact norm_nonneg _
-    rw [hzero T,hzero T.adjoint]
-
 /-- A compactly supported smooth radial convolution inherits trace class on
 the spectral subspace from the projected two-sided Mellin resolvent. Its
 weighted adjoint is resolved on the two tails, and the remaining compact
-piece is nuclear by absolute Fourier inversion. -/
-theorem nuclear_weighted_convolution_of_projected_resolvent {α s : ℝ} (hα : 0 ≤ α)
+piece is nuclear by absolute Fourier inversion. The bound is uniform for
+all kernels with support in a fixed compact set and every projection. -/
+theorem projected_weighted_convolution_traceNorm_uniform {α s : ℝ} (hα : 0 ≤ α)
     {I : Set ℝ} (ho : IsOpen I) (hi : OrdConnected I) (hne : I.Nonempty) (c : ℝ)
     (hno : ∀ z : ℂ, z.re ∈ I → (c : ℂ)^2-z^2 ≠ 0)
-    (κ : ℝ → ℂ) (hc : HasCompactSupport κ) (hs : ContDiff ℝ ∞ κ) :
+    {J : Set ℝ} (hJ : IsCompact J) :
     let w := intervalSobolevDensity (-α) α s
-    ∀ (j : PositiveRealExponentialDecay I →L[ℂ] H[w]) (R P B₀ B₁ B₂ : H[w] →L[ℂ] H[w])
+    ∀ (j : PositiveRealExponentialDecay I →L[ℂ] H[w]) (R : H[w] →L[ℂ] H[w])
       (_ : ∀ p, (j p : ℝ → ℂ) =ᵐ[volume] p.val)
       (_ : ∀ p, ∃ q : PositiveRealExponentialDecay I, R (j p) = j q ∧
         ∀ z, z.re ∈ I → mellin (fun t ↦ q.val (Real.log t)) z =
-          ((c : ℂ)^2-z^2)⁻¹ * mellin (fun t ↦ p.val (Real.log t)) z)
-      (_ : IsNuclearOperator (R.adjoint.comp P))
-      (_ : HasWeightedAdjointKernel w κ B₀)
-      (_ : HasWeightedAdjointKernel w (deriv κ) B₁)
-      (_ : HasWeightedAdjointKernel w (deriv (deriv κ)) B₂),
-      IsNuclearOperator (B₀.adjoint.comp P) := by
-  intro w j R P B₀ B₁ B₂ hj hr hN hB₀ hB₁ hB₂
+          ((c : ℂ)^2-z^2)⁻¹ * mellin (fun t ↦ p.val (Real.log t)) z),
+      ∃ C : ℝ, 0 ≤ C ∧ ∀ (κ : ℝ → ℂ), tsupport κ ⊆ J → ContDiff ℝ ∞ κ →
+        ∀ (P B₀ B₁ B₂ : H[w] →L[ℂ] H[w]) (hR : IsNuclearOperator (R.adjoint.comp P)),
+          HasWeightedAdjointKernel w κ B₀ → HasWeightedAdjointKernel w (deriv κ) B₁ →
+          HasWeightedAdjointKernel w (deriv (deriv κ)) B₂ →
+          ∃ hn : IsNuclearOperator (B₀.adjoint.comp P), traceNorm ⟨B₀.adjoint.comp P,hn⟩ ≤
+            C * ((∫ u : ℝ, ‖𝓕 κ u‖)*‖P‖ + (‖B₀‖+‖B₁‖+‖B₂‖)*traceNorm ⟨R.adjoint.comp P,hR⟩) := by
+  intro w j R hj hr
   have hw : Continuous w := by
     unfold w intervalSobolevDensity
     refine Continuous.mul (by fun_prop) (Continuous.rpow_const (by fun_prop) fun x ↦ Or.inl ?_)
     positivity
   have hp (x : ℝ) : 0 < w x := by
     exact mul_pos (lt_max_of_lt_left (Real.exp_pos _)) (Real.rpow_pos_of_pos (by positivity) _)
-  obtain ⟨K,hK⟩ := hc.exists_bound_of_continuousOn (f := id) continuous_id.continuousOn
+  obtain ⟨K,hJK⟩ := hJ.exists_bound_of_continuousOn (f := id) continuous_id.continuousOn
   let T := max K 0 + 1
   have ht : 0 < T := by dsimp [T]; positivity
-  have hrad {t : ℝ} (h : t ∈ tsupport κ) : |t| < T := by
-    have hv : |t| ≤ K := by simpa [Real.norm_eq_abs] using hK t h
+  have hrad {t : ℝ} (h : t ∈ J) : |t| < T := by
+    have hv : |t| ≤ K := by simpa [Real.norm_eq_abs] using hJK t h
     dsimp [T]
     linarith [le_max_left K 0]
   let ap (x : ℝ) := Real.smoothTransition (x-T)
@@ -100,21 +81,28 @@ theorem nuclear_weighted_convolution_of_projected_resolvent {α s : ℝ} (hα : 
       hMp u,hMm u] with x hsub hsub' hm hM
     simp only [hsub,Pi.sub_apply,hsub',hm,hM,a0,Complex.ofReal_sub,Complex.ofReal_one]
     ring
-  have h0N := nuclear_compactly_masked_adjoint hw hp κ hc hs B₀ hB₀ a0 h0c h0s M0 hm0
+  obtain ⟨C₀,hC₀,hlocal⟩ := traceNorm_compactly_masked_adjoint_uniform hw hp hJ a0 h0c h0s M0 hm0
+  obtain ⟨Cp,hCp,hposAux⟩ := exists_masked_resolvent_factor_uniform ho hi hne hno hw hp j R hj hr
+    (2*α) s ap hpc Mp hMp
+  obtain ⟨Cm,hCm,hnegAux⟩ := exists_masked_resolvent_factor_uniform ho hi hne hno hw hp j R hj hr
+    (-2*α) s am hmc Mm hMm
+  let C := max C₀ (Cp+Cm)
+  refine ⟨C,hC₀.trans (le_max_left _ _),?_⟩
+  intro κ hK hs P B₀ B₁ B₂ hN hB₀ hB₁ hB₂
+  have hc : HasCompactSupport κ := hJ.of_isClosed_subset isClosed_closure hK
+  obtain ⟨h0N,h0cost⟩ := hlocal κ hK hs B₀ hB₀
   have hpos (x y : ℝ) (hy : ap y ≠ 0) (hts : x-y ∈ tsupport κ) :
       (w x)⁻¹ = Real.exp (-(2*α)*x-(s/2)*Real.log (1+x^2)) := by
     have hy' : 0 < y-T := lt_of_not_ge (fun h ↦ hy (Real.smoothTransition.zero_of_nonpos h))
-    have hx : 0 ≤ x := by linarith [(abs_lt.mp (hrad hts)).1]
+    have hx : 0 ≤ x := by linarith [(abs_lt.mp (hrad (hK hts))).1]
     simpa only [ite_eq_left hx,neg_mul] using reciprocal_interval_weight_branches hα s x
   have hneg (x y : ℝ) (hy : am y ≠ 0) (hts : x-y ∈ tsupport κ) :
       (w x)⁻¹ = Real.exp (-(-2*α)*x-(s/2)*Real.log (1+x^2)) := by
     have hy' : 0 < -y-T := lt_of_not_ge (fun h ↦ hy (Real.smoothTransition.zero_of_nonpos h))
-    have hx : ¬ 0 ≤ x := by linarith [(abs_lt.mp (hrad hts)).2]
+    have hx : ¬ 0 ≤ x := by linarith [(abs_lt.mp (hrad (hK hts))).2]
     simpa only [ite_eq_right hx,neg_mul,neg_neg] using reciprocal_interval_weight_branches hα s x
-  obtain ⟨Dp,hDp⟩ := exists_masked_resolvent_factor ho hi hne hno hw hp j R hj hr κ hc hs B₀ B₁ B₂
-    hB₀ hB₁ hB₂ (2*α) s ap hpc Mp hMp hpos
-  obtain ⟨Dm,hDm⟩ := exists_masked_resolvent_factor ho hi hne hno hw hp j R hj hr κ hc hs B₀ B₁ B₂
-    hB₀ hB₁ hB₂ (-2*α) s am hmc Mm hMm hneg
+  obtain ⟨Dp,hDp,hDpn⟩ := hposAux κ hc hs B₀ B₁ B₂ hB₀ hB₁ hB₂ hpos
+  obtain ⟨Dm,hDm,hDmn⟩ := hnegAux κ hc hs B₀ B₁ B₂ hB₀ hB₁ hB₂ hneg
   have hsum : B₀ = B₀.comp M0 + R.comp Dp + R.comp Dm := by
     rw [hDp,hDm]
     apply ContinuousLinearMap.ext
@@ -127,10 +115,49 @@ theorem nuclear_weighted_convolution_of_projected_resolvent {α s : ℝ} (hα : 
     conv_lhs => rw [hsum]
     simp only [map_add,ContinuousLinearMap.add_comp,ContinuousLinearMap.adjoint_comp,
       ContinuousLinearMap.comp_assoc]
-  rw [he]
-  have hlocal := mul_mem_nuclearEndomorphisms_right P (⟨_,nuclear_adjoint _ h0N⟩ : nuclearEndomorphisms (H[w]))
-  have hNp := mul_mem_nuclearEndomorphisms_left Dp.adjoint (⟨_,hN⟩ : nuclearEndomorphisms (H[w]))
-  have hNm := mul_mem_nuclearEndomorphisms_left Dm.adjoint (⟨_,hN⟩ : nuclearEndomorphisms (H[w]))
-  exact (nuclearEndomorphisms (H[w])).add_mem ((nuclearEndomorphisms (H[w])).add_mem hlocal hNp) hNm
+  obtain ⟨hn,hcost⟩ := traceNorm_resolvent_split_le _ (B₀.comp M0) R P Dp Dm he h0N hN
+  refine ⟨hn,hcost.trans ?_⟩
+  let S := ‖B₀‖+‖B₁‖+‖B₂‖
+  let N := traceNorm (⟨R.adjoint.comp P,hN⟩ : nuclearEndomorphisms (H[w]))
+  let F := ∫ u : ℝ, ‖𝓕 κ u‖
+  have hS : 0 ≤ S := by dsimp [S]; positivity
+  have hF : 0 ≤ F := integral_nonneg fun _ ↦ norm_nonneg _
+  have hNpos : 0 ≤ N := by
+    let : Norm (nuclearEndomorphisms (H[w])) := ⟨traceNorm⟩
+    exact (traceNorm_normedSpaceCore (H := H[w])).norm_nonneg ⟨_,hN⟩
+  have hD : ‖Dp‖+‖Dm‖ ≤ C*S := by
+    calc _ ≤ Cp*S+Cm*S := add_le_add hDpn hDmn
+      _ = (Cp+Cm)*S := by ring
+      _ ≤ _ := mul_le_mul_of_nonneg_right (le_max_right _ _) hS
+  have hU : traceNorm ⟨B₀.comp M0,h0N⟩ ≤ C*F :=
+    h0cost.trans (mul_le_mul_of_nonneg_right (le_max_left _ _) hF)
+  change ‖P‖*traceNorm ⟨B₀.comp M0,h0N⟩ + (‖Dp‖+‖Dm‖)*N ≤ C*(F*‖P‖+S*N)
+  calc _ ≤ ‖P‖*(C*F)+(C*S)*N :=
+      add_le_add (mul_le_mul_of_nonneg_left hU (norm_nonneg _)) (mul_le_mul_of_nonneg_right hD hNpos)
+    _ = _ := by ring
+
+/-- A compactly supported smooth radial convolution inherits trace class on
+the spectral subspace from the projected two-sided Mellin resolvent. Its
+weighted adjoint is resolved on the two tails, and the remaining compact
+piece is nuclear by absolute Fourier inversion. -/
+theorem nuclear_weighted_convolution_of_projected_resolvent {α s : ℝ} (hα : 0 ≤ α)
+    {I : Set ℝ} (ho : IsOpen I) (hi : OrdConnected I) (hne : I.Nonempty) (c : ℝ)
+    (hno : ∀ z : ℂ, z.re ∈ I → (c : ℂ)^2-z^2 ≠ 0)
+    (κ : ℝ → ℂ) (hc : HasCompactSupport κ) (hs : ContDiff ℝ ∞ κ) :
+    let w := intervalSobolevDensity (-α) α s
+    ∀ (j : PositiveRealExponentialDecay I →L[ℂ] H[w]) (R P B₀ B₁ B₂ : H[w] →L[ℂ] H[w])
+      (_ : ∀ p, (j p : ℝ → ℂ) =ᵐ[volume] p.val)
+      (_ : ∀ p, ∃ q : PositiveRealExponentialDecay I, R (j p) = j q ∧
+        ∀ z, z.re ∈ I → mellin (fun t ↦ q.val (Real.log t)) z =
+          ((c : ℂ)^2-z^2)⁻¹ * mellin (fun t ↦ p.val (Real.log t)) z)
+      (_ : IsNuclearOperator (R.adjoint.comp P))
+      (_ : HasWeightedAdjointKernel w κ B₀)
+      (_ : HasWeightedAdjointKernel w (deriv κ) B₁)
+      (_ : HasWeightedAdjointKernel w (deriv (deriv κ)) B₂),
+      IsNuclearOperator (B₀.adjoint.comp P) := by
+  intro w j R P B₀ B₁ B₂ hj hr hN hB₀ hB₁ hB₂
+  obtain ⟨_,_,h⟩ := projected_weighted_convolution_traceNorm_uniform hα ho hi hne c hno hc.isCompact j R hj hr
+  obtain ⟨hn,_⟩ := h κ Subset.rfl hs P B₀ B₁ B₂ hN hB₀ hB₁ hB₂
+  exact hn
 
 end RiemannMasullo.StripNuclearity

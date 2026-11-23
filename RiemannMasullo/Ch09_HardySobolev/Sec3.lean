@@ -3353,13 +3353,14 @@ attribute [local instance] instDualMeasurableSpaceSec3
 attribute [local instance] uniformContinuousConstSMul_of_continuousConstSMul in
 /-- An absolutely integrable superposition of rank-one operators is nuclear.
 Its trace integrates the rank-one traces. -/
-private theorem integral_rankOne_nuclear {H X : Type*}
+private theorem integral_rankOne_nuclear_bound {H X : Type*}
     [NormedAddCommGroup H] [InnerProductSpace ℂ H] [CompleteSpace H]
     [TopologicalSpace X] [SecondCountableTopology X] [MeasurableSpace X] [BorelSpace X]
     (ν : Measure X) (f : X → ℂ) (hf : Integrable f ν)
     (a : X → H) (b : X → StrongDual ℂ H) (ha : Continuous a) (hb : Continuous b)
     (C : ℝ) (hC : ∀ x, ‖b x‖ * ‖a x‖ ≤ C) :
     ∃ (T : H →L[ℂ] H) (hT : IsNuclearOperator T),
+      traceNorm ⟨T,hT⟩ ≤ C * ∫ x, ‖f x‖ ∂ν ∧
       (∀ u, Integrable (fun x ↦ (f x * b x u) • a x) ν ∧
         T u = ∫ x, (f x * b x u) • a x ∂ν) ∧
       hilbertTrace ⟨T, hT⟩ = ∫ x, f x * b x (a x) ∂ν := by
@@ -3371,13 +3372,14 @@ private theorem integral_rankOne_nuclear {H X : Type*}
   let N := M.toLinearMap.codRestrict (nuclearEndomorphisms H) hM
   let τ := (hilbertTrace_linear (H := H)).choose
   have hτ := (hilbertTrace_linear (H := H)).choose_spec
-  have htrace (z : Completion TensorModel) : ‖τ (N z)‖ ≤ 1 * ‖z‖ := by
-    rw [one_mul, hτ]
-    apply (norm_hilbertTrace_le _).trans
+  have hcost (z : Completion TensorModel) : traceNorm (N z) ≤ ‖z‖ := by
     rw [← schattenNorm_one_eq_traceNorm]
     obtain ⟨d, hd⟩ := projectiveModel_singular_sum z
     change (∑' n, approximationNumber (M z) n ^ (1 : ℝ)) ^ (1 / (1 : ℝ)) ≤ ‖z‖
     simpa [d.coeff_eq_approximationNumber, M] using hd.tsum_eq.le
+  have htrace (z : Completion TensorModel) : ‖τ (N z)‖ ≤ 1 * ‖z‖ := by
+    rw [one_mul, hτ]
+    exact (norm_hilbertTrace_le _).trans (hcost z)
   let tr := (τ.comp N).mkContinuous 1 htrace
   let tm (p : StrongDual ℂ H × H) : TensorModel := p.1 ⊗ₜ[ℂ] p.2
   have htm : Continuous tm := by
@@ -3386,14 +3388,18 @@ private theorem integral_rankOne_nuclear {H X : Type*}
       TensorProduct.tmul_smul, 1, one_pos, fun φ v ↦ (projectiveSeminorm_tmul_le φ v).trans_eq (by rw [one_mul])⟩
   let K (x : X) : Completion TensorModel := (tm (b x, a x) : TensorModel)
   have hK : Continuous K := (Completion.continuous_coe (α := TensorModel)).comp (htm.comp (hb.prodMk ha))
-  have hKI : Integrable (fun x ↦ f x • K x) ν := by
-    refine (hf.norm.mul_const C).mono' (hf.1.smul hK.aestronglyMeasurable) (.of_forall fun x ↦ ?_)
+  have hKN (x : X) : ‖f x • K x‖ ≤ ‖f x‖ * C := by
     rw [norm_smul]
     exact mul_le_mul_of_nonneg_left ((Completion.norm_coe _).le.trans
       ((projectiveSeminorm_tmul_le _ _).trans (hC x))) (norm_nonneg _)
+  have hKI : Integrable (fun x ↦ f x • K x) ν :=
+    (hf.norm.mul_const C).mono' (hf.1.smul hK.aestronglyMeasurable) (.of_forall hKN)
   let z := ∫ x, f x • K x ∂ν
   have hR (x) : M (K x) = (b x).smulRight (a x) := projectiveModelToOperator_coe _
-  refine ⟨M z, hM z, fun u ↦ ?_, ?_⟩
+  refine ⟨M z, hM z, ?_, fun u ↦ ?_, ?_⟩
+  · apply (hcost z).trans
+    refine (norm_integral_le_integral_norm _).trans ((integral_mono hKI.norm (hf.norm.mul_const C) hKN).trans_eq ?_)
+    rw [integral_mul_const,mul_comm]
   · let ev := (ContinuousLinearMap.apply ℂ H u).comp M
     have heq (x) : ev (f x • K x) = (f x * b x u) • a x := by
       change M (f x • K x) u = _
@@ -3410,6 +3416,21 @@ private theorem integral_rankOne_nuclear {H X : Type*}
     apply congrArg (f x * ·)
     rw [hτ]
     exact (congrArg hilbertTrace (Subtype.ext (hR x))).trans (hilbertTrace_smulRight (b x) (a x))
+
+/-- An absolutely integrable superposition of rank-one operators is nuclear,
+and its trace integrates the rank-one traces. -/
+private theorem integral_rankOne_nuclear {H X : Type*}
+    [NormedAddCommGroup H] [InnerProductSpace ℂ H] [CompleteSpace H]
+    [TopologicalSpace X] [SecondCountableTopology X] [MeasurableSpace X] [BorelSpace X]
+    (ν : Measure X) (f : X → ℂ) (hf : Integrable f ν)
+    (a : X → H) (b : X → StrongDual ℂ H) (ha : Continuous a) (hb : Continuous b)
+    (C : ℝ) (hC : ∀ x, ‖b x‖ * ‖a x‖ ≤ C) :
+    ∃ (T : H →L[ℂ] H) (hT : IsNuclearOperator T),
+      (∀ u, Integrable (fun x ↦ (f x * b x u) • a x) ν ∧
+        T u = ∫ x, (f x * b x u) • a x ∂ν) ∧
+      hilbertTrace ⟨T, hT⟩ = ∫ x, f x * b x (a x) ∂ν := by
+  obtain ⟨T,hT,_,hrep,htr⟩ := integral_rankOne_nuclear_bound ν f hf a b ha hb C hC
+  exact ⟨T,hT,hrep,htr⟩
 
 /-- Multiplication by a unitary character acts continuously in the character
 on each fixed L² vector, preserving its norm. -/
@@ -3513,20 +3534,22 @@ private theorem fourier_kernel_exchange (η : Measure (PontryaginDual G)) (ν : 
     _ = _ := by simp only [Q, integral_mul_const, ← hφ]
 
 /-- An inverse Fourier integral masked on both sides by L² functions gives a
-nuclear kernel. Its diagonal trace separates into a Fourier mass and a pairing. -/
-private theorem masked_fourier_kernel (η : Measure (PontryaginDual G)) (ν : Measure G)
+nuclear kernel. Its trace norm is bounded by the product of the two mask norms
+and the absolute Fourier mass. Its diagonal trace separates into a Fourier mass and a pairing. -/
+theorem masked_fourier_kernel_traceNorm_le (η : Measure (PontryaginDual G)) (ν : Measure G)
     [SFinite η] [SigmaFinite ν] [BorelSpace (PontryaginDual G)]
     [SecondCountableTopology (PontryaginDual G)] {f : PontryaginDual G → ℂ}
     (hf : Integrable f η) {φ : G → ℂ} (hφ : ∀ z, φ z = ∫ χ, f χ * (χ z : ℂ) ∂η)
     {a b : G → ℂ} (ha : MemLp a 2 ν) (hb : MemLp b 2 ν) :
     ∃ (T : Lp ℂ 2 ν →L[ℂ] Lp ℂ 2 ν) (hn : IsNuclearOperator T),
+      traceNorm ⟨T,hn⟩ ≤ (‖hb.toLp b‖ * ‖ha.toLp a‖) * ∫ χ, ‖f χ‖ ∂η ∧
       (∀ u, ∀ᵐ x ∂ν, T u x = ∫ y, a x * φ (x * y⁻¹) * star (b y) * u y ∂ν) ∧
       hilbertTrace ⟨T, hn⟩ = φ 1 * ∫ y, star (b y) * a y ∂ν := by
   obtain ⟨A, hAc, hA, hAn⟩ := character_modulations_L2 ν ha
   obtain ⟨B, hBc, hB, hBn⟩ := character_modulations_L2 ν hb
   let L (χ : PontryaginDual G) := innerSL ℂ (B χ)
   have hLc : Continuous L := (innerSL ℂ).continuous.comp hBc
-  obtain ⟨T, hn, hT, htr⟩ := integral_rankOne_nuclear η f hf A L hAc hLc
+  obtain ⟨T, hn, hcost, hT, htr⟩ := integral_rankOne_nuclear_bound η f hf A L hAc hLc
     (‖hb.toLp b‖ * ‖ha.toLp a‖) (fun χ ↦ by simp only [L, innerSL_apply_norm, hAn, hBn, le_refl])
   have hL (χ) (u : Lp ℂ 2 ν) :
       L χ u = ∫ y, star (χ y : ℂ) * (star (b y) * u y) ∂ν := by
@@ -3535,7 +3558,7 @@ private theorem masked_fourier_kernel (η : Measure (PontryaginDual G)) (ν : Me
     filter_upwards [hB χ] with y hy
     simp only [RCLike.inner_apply, hy, map_mul, Complex.star_def]
     ring
-  refine ⟨T, hn, fun u ↦ ?_, ?_⟩
+  refine ⟨T, hn, hcost, fun u ↦ ?_, ?_⟩
   · let C (χ : PontryaginDual G) := f χ * L χ u
     have hC : AEStronglyMeasurable C η :=
       hf.1.mul (((ContinuousLinearMap.apply ℂ ℂ u).continuous.comp hLc).aestronglyMeasurable)
@@ -3578,6 +3601,18 @@ private theorem masked_fourier_kernel (η : Measure (PontryaginDual G)) (ν : Me
       linear_combination (star (b y) * a y) * hz
     rw [htr]
     simp only [hdiag, integral_mul_const, hφ 1, map_one, Circle.coe_one, mul_one]
+
+/-- The masked inverse Fourier kernel and its diagonal trace. -/
+private theorem masked_fourier_kernel (η : Measure (PontryaginDual G)) (ν : Measure G)
+    [SFinite η] [SigmaFinite ν] [BorelSpace (PontryaginDual G)]
+    [SecondCountableTopology (PontryaginDual G)] {f : PontryaginDual G → ℂ}
+    (hf : Integrable f η) {φ : G → ℂ} (hφ : ∀ z, φ z = ∫ χ, f χ * (χ z : ℂ) ∂η)
+    {a b : G → ℂ} (ha : MemLp a 2 ν) (hb : MemLp b 2 ν) :
+    ∃ (T : Lp ℂ 2 ν →L[ℂ] Lp ℂ 2 ν) (hn : IsNuclearOperator T),
+      (∀ u, ∀ᵐ x ∂ν, T u x = ∫ y, a x * φ (x * y⁻¹) * star (b y) * u y ∂ν) ∧
+      hilbertTrace ⟨T, hn⟩ = φ 1 * ∫ y, star (b y) * a y ∂ν := by
+  obtain ⟨T,hn,_,hrep,htr⟩ := masked_fourier_kernel_traceNorm_le η ν hf hφ ha hb
+  exact ⟨T,hn,hrep,htr⟩
 
 include μ in
 /-- Two square-integrable masks of a smooth compactly supported group
