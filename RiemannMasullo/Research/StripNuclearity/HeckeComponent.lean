@@ -68,6 +68,12 @@ private theorem hecke_zeroCount (χ : U𝔽) (a : ℝ) :
     (finiteHeckeL_continuation_isBigO_rpow χ L hL hSeries) (hLine.mono fun _ ht ↦ ht.2)
     hInv (1 / 2) a
 
+/-- The inverse-square moment of the positive divisor of a fixed Hecke character
+in any open critical window. This includes the polar character. -/
+theorem summable_heckePositiveDivisor_in_window (χ : U𝔽) (a : ℝ) :
+    Summable (fun r : windowZeros(χ, a) ↦ (zeroOrder(χ, r.val) : ℝ) / (1 + |r.val.im|) ^ 2) :=
+  hecke_zeroCount χ a
+
 /-- For fixed strip parameters, the projected resolvent for every unitary
 Hecke character uses the same operator and constant. Its trace norm is bounded
 by that constant times the square of one plus the weighted admitted divisor
