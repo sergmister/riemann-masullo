@@ -2014,6 +2014,17 @@ private theorem introTraceApprox_rat_spectral_tendsto_atBot_profile (h ρ : ℕ 
   · funext t
     simp only [introTraceApprox, hP, ← Complex.ofReal_mul, integral_complex_ofReal]
 
+/-- Paper: §1.4.2, pp. 28–29. At parameter two each smoothed radial profile
+is real and nonnegative. In log-norm coordinates it is smooth and compactly supported. -/
+theorem introTraceApprox_two_logProfile (h ρ : ℕ → ℝ → ℝ)
+    (hA : IsIntroTraceApproximation h ρ) (n : ℕ) :
+    let A := introTraceApprox (h n) (ρ n) 2
+    (ContDiff ℝ (⊤ : ℕ∞) (fun x ↦ A (Real.exp x)) ∧
+      HasCompactSupport (fun x ↦ A (Real.exp x))) ∧
+      ∃ q : ℝ → ℝ, (∀ t, 0 ≤ q t) ∧ A = fun t ↦ (q t : ℂ) :=
+  ⟨introTraceApprox_logProfile h ρ hA n 2,
+    introTraceApprox_rat_spectral_tendsto_atBot_profile h ρ hA n⟩
+
 /-- With a nonnegative real radial profile the real part of each trivial-character
 prime-power contribution is nonnegative. -/
 private theorem introTraceApprox_rat_spectral_tendsto_atBot_prime_nonneg (g : ℝ → ℝ)

@@ -3,6 +3,7 @@ module
 public import RiemannMasullo.Ch01_Introduction.Sec4
 import Mathlib.NumberTheory.NumberField.Cyclotomic.Basic
 import RiemannMasullo.Ch13_ZerosHecke.Targets
+import RiemannMasullo.External.Grh.Theorems.RationalExplicitFormula
 import RiemannMasullo.Ch10_TraceSpectral.Sec1
 import RiemannMasullo.AppB_AnalyticNT.Sec4b
 
@@ -206,6 +207,313 @@ def Printed.introTraceApprox_spectral_limit : Prop :=
           ∀ z ∈ interior K, (∀ n, Summable (term n z)) ∧
             Tendsto (fun n ↦ ∑' r, term n z r) atTop (𝓝 (H z))
 
+local notation "CQ" => C[ℚ]
+local notation "LQ" => continuedCompletedHeckeL (F := ℚ) 1
+local notation "DQ" => MeromorphicOn.divisor LQ univ
+local notation "ZQ" => {z : ℂ // 0 < DQ z ∧ |z.re - 1 / 2| < (1 : ℝ)}
+
+private theorem printedTrace_ratZero_order (z : ℂ) (hz : 0 < z.re) :
+    meromorphicOrderAt riemannZeta z = meromorphicOrderAt LQ z :=
+  meromorphicOrderAt_finiteHeckeL_continuation (1 : PontryaginDual CQ)
+    (by simpa only [DirichletCharacter.LFunction_modOne_eq] using
+      meromorphic_dirichletLFunction (1 : DirichletCharacter ℂ 1))
+    (fun s ↦ by rw [finiteHeckeL_one_eq_dedekindZeta, dedekindZeta_rat_eq_riemannZeta s.property]) hz
+
+private theorem printedTrace_ratZero_right {z : ℂ} (h : 0 < meromorphicOrderAt LQ z) : z.re < 1 := by
+  rcases le_or_gt z.re 0 with hz | hz
+  · exact hz.trans_lt zero_lt_one
+  · obtain ⟨hL, hEq⟩ := continuedCompletedHeckeL_spec (1 : PontryaginDual CQ)
+    exact completedHeckeL_continuation_zeros _ _ hL hEq hz h
+
+private theorem printedTrace_ratZero_strip {z : ℂ} (h : 0 < DQ z) : 0 < z.re ∧ z.re < 1 := by
+  obtain ⟨hL, hEq⟩ := continuedCompletedHeckeL_spec (1 : PontryaginDual CQ)
+  rw [MeromorphicOn.divisor_apply hL.meromorphicOn (mem_univ _)] at h
+  have hp : 0 < meromorphicOrderAt LQ z := by
+    cases he : meromorphicOrderAt LQ z with
+    | top => simp
+    | coe k => simpa [he] using h
+  obtain ⟨ε, hε, hne, hfe⟩ :=
+    completedHeckeL_continuation_functionalEquation (1 : PontryaginDual CQ) _ _ hL hEq
+      (by simpa using hL) (by simpa using hEq)
+  have hcomp : meromorphicOrderAt (fun s ↦ LQ (1 - s)) z = meromorphicOrderAt LQ (1 - z) := by
+    simpa [Function.comp_def] using meromorphicOrderAt_comp_of_deriv_ne_zero (f := LQ)
+      (show AnalyticAt ℂ (fun s : ℂ ↦ 1 - s) z by fun_prop)
+      (show deriv (fun s : ℂ ↦ 1 - s) z ≠ 0 by simp)
+  have hf : (fun s ↦ LQ (1 - s)) = ε * LQ := by
+    funext t
+    simpa only [inv_one, Pi.mul_apply] using hfe t
+  rw [hf, meromorphicOrderAt_mul_of_ne_zero (hε.analyticAt z) (hne z)] at hcomp
+  have hl := printedTrace_ratZero_right (hcomp ▸ hp)
+  rw [Complex.sub_re, Complex.one_re] at hl
+  exact ⟨by linarith, printedTrace_ratZero_right hp⟩
+
+private theorem printedTrace_ratZero_divisor (r : External.Grh.criticalStripZetaZeros) :
+    DQ r.val = (External.Grh.zetaZeroOrder r : ℤ) := by
+  obtain ⟨_, hp, h1⟩ := External.Grh.mem_criticalStripZetaZeros.mp r.property
+  have hn : r.val ≠ 1 := fun he ↦ by simp [he] at h1
+  have ha := analyticOn_riemannZeta _ hn
+  rw [MeromorphicOn.divisor_apply (continuedCompletedHeckeL_spec (1 : PontryaginDual CQ)).1.meromorphicOn
+    (mem_univ _), ← printedTrace_ratZero_order _ hp, ha.meromorphicOrderAt_eq, ← External.Grh.zetaZeroOrder_cast_eq]
+  simp
+
+/-- The width-one rational window indexes exactly the classical nontrivial zeta zeros. -/
+private noncomputable def printedTrace_ratZero_equiv : ZQ ≃ External.Grh.criticalStripZetaZeros where
+  toFun r := ⟨r.val, by
+    have ⟨hp,h1⟩ := printedTrace_ratZero_strip r.property.1
+    refine External.Grh.mem_criticalStripZetaZeros.mpr ⟨?_, hp, h1⟩
+    by_contra hn
+    have ha := analyticOn_riemannZeta r.val (show r.val ≠ 1 from fun he ↦ by simp [he] at h1)
+    have hz := ha.analyticOrderAt_eq_zero.mpr hn
+    have h := r.property.1
+    rw [MeromorphicOn.divisor_apply (continuedCompletedHeckeL_spec (1 : PontryaginDual CQ)).1.meromorphicOn
+      (mem_univ _), ← printedTrace_ratZero_order _ hp, ha.meromorphicOrderAt_eq, hz] at h
+    simp at h⟩
+  invFun r := ⟨r.val, by
+    obtain ⟨_, hp, h1⟩ := External.Grh.mem_criticalStripZetaZeros.mp r.property
+    refine ⟨?_, abs_lt.mpr ⟨by linarith, by linarith⟩⟩
+    rw [printedTrace_ratZero_divisor]
+    exact_mod_cast External.Grh.zetaZeroOrder_pos r⟩
+  left_inv _ := rfl
+  right_inv _ := rfl
+
+/-- Changing from the norm to its logarithm absorbs the half-shift into the compact test. -/
+private theorem printedTrace_compactLogMellin_radial (A : ℝ → ℂ) (s : ℂ) :
+    External.Grh.compactLogMellin (fun x ↦ Complex.exp (-(x : ℂ) / 2) * A (Real.exp x)) s =
+      introTraceMellin A (s - 1/2) := by
+  rw [External.Grh.compactLogMellin, introTraceMellin, mellin, ← integral_comp_exp]
+  apply integral_congr_ae
+  filter_upwards with x
+  rw [Complex.real_smul, smul_eq_mul,
+    Complex.cpow_def_of_ne_zero (Complex.ofReal_ne_zero.mpr (Real.exp_pos x).ne'),
+    ← Complex.ofReal_log (Real.exp_pos x).le, Real.log_exp, Complex.ofReal_exp]
+  calc
+    _ = Complex.exp (-(x : ℂ)/2 + s * x) * A (Real.exp x) := by rw [Complex.exp_add]; ring
+    _ = Complex.exp ((x : ℂ) + x * (s - 1/2 - 1)) * A (Real.exp x) := by congr 2; ring
+    _ = _ := by rw [Complex.exp_add]; ring
+
+private theorem printedTrace_ratSum_reindex (A : ℝ → ℂ) :
+    introTraceSpectralSum (F := ℚ) 1 A 1 = ∑' r : External.Grh.criticalStripZetaZeros,
+      (External.Grh.zetaZeroOrder r : ℂ) *
+      External.Grh.compactLogMellin (fun x ↦ Complex.exp (-(x : ℂ) / 2) * A (Real.exp x)) r.val := by
+  rw [introTraceSpectralSum, ← printedTrace_ratZero_equiv.tsum_eq]
+  apply tsum_congr
+  intro z
+  rw [printedTrace_compactLogMellin_radial]
+  have h := printedTrace_ratZero_divisor (printedTrace_ratZero_equiv z)
+  change DQ z.val = _ at h
+  change (DQ z.val : ℂ) * _ = _ * introTraceMellin A (z.val - 1/2)
+  simp [h]
+
+/-- Fatou’s lemma on (0,1) detects the nonintegrable reciprocal at the lower endpoint. -/
+private theorem printedTrace_logGamma_integral_tendsto (b : ℕ → ℝ → ℝ) (hb : ∀ n, Continuous (b n))
+    (hb0 : ∀ n x, 0 ≤ b n x)
+    (hlim : ∀ x ∈ Ioo (0 : ℝ) 1, Tendsto (fun n ↦ b n x) atTop (𝓝 (Real.exp (-(5 / 2) * x))))
+    (hI : ∀ n, IntegrableOn (fun x ↦ b n x / (1 - Real.exp (-(2 * x)))) (Ioi 0)) :
+    Tendsto (fun n ↦ ∫ x in Ioi (0 : ℝ), b n x / (1 - Real.exp (-(2 * x)))) atTop atTop := by
+  let D (x : ℝ) := 1 - Real.exp (-(2 * x))
+  have hD (x : ℝ) (hx : 0 < x) : 0 < D x := by
+    exact sub_pos.mpr (Real.exp_lt_one_iff.mpr (by linarith))
+  let G (n : ℕ) (x : ℝ) := ENNReal.ofReal (b n x / D x)
+  have hG (n : ℕ) : Measurable (G n) :=
+    ENNReal.measurable_ofReal.comp ((hb n).measurable.div (by unfold D; fun_prop))
+  let Y (n : ℕ) := ∫⁻ x in Ioi (0 : ℝ), G n x
+  have hj (n : ℕ) : (∫ x in Ioi (0 : ℝ), b n x / D x) = (Y n).toReal :=
+    integral_eq_lintegral_of_nonneg_ae ((ae_restrict_iff' measurableSet_Ioi).mpr
+      (.of_forall fun x hx ↦ div_nonneg (hb0 n x) (hD x hx).le)) (hI n).aestronglyMeasurable
+  have hfin (n : ℕ) : Y n ≠ ⊤ := by
+    have hnn : 0 ≤ᵐ[volume.restrict (Ioi 0)] (fun x ↦ b n x / D x) :=
+      (ae_restrict_iff' measurableSet_Ioi).mpr (.of_forall fun x hx ↦
+        div_nonneg (hb0 n x) (hD x hx).le)
+    exact (lintegral_ofReal_ne_top_iff_integrable (hI n).aestronglyMeasurable hnn).mpr (hI n)
+  let c := Real.exp (-(5 / 2 : ℝ)) / 2
+  have hc : 0 < c := by dsimp [c]; positivity
+  have hdiv : ∫⁻ x in Ioo (0 : ℝ) 1, ENNReal.ofReal (c / x) = ⊤ := by
+    by_contra he
+    have hi : IntegrableOn (fun x : ℝ ↦ c / x) (Ioo (0 : ℝ) 1) := by
+      have ht := integrable_toReal_of_lintegral_ne_top (μ := volume.restrict (Ioo (0 : ℝ) 1))
+        (ENNReal.measurable_ofReal.comp (measurable_const.div measurable_id)).aemeasurable he
+      exact ht.congr ((ae_restrict_iff' measurableSet_Ioo).mpr (.of_forall fun x hx ↦
+        ENNReal.toReal_ofReal (div_nonneg hc.le hx.1.le)))
+    have hi' : IntervalIntegrable (fun x : ℝ ↦ x⁻¹) volume 0 1 := by
+      rw [intervalIntegrable_iff_integrableOn_Ioo_of_le zero_le_one]
+      refine IntegrableOn.congr_fun (Integrable.const_mul hi c⁻¹) (fun x hx ↦ ?_) measurableSet_Ioo
+      field_simp [hc.ne']
+    simp [intervalIntegrable_inv_iff] at hi'
+  have hlow (x : ℝ) (hx : x ∈ Ioo (0 : ℝ) 1) :
+      ENNReal.ofReal (c / x) ≤ liminf (fun n ↦ G n x) atTop := by
+    have hpt := ENNReal.tendsto_ofReal ((hlim x hx).div_const (D x))
+    rw [show liminf (fun n ↦ G n x) atTop = _ from hpt.liminf_eq]
+    apply ENNReal.ofReal_le_ofReal
+    have hnum : Real.exp (-(5 / 2 : ℝ)) ≤ Real.exp (-(5 / 2) * x) :=
+      Real.exp_le_exp.mpr (by linarith [hx.2])
+    have hden : D x ≤ 2 * x := by dsimp [D]; linarith [Real.add_one_le_exp (-(2 * x))]
+    calc c / x = Real.exp (-(5 / 2 : ℝ)) / (2 * x) := by dsimp [c]; ring
+         _ ≤ _ := div_le_div₀ (Real.exp_pos _).le hnum (hD x hx.1) hden
+  have hy : liminf Y atTop = ⊤ := top_unique <| calc
+    ⊤ = ∫⁻ x in Ioo (0 : ℝ) 1, ENNReal.ofReal (c / x) := hdiv.symm
+    _ ≤ ∫⁻ x in Ioo (0 : ℝ) 1, liminf (fun n ↦ G n x) atTop :=
+      lintegral_mono_ae ((ae_restrict_iff' measurableSet_Ioo).mpr (.of_forall hlow))
+    _ ≤ liminf (fun n ↦ ∫⁻ x in Ioo (0 : ℝ) 1, G n x) atTop := lintegral_liminf_le hG
+    _ ≤ liminf Y atTop := liminf_le_liminf (.of_forall fun n ↦
+      lintegral_mono' (Measure.restrict_mono Ioo_subset_Ioi_self le_rfl) (fun _ ↦ le_rfl))
+  change Tendsto (fun n ↦ ∫ x in Ioi (0 : ℝ), b n x / D x) atTop atTop
+  simp_rw [hj]
+  refine tendsto_atTop.mpr fun M ↦ ?_
+  have hlt : ENNReal.ofReal (max M 0) < liminf Y atTop := by rw [hy]; exact ENNReal.ofReal_lt_top
+  filter_upwards [eventually_lt_of_lt_liminf hlt] with n hn
+  exact (le_max_left M 0).trans ((ENNReal.ofReal_lt_iff_lt_toReal (le_max_right M 0) (hfin n)).mp hn).le
+
+/-- For a nonnegative log profile supported at positive arguments, the real gamma term is
+negative and the von Mangoldt sum is nonnegative. -/
+private theorem printedTrace_rationalContour_bound (b : ℝ → ℝ) (hs : ContDiff ℝ (⊤ : ℕ∞) (fun x ↦ (b x : ℂ)))
+    (hc : HasCompactSupport (fun x ↦ (b x : ℂ))) (hb : ∀ x, 0 ≤ b x) (hz : ∀ x ≤ 0, b x = 0) :
+    let g := fun x ↦ (b x : ℂ)
+    IntegrableOn (fun x ↦ b x / (1 - Real.exp (-(2*x)))) (Ioi 0) ∧
+    (∑' r : External.Grh.criticalStripZetaZeros, (External.Grh.zetaZeroOrder r : ℂ) *
+      External.Grh.compactLogMellin g r.val).re ≤
+      (External.Grh.compactLogMellin g 0 + External.Grh.compactLogMellin g 1).re -
+        ∫ x in Ioi (0 : ℝ), b x / (1 - Real.exp (-(2*x))) := by
+  intro g
+  let P (n : ℕ) := (ArithmeticFunction.vonMangoldt n : ℂ) *
+    (g (Real.log n) + g (-Real.log n) / (n : ℂ))
+  let R (x : ℝ) := (2 * g 0 * Complex.exp (-2 * (x : ℂ)) - g x -
+    Complex.exp (-(x : ℂ)) * g (-x)) / (1 - Complex.exp (-2 * (x : ℂ)))
+  let F := External.Grh.compactLogMellin g
+  let Z := ∑' r : External.Grh.criticalStripZetaZeros, (External.Grh.zetaZeroOrder r : ℂ) * F r.val
+  have hstat := External.Grh.completedZeta_explicit_formula hs hc
+  obtain ⟨hR, hP, _hZ, he⟩ := hstat
+  change IntegrableOn R (Ioi 0) at hR
+  change Summable (fun n ↦ ‖P n‖) at hP
+  change (-((Real.log Real.pi : ℂ) + (Real.eulerMascheroniConstant : ℂ)) * g 0 +
+    ∫ x in Ioi (0 : ℝ), R x) - ∑' n, P n = -F 0 - F 1 + Z at he
+  have hzero : g 0 = 0 := by simp [g, hz]
+  rw [hzero, mul_zero, zero_add] at he
+  have hRR (x : ℝ) (hx : 0 < x) : R x = ↑(-(b x / (1 - Real.exp (-(2*x))))) := by
+    have hxm : g (-x) = 0 := by simp [g, hz _ (by linarith : -x ≤ 0)]
+    dsimp only [R]
+    rw [hzero, hxm, mul_zero, zero_mul, zero_sub, mul_zero, sub_zero]
+    push_cast
+    simp only [g, neg_div]
+    congr 2
+    ring
+  have hAE : (fun x ↦ (R x).re) =ᵐ[volume.restrict (Ioi 0)] fun x ↦ -(b x / (1 - Real.exp (-(2*x)))) :=
+    (ae_restrict_iff' measurableSet_Ioi).mpr (.of_forall fun x hx ↦ congrArg Complex.re (hRR x hx))
+  have hi := (hR.re.congr hAE).neg
+  refine ⟨by simpa [IntegrableOn] using hi, ?_⟩
+  have hrint : (∫ x in Ioi (0 : ℝ), R x).re = -(∫ x in Ioi (0 : ℝ), b x / (1 - Real.exp (-(2*x)))) := by
+    calc
+      _ = ∫ x in Ioi (0 : ℝ), (R x).re := (integral_re hR).symm
+      _ = _ := (integral_congr_ae hAE).trans (integral_neg _)
+  have hPP (n : ℕ) : 0 ≤ (P n).re := by
+    let a : ℝ := ArithmeticFunction.vonMangoldt n * (b (Real.log n) + b (-Real.log n) / n)
+    have hPa : P n = (a : ℂ) := by dsimp [P, g, a]; push_cast; rfl
+    rw [hPa, Complex.ofReal_re]
+    exact mul_nonneg ArithmeticFunction.vonMangoldt_nonneg (add_nonneg (hb _) (div_nonneg (hb _) n.cast_nonneg))
+  have hpos : 0 ≤ (∑' n, P n).re := by rw [Complex.re_tsum hP.of_norm]; exact tsum_nonneg hPP
+  have hh := congrArg Complex.re he
+  simp only [Complex.sub_re, Complex.add_re, Complex.neg_re, hrint] at hh
+  change Z.re ≤ (F 0 + F 1).re - _
+  rw [Complex.add_re]
+  linarith
+
+
+/-- The two pole moments stay bounded as the cutoffs exhaust the radial power. The gamma
+integral diverges and forces the real part of the spectral sum to tend to minus infinity. -/
+private theorem printedTrace_direct_rat_spectral_tendsto_atBot (h ρ : ℕ → ℝ → ℝ)
+    (hA : IsIntroTraceApproximation h ρ) :
+    Tendsto (fun n ↦ (introTraceSpectralSum (F := ℚ) 1 (introTraceApprox (h n) (ρ n) 2) 1).re)
+      atTop atBot := by
+  let A (n : ℕ) := introTraceApprox (h n) (ρ n) 2
+  let g (n : ℕ) (x : ℝ) := Complex.exp (-(x : ℂ) / 2) * A n (Real.exp x)
+  let b (n : ℕ) (x : ℝ) := Real.exp (-x / 2) * (A n (Real.exp x)).re
+  have heq (n : ℕ) : (fun x ↦ (b n x : ℂ)) = g n := by
+    obtain ⟨q, _, hq⟩ := (introTraceApprox_two_logProfile h ρ hA n).2
+    funext x
+    dsimp [b, g, A]
+    rw [hq]
+    simp
+  have hpos (n : ℕ) (x : ℝ) : 0 ≤ b n x := by
+    obtain ⟨q, hq, hq'⟩ := (introTraceApprox_two_logProfile h ρ hA n).2
+    dsimp [b, A]
+    rw [hq']
+    exact mul_nonneg (Real.exp_pos _).le (hq _)
+  have hzero (n : ℕ) (x : ℝ) (hx : x ≤ 0) : b n x = 0 := by
+    have hz : A n (Real.exp x) = 0 := image_eq_zero_of_notMem_tsupport
+      (fun hm ↦ (not_lt.mpr (Real.exp_le_one_iff.mpr hx))
+        (introTraceApprox_support h ρ hA n 2 hm))
+    simp [b, hz]
+  have hreg (n : ℕ) : ContDiff ℝ (⊤ : ℕ∞) (g n) ∧ HasCompactSupport (g n) := by
+    obtain ⟨hs, hc⟩ := (introTraceApprox_two_logProfile h ρ hA n).1
+    exact ⟨(Complex.contDiff_exp.comp (Complex.ofRealCLM.contDiff.neg.div_const 2)).mul hs,
+      hc.mul_left⟩
+  have hEst (n : ℕ) := printedTrace_rationalContour_bound (b n) ((heq n).symm ▸ (hreg n).1)
+    ((heq n).symm ▸ (hreg n).2) (hpos n) (hzero n)
+  have hLim (x : ℝ) (hx : x ∈ Ioo (0 : ℝ) 1) :
+      Tendsto (fun n ↦ b n x) atTop (𝓝 (Real.exp (-(5/2)*x))) := by
+    have hx1 : 1 < Real.exp x := Real.one_lt_exp_iff.mpr hx.1
+    have ht := (Complex.continuous_re.tendsto _).comp
+      (introTraceApprox_tendsto h ρ hA 2 _ (Real.exp_pos x) hx1.ne')
+    have hv : (introTracePower 2 (Real.exp x)).re = ((Real.exp x)^2)⁻¹ := by
+      simp only [introTracePower, hx1, ↓reduceIte, Complex.cpow_neg]
+      have hsq : (Real.exp x : ℂ) ^ (2 : ℂ) = ((Real.exp x : ℂ) ^ (2 : ℕ)) :=
+        Complex.cpow_natCast _ 2
+      rw [hsq, ← Complex.ofReal_pow, ← Complex.ofReal_inv, Complex.ofReal_re]
+    have he : Real.exp (-x / 2) * ((Real.exp x)^2)⁻¹ = Real.exp (-(5/2)*x) := by
+      rw [← Real.exp_nat_mul, ← Real.exp_neg, ← Real.exp_add]
+      congr 1
+      ring
+    rw [← he, ← hv]
+    exact tendsto_const_nhds.mul ht
+  have hb (n : ℕ) : Continuous (b n) := by
+    have hg := Complex.continuous_re.comp ((heq n).symm ▸ (hreg n).1.continuous)
+    exact hg
+  have hD := printedTrace_logGamma_integral_tendsto b hb hpos hLim fun n ↦ (hEst n).1
+  have hM (n : ℕ) (s : ℂ) :
+      External.Grh.compactLogMellin (fun x ↦ (b n x : ℂ)) s = introTraceMellin (A n) (s - 1/2) := by
+    rw [heq n]
+    exact printedTrace_compactLogMellin_radial _ _
+  have hZ (n : ℕ) := printedTrace_ratSum_reindex (A n)
+  let m := (introTraceMellin (introTracePower 2) (-1/2) + introTraceMellin (introTracePower 2) (1/2)).re
+  have hPol := ((introTraceApprox_mellin_tendsto h ρ hA (-1/2)).tendsto_at
+    (a := (2 : ℂ)) (by norm_num)).add ((introTraceApprox_mellin_tendsto h ρ hA (1/2)).tendsto_at
+    (a := (2 : ℂ)) (by norm_num))
+  have hBound := ((Complex.continuous_re.tendsto _).comp hPol).eventually
+    (eventually_lt_nhds (lt_add_one m))
+  apply tendsto_atBot.2
+  intro M
+  filter_upwards [hBound, (tendsto_atTop.1 hD) (m + 1 - M)] with n hp hd
+  have hi := (hEst n).2
+  rw [hM n, hM n] at hi
+  norm_num only [zero_sub, show (1 : ℂ) - 1/2 = 1/2 by norm_num] at hi
+  change (introTraceMellin (A n) (-1 / 2) + introTraceMellin (A n) (1 / 2)).re < m + 1 at hp
+  rw [heq n] at hi
+  change (introTraceSpectralSum (F := ℚ) 1 (A n) 1).re ≤ M
+  rw [hZ n]
+  linarith
+
+/-- The closed disc around two lies in the right half-plane used in §1.4.3. -/
+private theorem printedTrace_spectralDisk :
+    Metric.closedBall (2 : ℂ) (1 / 4) ⊆ right(1) ∧
+      (2 : ℂ) ∈ interior (Metric.closedBall (2 : ℂ) (1 / 4)) ∩ right(1) := by
+  refine ⟨fun z hz ↦ ?_, Metric.ball_subset_interior_closedBall (Metric.mem_ball_self (by norm_num)),
+    by change (1 : ℝ) < (2 : ℂ).re; norm_num⟩
+  have hd := (Complex.abs_re_le_norm (z - 2)).trans (mem_closedBall_iff_norm.mp hz)
+  rw [Complex.sub_re, Complex.re_ofNat] at hd
+  change (1 : ℝ) < z.re
+  linarith [(abs_le.mp hd).1]
+
+/-- For the trivial rational character, the printed moment of a radial approximant is its
+radial Mellin transform multiplied by the norm-one Tamagawa volume. -/
+private theorem printedTrace_rat_moment (h ρ : ℕ → ℝ → ℝ) (hA : IsIntroTraceApproximation h ρ)
+    (n : ℕ) (s : ℂ) :
+    moment[ℚ]((fun g : C[ℚ] ↦ approx(h, ρ, n, (2 : ℂ)) (N[ℚ](g))), (1 : U[ℚ]), s) =
+      (((normOneIdeleClassTamagawaMeasure ℚ) univ).toReal : ℂ) *
+        introTraceMellin approx(h, ρ, n, (2 : ℂ)) s := by
+  obtain ⟨φ, hφ⟩ := introTraceApprox_exists_bruhat (F := ℚ) 1 h ρ hA n 2
+  rw [← (introTraceTest_mellin (F := ℚ) 1 _ φ hφ s).2]
+  refine integral_congr_ae (Eventually.of_forall fun g ↦ ?_)
+  simp [hφ, introTraceTest]
+
 /-- Paper: §1.4.3, p. 29. Take the trivial rational character, half-width
 one, and the closed disk of radius one quarter about two. This window
 contains the full zeta zero divisor. At two the full explicit formula
@@ -213,7 +521,41 @@ expresses the zero sum as the two bounded polar moments minus the bounded
 prime-power sum and the real-place term tending to positive infinity.
 Its real part tends to negative infinity, also along every subsequence. -/
 theorem Printed.introTraceApprox_spectral_limit_false :
-    ¬ Printed.introTraceApprox_spectral_limit := by sorry
+    ¬ Printed.introTraceApprox_spectral_limit := by
+  classical
+  intro hall
+  obtain ⟨h, ρ, hA⟩ := exists_introTraceApproximation
+  obtain ⟨H, _, hlimit⟩ := hall ℚ 1 1 (fun _ ↦ rfl) one_pos _ (isCompact_closedBall _ _)
+    printedTrace_spectralDisk.1 ⟨2, printedTrace_spectralDisk.2⟩ h ρ hA
+  have hlim := (hlimit 2 printedTrace_spectralDisk.2.1).2
+  let V₁ : ℂ := ((normOneIdeleClassTamagawaMeasure ℚ) univ).toReal
+  have hV : V₁ ≠ 0 := by
+    apply Complex.ofReal_ne_zero.mpr
+    have hcl := NumberField.classNumber_pos ℚ
+    have hreg := NumberField.Units.regulator_pos ℚ
+    have htor := NumberField.Units.torsionOrder_pos ℚ
+    have hdisc := Int.natAbs_pos.mpr (NumberField.discr_ne_zero ℚ)
+    rw [normOneIdeleClassTamagawaMeasure_volume, ENNReal.toReal_ofReal (by positivity)]
+    positivity
+  let D := MeromorphicOn.divisor (continuedCompletedHeckeL (F := ℚ) 1) univ
+  let Z := {r : ℂ // 0 < D r ∧ |r.re - 1 / 2| < (1 : ℝ)}
+  have hscale (n : ℕ) :
+      (∑' r : Z, (D r.val : ℂ) *
+        moment[ℚ]((fun g : C[ℚ] ↦ approx(h, ρ, n, (2 : ℂ)) (N[ℚ](g))), (1 : U[ℚ]), (r.val - 1 / 2))) =
+        V₁ * introTraceSpectralSum (F := ℚ) 1 approx(h, ρ, n, (2 : ℂ)) 1 := by
+    rw [introTraceSpectralSum, ← tsum_mul_left]
+    apply tsum_congr
+    intro r
+    rw [printedTrace_rat_moment h ρ hA]
+    dsimp [V₁]
+    ring
+  have hlim' : Tendsto (fun n ↦ V₁ * introTraceSpectralSum (F := ℚ) 1 approx(h, ρ, n, (2 : ℂ)) 1)
+      atTop (𝓝 (H 2)) := hlim.congr hscale
+  have hconv : Tendsto (fun n ↦ introTraceSpectralSum (F := ℚ) 1 approx(h, ρ, n, (2 : ℂ)) 1)
+      atTop (𝓝 (V₁⁻¹ * H 2)) := by
+    simpa only [← mul_assoc, inv_mul_cancel₀ hV, one_mul] using hlim'.const_mul V₁⁻¹
+  exact not_tendsto_nhds_of_tendsto_atBot (printedTrace_direct_rat_spectral_tendsto_atBot h ρ hA) _
+    (Complex.continuous_re.continuousAt.tendsto.comp hconv)
 
 /-- Paper: §1.4.4, p. 29. The displayed prime-power sum converges locally
 uniformly on the right of one to the positive shifted logarithmic derivative. -/
