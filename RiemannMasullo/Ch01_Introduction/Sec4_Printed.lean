@@ -2,6 +2,8 @@ module
 
 public import RiemannMasullo.Ch01_Introduction.Sec4
 import Mathlib.NumberTheory.NumberField.Cyclotomic.Basic
+import Mathlib.Topology.Algebra.IsOpenUnits
+import RiemannMasullo.ForMathlib.Analysis.Normed.Field.ProperSpace
 import RiemannMasullo.Ch13_ZerosHecke.Targets
 import RiemannMasullo.Ch10_TraceSpectral.Sec1
 import RiemannMasullo.AppB_AnalyticNT.Sec4b
@@ -163,13 +165,184 @@ def Printed.introTraceApprox_archimedean_bounded : Prop :=
           ‖printedReal[F](χ, printedFamily[F](χ, h, ρ, n, z))‖ ≤ C ∧
           ‖printedComplex[F](χ, printedFamily[F](χ, h, ρ, n, z))‖ ≤ C
 
+/-- The closed disc around two lies in the right half-plane used in §1.4.3. -/
+private theorem printedTrace_disk :
+    Metric.closedBall (2 : ℂ) (1 / 4) ⊆ right(1) ∧
+      (2 : ℂ) ∈ interior (Metric.closedBall (2 : ℂ) (1 / 4)) ∩ right(1) := by
+  refine ⟨fun z hz ↦ ?_, Metric.ball_subset_interior_closedBall (Metric.mem_ball_self (by norm_num)),
+    by change (1 : ℝ) < (2 : ℂ).re; norm_num⟩
+  have hd := (Complex.abs_re_le_norm (z - 2)).trans (mem_closedBall_iff_norm.mp hz)
+  rw [Complex.sub_re, Complex.re_ofNat] at hd
+  change (1 : ℝ) < z.re
+  linarith [(abs_le.mp hd).1]
+
+/-- At parameter two the radial approximant has real values between zero and one.
+Its support lies in a compact interval strictly above one. -/
+private theorem printedTrace_rat_two_profile (h ρ : ℕ → ℝ → ℝ) (hA : IsIntroTraceApproximation h ρ)
+    (n : ℕ) : ∃ (g : ℝ → ℝ) (c R : ℝ), 1 < c ∧ Measurable g ∧
+      (∀ t, g t ∈ Icc 0 1) ∧ (∀ t, g t ≠ 0 → t ∈ Icc c R) ∧
+      (∀ t, approx(h, ρ, n, (2 : ℂ)) t = (g t : ℂ)) := by
+  let p (t : ℝ) := if 1 < t then (t ^ 2)⁻¹ else if t = 1 then 1 / 2 else 0
+  have hp (t : ℝ) : p t ∈ Icc 0 1 := by
+    unfold p
+    split_ifs with h₁ h₂
+    · exact ⟨by positivity, inv_le_one_of_one_le₀ (one_le_pow₀ h₁.le)⟩
+    · norm_num
+    · norm_num
+  have hm : Measurable p :=
+    Measurable.ite measurableSet_Ioi (by fun_prop)
+      (Measurable.ite (measurableSet_singleton 1) measurable_const measurable_const)
+  have hpow (t : ℝ) : introTracePower 2 t = (p t : ℂ) := by
+    unfold introTracePower p
+    split_ifs <;> norm_num [Complex.cpow_neg]
+  obtain ⟨hh, -, -, ε, _, hρ⟩ := hA
+  let g (t : ℝ) := h n t * ∫ u, ρ n u * p (t - u)
+  have hκ : Integrable (ρ n) := (hρ n).2.1.continuous.integrable_of_hasCompactSupport
+    (isCompact_Icc.of_isClosed_subset (isClosed_tsupport _) (hρ n).2.2.2.1)
+  have hmem (t : ℝ) (ht : g t ≠ 0) : t ∈ tsupport (h n) := subset_tsupport _ (left_ne_zero_of_mul ht)
+  have hK := (hh n).2.1
+  obtain ⟨c, hc, hmin⟩ : ∃ c : ℝ, 1 < c ∧ ∀ t ∈ tsupport (h n), c ≤ t := by
+    rcases (tsupport (h n)).eq_empty_or_nonempty with he | hn
+    · exact ⟨2, by norm_num, by simp [he]⟩
+    · obtain ⟨c, hc, hlo⟩ := hK.exists_isMinOn hn continuousOn_id
+      exact ⟨c, (hh n).2.2.1 hc, fun t ht ↦ hlo ht⟩
+  obtain ⟨R, hmax⟩ := hK.bddAbove
+  refine ⟨g, c, R, hc, ?_, ?_, fun t ht ↦ ⟨hmin _ (hmem _ ht), hmax (hmem _ ht)⟩, ?_⟩
+  · have hk : Measurable (fun q : ℝ × ℝ ↦ ρ n q.2 * p (q.1 - q.2)) :=
+      ((hρ n).2.1.continuous.measurable.comp measurable_snd).mul
+        (hm.comp (measurable_fst.sub measurable_snd))
+    exact (hh n).1.continuous.measurable.mul hk.stronglyMeasurable.integral_prod_right'.measurable
+  · intro t
+    have hi : Integrable (fun u ↦ ρ n u * p (t - u)) := hκ.mono
+      (((hρ n).2.1.continuous.measurable.mul (hm.comp (measurable_const.sub measurable_id))).aestronglyMeasurable)
+      (Eventually.of_forall fun u ↦ by
+        rw [norm_mul, Real.norm_of_nonneg (hp _).1]
+        exact mul_le_of_le_one_right (norm_nonneg _) (hp _).2)
+    have hlo : 0 ≤ ∫ u, ρ n u * p (t - u) := integral_nonneg fun u ↦ mul_nonneg ((hρ n).2.2.1 u) (hp _).1
+    have hhi : (∫ u, ρ n u * p (t - u)) ≤ 1 := by
+      rw [← (hρ n).2.2.2.2]
+      exact integral_mono hi hκ fun u ↦ mul_le_of_le_one_right ((hρ n).2.2.1 u) (hp _).2
+    exact ⟨mul_nonneg ((hh n).2.2.2 t).1 hlo,
+      (mul_le_of_le_one_right ((hh n).2.2.2 t).1 hhi).trans ((hh n).2.2.2 t).2⟩
+  · intro t
+    simp only [introTraceApprox, hpow, g, ← Complex.ofReal_mul, integral_complex_ofReal]
+
+/-- On the support of a nonnegative radial test the printed denominator is bounded away
+from zero and is at most the denominator of the corrected real-place integrand. -/
+private theorem printedTrace_rat_integral_le {K : Type*} [NormedField K] [ProperSpace K]
+    [MeasurableSpace Kˣ] [BorelSpace Kˣ] (μ : Measure Kˣ) [IsFiniteMeasureOnCompacts μ]
+    {g : ℝ → ℝ} {c R : ℝ} (hc : 1 < c) (hg : Measurable g) (hb : ∀ t, g t ∈ Icc 0 1)
+    (hs : ∀ t, g t ≠ 0 → t ∈ Icc c R) :
+    (∫ u : Kˣ, g ‖u.val‖ * Real.sqrt ‖u.val‖ / ‖1 - u.val‖ ∂μ) ≤
+      ∫ u : Kˣ, g ‖u.val‖ * Real.sqrt ‖u.val‖ / |1 - ‖u.val‖| ∂μ := by
+  let f (u : Kˣ) := g ‖u.val‖ * Real.sqrt ‖u.val‖ / |1 - ‖u.val‖|
+  let d (u : Kˣ) := g ‖u.val‖ * Real.sqrt ‖u.val‖ / ‖1 - u.val‖
+  have hn : Continuous (fun u : Kˣ ↦ ‖u.val‖) := continuous_norm.comp Units.continuous_val
+  have hf : Measurable f := ((hg.comp hn.measurable).mul (Real.continuous_sqrt.comp hn).measurable).div
+    (continuous_abs.comp (continuous_const.sub hn)).measurable
+  have hd : Measurable d := ((hg.comp hn.measurable).mul (Real.continuous_sqrt.comp hn).measurable).div
+    ((continuous_const.sub Units.continuous_val).norm.measurable)
+  have hf₀ (u : Kˣ) : 0 ≤ f u := div_nonneg (mul_nonneg (hb _).1 (Real.sqrt_nonneg _)) (abs_nonneg _)
+  have hd₀ (u : Kˣ) : 0 ≤ d u := div_nonneg (mul_nonneg (hb _).1 (Real.sqrt_nonneg _)) (norm_nonneg _)
+  have hdf (u : Kˣ) : d u ≤ f u := by
+    by_cases hz : g ‖u.val‖ = 0
+    · simp [d, f, hz]
+    have ht := hc.trans_le (hs _ hz).1
+    have he : |1 - ‖u.val‖| ≤ ‖1 - u.val‖ := by
+      simpa only [norm_one] using abs_norm_sub_norm_le (1 : K) u.val
+    exact div_le_div_of_nonneg_left (mul_nonneg (hb _).1 (Real.sqrt_nonneg _))
+      (abs_pos.mpr (sub_ne_zero.mpr ht.ne)) he
+  let m : Kˣ →* ℝ≥0ˣ := Units.map nnNormHom.toMonoidHom
+  let upper : ℝ≥0ˣ := Units.mk0 (⟨max R 2, by positivity⟩ : ℝ≥0) (by
+    intro h
+    have h' := congrArg ((↑) : ℝ≥0 → ℝ) h
+    change max R 2 = 0 at h'
+    linarith [le_max_right R (2 : ℝ)])
+  let S := m ⁻¹' Icc 1 upper
+  have hm : IsProperMap m := by simpa [m] using (isProperMap_units_nnNorm_pow (K := K) 1 one_ne_zero)
+  have hI : IsCompact (Icc (1 : ℝ≥0ˣ) upper) := by
+    apply (IsOpenUnits.isOpenEmbedding_unitsVal (M := ℝ≥0)).isEmbedding.isInducing.isCompact_iff.mpr
+    have himage : Units.val '' Icc (1 : ℝ≥0ˣ) upper = Icc (1 : ℝ≥0) upper.val := by
+      ext t
+      constructor
+      · rintro ⟨u, hu, rfl⟩
+        exact hu
+      · intro ht
+        exact ⟨Units.mk0 t (zero_lt_one.trans_le ht.1).ne', ht, rfl⟩
+    rw [himage]
+    exact isCompact_Icc
+  have hS : IsCompact S := hm.isCompact_preimage hI
+  have hne (u : Kˣ) (hnz : g ‖u.val‖ ≠ 0) : u ∈ S := by
+    have h := hs _ hnz
+    exact ⟨show (1 : ℝ) ≤ ‖u.val‖ from hc.le.trans h.1,
+      show ‖u.val‖ ≤ max R 2 from h.2.trans (le_max_left _ _)⟩
+  let B := Real.sqrt (max R 2) / (c - 1)
+  have hB : 0 ≤ B := div_nonneg (Real.sqrt_nonneg _) (sub_nonneg.mpr hc.le)
+  have hFI : Integrable f μ := by
+    have ht : Integrable (S.indicator (fun _ : Kˣ ↦ B)) μ :=
+      (integrableOn_const hS.measure_lt_top.ne).integrable_indicator hS.measurableSet
+    apply ht.mono' hf.aestronglyMeasurable
+    filter_upwards with u
+    rw [Real.norm_of_nonneg (hf₀ u)]
+    by_cases hz : g ‖u.val‖ = 0
+    · simp only [f, hz, zero_mul, zero_div]
+      exact indicator_nonneg (fun _ _ ↦ hB) u
+    rw [indicator_of_mem (hne u hz)]
+    have hs' := hs _ hz
+    dsimp only [f, B]
+    rw [abs_of_neg (sub_neg.mpr (hc.trans_le hs'.1)), neg_sub]
+    exact div_le_div₀ (Real.sqrt_nonneg _)
+      ((mul_le_of_le_one_left (Real.sqrt_nonneg _) (hb _).2).trans
+        (Real.sqrt_le_sqrt (hs'.2.trans (le_max_left _ _)))) (sub_pos.mpr hc) (by linarith [hs'.1])
+  have hDI : Integrable d μ := hFI.mono' hd.aestronglyMeasurable
+    (Eventually.of_forall fun u ↦ by rw [Real.norm_of_nonneg (hd₀ u)]; exact hdf u)
+  exact integral_mono hDI hFI hdf
+
+open Classical in
+/-- For the trivial rational character the actual real-place kernel gives a lower bound
+on the printed real-place term at parameter two. -/
+private theorem printedTrace_rat_real_lower (h ρ : ℕ → ℝ → ℝ) (hA : IsIntroTraceApproximation h ρ)
+    (n : ℕ) :
+    (∑ w : InfinitePlace ℚ, introTraceArchimedean (F := ℚ) 1 approx(h, ρ, n, (2 : ℂ)) w).re ≤
+      (printedReal[ℚ]((1 : U[ℚ]), printedFamily[ℚ]((1 : U[ℚ]), h, ρ, n, (2 : ℂ)))).re := by
+  classical
+  obtain ⟨g, c, R, hc, hg, hb, hs, hval⟩ := printedTrace_rat_two_profile h ρ hA n
+  have hw := Rat.isReal_infinitePlace
+  have hN (u : Rat.infinitePlace.Completionˣ) :
+      N[ℚ](archClass[ℚ](Rat.infinitePlace) u) = ‖u.val‖ := by
+    rw [ideleClassNorm_ofCompletion, hw.mult_eq_one, pow_one]
+    rfl
+  let : MeasurableSpace Rat.infinitePlace.Completion :=
+    instMeasurableSpaceCompletion_riemannMasullo ℚ Rat.infinitePlace
+  let : BorelSpace Rat.infinitePlace.Completion := ⟨rfl⟩
+  let : BorelSpace Rat.infinitePlace.Completionˣ := borelSpace_units_of_continuousInv₀ _
+  have hi := InfinitePlace.Completion.isometry_extensionEmbedding Rat.infinitePlace
+  let : ProperSpace Rat.infinitePlace.Completion :=
+    LipschitzWith.properSpace hi.isClosedEmbedding.isProperMap hi.lipschitzWith
+  let μ := infiniteLocalMultiplicativeTamagawaMeasure ℚ Rat.infinitePlace
+  let : μ.IsHaarMeasure := infiniteLocalMultiplicativeTamagawaMeasure_isHaarMeasure Rat.infinitePlace
+  have hcompare := printedTrace_rat_integral_le (K := Rat.infinitePlace.Completion) μ hc hg hb hs
+  simp only [Fintype.sum_subsingleton _ Rat.infinitePlace, introTraceArchimedean, ite_eq_left hw,
+    introTraceTest, PontryaginDual.one_apply, Circle.coe_one, star_one, one_mul, hw.mult_eq_one,
+    pow_one, hN, hval, ← Complex.ofReal_mul, ← Complex.ofReal_div, integral_complex_ofReal,
+    show (1 / 2 : ℂ) = ((1 / 2 : ℝ) : ℂ) by norm_num, Complex.ofReal_re]
+  exact mul_le_mul_of_nonneg_left hcompare (by norm_num : (0 : ℝ) ≤ 1 / 2)
+
 /-- Paper: §1.4.3, p. 29. Over the rationals take the trivial character,
 half-width one, and the closed disk of radius one quarter about two. On
 `1 < t < 2`, the positive real branch at parameter two dominates one half
 of the integral of the approximant against `t^(-1/2)/(t-1) dt`. Fatou's
 lemma gives divergence since the approximant tends to `t^(-2)`. -/
 theorem Printed.introTraceApprox_archimedean_bounded_false :
-    ¬ Printed.introTraceApprox_archimedean_bounded := by sorry
+    ¬ Printed.introTraceApprox_archimedean_bounded := by
+  classical
+  intro hall
+  obtain ⟨h, ρ, hA⟩ := exists_introTraceApproximation
+  obtain ⟨C, _, hC⟩ := hall ℚ 1 1 (fun _ ↦ rfl) one_pos _ (isCompact_closedBall _ _)
+    printedTrace_disk.1 ⟨2, printedTrace_disk.2⟩
+  obtain ⟨n, hn⟩ := ((introTraceApprox_rat_archimedean_tendsto_atTop h ρ hA).eventually_gt_atTop C).exists
+  exact (not_lt_of_ge ((printedTrace_rat_real_lower h ρ hA n).trans ((Complex.re_le_norm _).trans
+    (hC h ρ hA n 2 (interior_subset printedTrace_disk.2.1)).1))) hn
 
 open Classical in
 /-- Paper: §1.4.3, p. 29. The two printed archimedean families have
@@ -206,6 +379,18 @@ def Printed.introTraceApprox_spectral_limit : Prop :=
           ∀ z ∈ interior K, (∀ n, Summable (term n z)) ∧
             Tendsto (fun n ↦ ∑' r, term n z r) atTop (𝓝 (H z))
 
+/-- For the trivial rational character, the printed moment of a radial approximant is its
+radial Mellin transform multiplied by the norm-one Tamagawa volume. -/
+private theorem printedTrace_rat_moment (h ρ : ℕ → ℝ → ℝ) (hA : IsIntroTraceApproximation h ρ)
+    (n : ℕ) (s : ℂ) :
+    moment[ℚ]((fun g : C[ℚ] ↦ approx(h, ρ, n, (2 : ℂ)) (N[ℚ](g))), (1 : U[ℚ]), s) =
+      (((normOneIdeleClassTamagawaMeasure ℚ) univ).toReal : ℂ) *
+        introTraceMellin approx(h, ρ, n, (2 : ℂ)) s := by
+  obtain ⟨φ, hφ⟩ := introTraceApprox_exists_bruhat (F := ℚ) 1 h ρ hA n 2
+  rw [← (introTraceTest_mellin (F := ℚ) 1 _ φ hφ s).2]
+  refine integral_congr_ae (Eventually.of_forall fun g ↦ ?_)
+  simp [hφ, introTraceTest]
+
 /-- Paper: §1.4.3, p. 29. Take the trivial rational character, half-width
 one, and the closed disk of radius one quarter about two. This window
 contains the full zeta zero divisor. At two the full explicit formula
@@ -213,7 +398,41 @@ expresses the zero sum as the two bounded polar moments minus the bounded
 prime-power sum and the real-place term tending to positive infinity.
 Its real part tends to negative infinity, also along every subsequence. -/
 theorem Printed.introTraceApprox_spectral_limit_false :
-    ¬ Printed.introTraceApprox_spectral_limit := by sorry
+    ¬ Printed.introTraceApprox_spectral_limit := by
+  classical
+  intro hall
+  obtain ⟨h, ρ, hA⟩ := exists_introTraceApproximation
+  obtain ⟨H, _, hlimit⟩ := hall ℚ 1 1 (fun _ ↦ rfl) one_pos _ (isCompact_closedBall _ _)
+    printedTrace_disk.1 ⟨2, printedTrace_disk.2⟩ h ρ hA
+  have hlim := (hlimit 2 printedTrace_disk.2.1).2
+  let V₁ : ℂ := ((normOneIdeleClassTamagawaMeasure ℚ) univ).toReal
+  have hV : V₁ ≠ 0 := by
+    apply Complex.ofReal_ne_zero.mpr
+    have hcl := NumberField.classNumber_pos ℚ
+    have hreg := NumberField.Units.regulator_pos ℚ
+    have htor := NumberField.Units.torsionOrder_pos ℚ
+    have hdisc := Int.natAbs_pos.mpr (NumberField.discr_ne_zero ℚ)
+    rw [normOneIdeleClassTamagawaMeasure_volume, ENNReal.toReal_ofReal (by positivity)]
+    positivity
+  let D := MeromorphicOn.divisor (continuedCompletedHeckeL (F := ℚ) 1) univ
+  let Z := {r : ℂ // 0 < D r ∧ |r.re - 1 / 2| < (1 : ℝ)}
+  have hscale (n : ℕ) :
+      (∑' r : Z, (D r.val : ℂ) *
+        moment[ℚ]((fun g : C[ℚ] ↦ approx(h, ρ, n, (2 : ℂ)) (N[ℚ](g))), (1 : U[ℚ]), (r.val - 1 / 2))) =
+        V₁ * introTraceSpectralSum (F := ℚ) 1 approx(h, ρ, n, (2 : ℂ)) 1 := by
+    rw [introTraceSpectralSum, ← tsum_mul_left]
+    apply tsum_congr
+    intro r
+    rw [printedTrace_rat_moment h ρ hA]
+    dsimp [V₁]
+    ring
+  have hlim' : Tendsto (fun n ↦ V₁ * introTraceSpectralSum (F := ℚ) 1 approx(h, ρ, n, (2 : ℂ)) 1)
+      atTop (𝓝 (H 2)) := hlim.congr hscale
+  have hconv : Tendsto (fun n ↦ introTraceSpectralSum (F := ℚ) 1 approx(h, ρ, n, (2 : ℂ)) 1)
+      atTop (𝓝 (V₁⁻¹ * H 2)) := by
+    simpa only [← mul_assoc, inv_mul_cancel₀ hV, one_mul] using hlim'.const_mul V₁⁻¹
+  exact not_tendsto_nhds_of_tendsto_atBot (introTraceApprox_rat_spectral_tendsto_atBot h ρ hA) _
+    (Complex.continuous_re.continuousAt.tendsto.comp hconv)
 
 /-- Paper: §1.4.4, p. 29. The displayed prime-power sum converges locally
 uniformly on the right of one to the positive shifted logarithmic derivative. -/
