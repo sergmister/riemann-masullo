@@ -535,6 +535,54 @@ private theorem stripDiagonal_trace (φ : BruhatCompactSupport C𝔽)
   rw [heq]
   exact hspec.choose_spec.1.neg
 
+local notation "stripMomentsVanish(" χ ", " α ", " s ", " hα ", " hs ", " y ")" =>
+  (∀ j : SpectralStripJetIndex (F := F) χ (1 / 2) α s,
+    spectralSobolevPairing y ((spectralStripJet_memLp χ hα hs j).toLp
+      (spectralZeroJet (χ j.val.1) j.val.2.1 j.val.2.2.1 j.val.2.2.2)) = 0)
+
+/-- Paper: (12.5.1.4), p. 520. Given the projective kernel and approximation
+in the strip norm at this width, the negative Haar integral of the smoothened
+geometric diagonal is the absolutely convergent sum over surviving zero jets.
+Deviation: The closed strip carries the strict boundary multiplicities of §10.2.
+The printed interior sum is recovered when neither boundary line contains a zero. -/
+theorem hasSum_stripZeros_neg_integral_smoothenedDiagonal_of_approximation
+    (φ : BruhatCompactSupport C𝔽) (hφ : ∀ g : C₁, φ.val g = 0)
+    (χ : PontryaginDual C₁ → PontryaginDual C𝔽) (hχ : IsSpectralBasepointChoice χ)
+    {α s : ℝ} (hα : 0 < α) (hs : 3 ≤ s) (hK : stripTensorExists(hα.le, hs, φ))
+    (happrox :
+      let E := (existsUnique_globalThetaSobolevEmbedding (F := F) (1 / 2)
+        (-α) α s (hStrip(hα.le)) hs₀(hs)).exists.choose
+      ∀ y, stripMomentsVanish(χ, α, s, hα.le, hs₀(hs), y) → ∀ ε > (0 : ℝ),
+        ∃ f : adelePolarSubspace F, ‖y - E (Submodule.Quotient.mk f)‖ < ε)
+    (U : ℕ → Set C𝔽) (hU : IsDPrimeSequence μ𝔽 U) (hBorel : ∀ n, MeasurableSet (U n)) :
+    let shift (b t : ℝ) := (b : ℂ) + (t : ℂ) * Complex.I
+    let order (η : PontryaginDual C𝔽) := meromorphicOrderAt (continuedCompletedHeckeL η)
+    let Z := {z : PontryaginDual C₁ × ℝ × ℝ //
+      z.2.1 ∈ Icc (-α) α ∧ 0 < order (χ z.1) (shift (1 / 2 + z.2.1) z.2.2)}
+    let term (z : Z) := ((spectralStripMultiplicity α s z.val.2.1
+      (order (χ z.val.1) (shift (1 / 2 + z.val.2.1) z.val.2.2)).untop₀.toNat : ℕ) : ℂ) *
+      M(φ, twist(χ z.val.1, shift z.val.2.1 z.val.2.2))
+    Integrable geomDiagonal(hα.le, hs, φ, hK, U) μ𝔽 ∧ Summable (fun z ↦ ‖term z‖) ∧
+      HasSum term (-(∫ x, geomDiagonal(hα.le, hs, φ, hK, U) x ∂μ𝔽)) := by
+  intro shift order Z term
+  have hk (y) : y ∈ globalThetaSobolev F (1 / 2) (hStrip(hα.le)) hs₀(hs) ↔
+      stripMomentsVanish(χ, α, s, hα.le, hs₀(hs), y) := by
+    refine ⟨spectralStripJet_commonKernel_forward χ hα.le hs₀(hs) y, fun hy ↦ ?_⟩
+    let E := (existsUnique_globalThetaSobolevEmbedding (F := F) (1 / 2)
+      (-α) α s (hStrip(hα.le)) hs₀(hs)).exists.choose
+    change y ∈ closure (E.toLinearMap.range : Set _)
+    refine Metric.mem_closure_iff.mpr fun ε hε ↦ ?_
+    obtain ⟨f, hf⟩ := happrox y hy ε hε
+    exact ⟨_, ⟨Submodule.Quotient.mk f, rfl⟩, (dist_eq_norm _ _).trans_lt hf⟩
+  obtain ⟨hn, hint, heq⟩ := stripDiagonal_trace (F := F) (hone_lt_three := hone_lt_three)
+    φ hφ hα hs hK U hU hBorel
+  let T : nuclearEndomorphisms (spectralSobolevQuotient F (1 / 2) (hStrip(hα.le)) hs₀(hs)) := ⟨_, hn⟩
+  obtain ⟨hsum, ht⟩ := spectralStripConvolution_trace_of_commonKernel
+    (F := F) (1 / 2) χ hχ hα.le hs₁(hs) φ hk T rfl
+  refine ⟨hint, hsum, ?_⟩
+  rw [heq, neg_neg]
+  exact ht
+
 end StripDiagonalProof
 
 section SmoothenedDiagonal
