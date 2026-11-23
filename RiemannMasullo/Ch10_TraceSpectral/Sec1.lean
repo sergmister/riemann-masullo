@@ -10,6 +10,7 @@ import all RiemannMasullo.AppA_AlgebraicNT.Sec3
 import all RiemannMasullo.Ch09_HardySobolev.Sec2
 import all RiemannMasullo.Ch02_AdelicTheta.Sec3
 import all RiemannMasullo.Ch02_AdelicTheta.Sec2b
+import RiemannMasullo.Ch05_ThetaZSpaces.Sec5
 
 import Mathlib.MeasureTheory.Measure.SeparableMeasure
 
@@ -1609,6 +1610,121 @@ theorem sLocalThetaAmbient_equiv_canonical (hm : IsModulation mₛ) (α β s : �
   exact globalThetaAmbient_equiv_canonical_aux μₛ (canonicalModulatedHaar mₛ hm)
     (μₛ₁ univ) hc0 hct (sLocalThetaAmbient_equiv_canonical_measure hm) _ hdm hd
 
+/-- A jointly continuous representation restricts to an invariant submodule. -/
+private theorem exists_globalThetaSobolevAction_restrict {G W : Type*} [Group G]
+    [TopologicalSpace G] [AddCommGroup W] [Module ℂ W] [TopologicalSpace W]
+    (T : G →* (W →L[ℂ] W)) (hT : Continuous fun p : G × W ↦ T p.1 p.2) (V : Submodule ℂ W)
+    (hV : ∀ g, ∀ v ∈ V, T g v ∈ V) :
+    ∃ ρ : G →* (V →L[ℂ] V), (∀ g u, (ρ g u : W) = T g u) ∧
+      Continuous fun p : G × V ↦ ρ p.1 p.2 := by
+  let r : G → (V →L[ℂ] V) := fun g ↦
+    ((T g).comp V.subtypeL).codRestrict V fun u ↦ hV g u u.2
+  refine ⟨{ toFun := r, map_one' := ?_, map_mul' := ?_ }, fun g u ↦ rfl, ?_⟩
+  · ext u
+    simp [r]
+  · intro g h
+    ext u
+    change T (g * h) u = T g (T h u)
+    rw [map_mul]
+    rfl
+  · exact (hT.comp (continuous_fst.prodMk (continuous_subtype_val.comp continuous_snd))).subtype_mk _
+
+/-- Unit translation preserves the polar subspace: the value at zero is unchanged and the
+Fourier value at zero is multiplied by the idelic norm. -/
+private theorem exists_globalThetaSobolevAction_polar (g : IdeleGroup (𝓞 F) F) (f : ℬ₀) :
+    schwartzBruhatUnitTranslate g f.val ∈ adelePolarSubspace F := by
+  have hf := (mem_adelePolarSubspace f.val).mp f.property
+  refine (mem_adelePolarSubspace _).mpr ⟨?_, ?_⟩
+  · change f.val (Multiplicative.ofAdd (g.inv * 0)) = 0
+    rw [mul_zero]
+    exact hf.1
+  · have hρ := (existsUnique_globalThetaAction (F := F)).exists.choose_spec.2 g f.val
+    have h := globalThetaPolarValues_snd_translate (F := F) (QuotientGroup.mk g)
+      (Submodule.Quotient.mk f.val)
+    rw [hρ] at h
+    have hleft := congrArg Prod.snd (globalThetaPolarValues_mk (F := F) (schwartzBruhatUnitTranslate g f.val))
+    have hright := congrArg Prod.snd (globalThetaPolarValues_mk (F := F) f.val)
+    have hz : (globalThetaPolarValues (F := F) (Submodule.Quotient.mk f.val)).2 = 0 := hright.trans hf.2
+    exact hleft.symm.trans (h.trans (by rw [hz, mul_zero]))
+
+/-- The weighted theta function at an inversely translated class is the norm factor times
+the weighted theta function of the translated test. -/
+private theorem exists_globalThetaSobolevAction_weight (a : ℝ) (g : IdeleGroup (𝓞 F) F)
+    (f : ℬ₀) (x : C𝔽) :
+    modulationWeight m𝔽 a (θ𝔽(f)) ((QuotientGroup.mk g)⁻¹ * x) =
+      ((((m𝔽 (QuotientGroup.mk g)).val : ℝ) ^ (-a) : ℝ) : ℂ) *
+        modulationWeight m𝔽 a (adelicTheta (schwartzBruhatUnitTranslate g f.val)) x := by
+  have hθ : adelicTheta (schwartzBruhatUnitTranslate g f.val) x =
+      adelicTheta f.val ((QuotientGroup.mk g)⁻¹ * x) := by
+    induction x using QuotientGroup.induction_on with | H y => ?_
+    change _ = adelicTheta f.val (QuotientGroup.mk (g⁻¹ * y))
+    rw [adelicTheta_mk (schwartzBruhatUnitTranslate g f.val) y, adelicTheta_mk f.val (g⁻¹ * y)]
+    exact tsum_congr fun t ↦ congrArg (fun z ↦ f.val (Multiplicative.ofAdd z))
+      (mul_left_comm g.inv (algebraMap F 𝔸[F] (t : F)) y.val)
+  change ((((m𝔽 ((QuotientGroup.mk g)⁻¹ * x)).val : ℝ) ^ a : ℝ) : ℂ) *
+      adelicTheta f.val ((QuotientGroup.mk g)⁻¹ * x) =
+    _ * (((((m𝔽 x).val : ℝ) ^ a : ℝ) : ℂ) * adelicTheta (schwartzBruhatUnitTranslate g f.val) x)
+  have hc : (0 : ℝ) ≤ ((m𝔽 (QuotientGroup.mk g)).val : ℝ) := NNReal.coe_nonneg _
+  have hx : (0 : ℝ) ≤ ((m𝔽 x).val : ℝ) := NNReal.coe_nonneg _
+  rw [hθ, map_mul, map_inv, Units.val_mul, Units.val_inv_eq_inv_val,
+    NNReal.coe_mul, NNReal.coe_inv, Real.mul_rpow (inv_nonneg.mpr hc) hx, Real.inv_rpow hc,
+    ← Real.rpow_neg hc]
+  push_cast
+  ring
+
+open scoped ENNReal in
+/-- In a weighted L², an element represented by a translate of a representative of another
+element is a scalar multiple of a third one when the representatives are proportional. -/
+private theorem exists_globalThetaSobolevAction_ae {G : Type*} [MeasurableSpace G]
+    (μ : Measure G) (d : G → ℝ≥0∞) (c : ℝ) (A B C : Lp ℂ 2 (μ.withDensity d))
+    (φ ψ : G → ℂ) (t : G → G) (ht : QuasiMeasurePreserving t μ μ)
+    (h1 : (A : G → ℂ) =ᵐ[μ] fun x ↦ B (t x)) (hB : (B : G → ℂ) =ᵐ[μ] φ)
+    (hC : (C : G → ℂ) =ᵐ[μ] ψ) (hw : ∀ x, φ (t x) = (c : ℂ) * ψ x) : A = c • C := by
+  have hac := withDensity_absolutelyContinuous μ d
+  have h3 := ht.ae_eq_comp hB
+  refine Lp.ext ?_
+  filter_upwards [hac.ae_le h1, hac.ae_le h3, Lp.coeFn_smul c C, hac.ae_le hC]
+    with x e1 e3 e4 e5
+  rw [e1, e4, Pi.smul_apply, e5, Complex.real_smul]
+  exact e3.trans (hw x)
+
+/-- Ambient translation sends a weighted theta function to the norm factor times the weighted
+theta function of the translated test. -/
+private theorem exists_globalThetaSobolevAction_gen (a : ℝ) {α β s : ℝ} (hI : α ≤ β)
+    (hs : 0 ≤ s) (g : IdeleGroup (𝓞 F) F) (f : ℬ₀) :
+    hardySobolevTranslation μ𝔽 m𝔽 α β s hI hs (QuotientGroup.mk g)
+        (E𝔽(a, hI, hs) (Submodule.Quotient.mk f)) =
+      (((m𝔽 (QuotientGroup.mk g)).val : ℝ) ^ (-a) : ℝ) •
+        E𝔽(a, hI, hs) (Submodule.Quotient.mk
+          ⟨schwartzBruhatUnitTranslate g f.val, exists_globalThetaSobolevAction_polar g f⟩) := by
+  have hE := (existsUnique_globalThetaSobolevEmbedding (F := F) a α β s hI hs).exists.choose_spec.2
+  have ht : QuasiMeasurePreserving (fun x : C𝔽 ↦ (QuotientGroup.mk g)⁻¹ * x) μ𝔽 μ𝔽 :=
+    (measurePreserving_mul_left μ𝔽 (QuotientGroup.mk g)⁻¹).quasiMeasurePreserving
+  have h1 := hardySobolevTranslation_apply μ𝔽 m𝔽 α β s hI hs (QuotientGroup.mk g)
+    (E𝔽(a, hI, hs) (Submodule.Quotient.mk f))
+  have hB := hE f
+  have hC := hE ⟨schwartzBruhatUnitTranslate g f.val, exists_globalThetaSobolevAction_polar g f⟩
+  have hw := exists_globalThetaSobolevAction_weight a g f
+  exact exists_globalThetaSobolevAction_ae μ𝔽 _ _ _ _ _ _ _ _ ht h1 hB hC hw
+
+/-- Ambient translation preserves the global theta completion. -/
+private theorem exists_globalThetaSobolevAction_inv (a : ℝ) {α β s : ℝ} (hI : α ≤ β)
+    (hs : 0 ≤ s) (g : C𝔽) :
+    ∀ v ∈ H𝔽(a, hI, hs), hardySobolevTranslation μ𝔽 m𝔽 α β s hI hs g v ∈ H𝔽(a, hI, hs) := by
+  induction g using QuotientGroup.induction_on with | H g => ?_
+  have hle : LinearMap.range E𝔽(a, hI, hs).toLinearMap ≤ (H𝔽(a, hI, hs)).comap
+      (hardySobolevTranslation μ𝔽 m𝔽 α β s hI hs (QuotientGroup.mk g)).toLinearMap := by
+    rintro _ ⟨x, rfl⟩
+    induction x using Quot.ind with | mk f => ?_
+    change hardySobolevTranslation μ𝔽 m𝔽 α β s hI hs (QuotientGroup.mk g)
+      (E𝔽(a, hI, hs) (Submodule.Quotient.mk f)) ∈ H𝔽(a, hI, hs)
+    rw [exists_globalThetaSobolevAction_gen a hI hs g f]
+    exact Submodule.smul_of_tower_mem _ _
+      (Submodule.le_topologicalClosure _ (LinearMap.mem_range_self _ _))
+  intro v hv
+  exact Submodule.topologicalClosure_minimal _ hle
+    ((Submodule.isClosed_topologicalClosure _).preimage (ContinuousLinearMap.continuous _)) hv
+
 /-- Paper: Lemma 10.1.1.3(2), p. 435. Ambient left translation preserves the
 global completion, acts jointly continuously there, and on weighted tests
 has the factor |g|^(-a) multiplying the translated test. -/
@@ -1620,7 +1736,15 @@ theorem exists_globalThetaSobolevAction (a : ℝ) {α β s : ℝ} (hI : α ≤ �
         f'.val = schwartzBruhatUnitTranslate g f.val ∧
           ρ (QuotientGroup.mk g) (j𝔽(a, hI, hs) (Submodule.Quotient.mk f)) =
             (((m𝔽 (QuotientGroup.mk g)).val : ℝ) ^ (-a) : ℝ) •
-              j𝔽(a, hI, hs) (Submodule.Quotient.mk f') := by sorry
+              j𝔽(a, hI, hs) (Submodule.Quotient.mk f') := by
+  have hρ := exists_globalThetaSobolevAction_restrict
+    (hardySobolevTranslation μ𝔽 m𝔽 α β s hI hs)
+    (exists_hardySobolevTranslation μ𝔽 m𝔽 α β s hI hs).choose_spec.2 H𝔽(a, hI, hs)
+    (exists_globalThetaSobolevAction_inv a hI hs)
+  refine ⟨hρ.choose, hρ.choose_spec.1, hρ.choose_spec.2, fun g f ↦
+    ⟨⟨_, exists_globalThetaSobolevAction_polar g f⟩, rfl, Subtype.ext ?_⟩⟩
+  rw [hρ.choose_spec.1, Submodule.coe_smul_of_tower]
+  exact exists_globalThetaSobolevAction_gen a hI hs g f
 
 local notation "R𝔽(" a ", " hI ", " hs ")" =>
   (exists_globalThetaSobolevAction (F := F) a hI hs).choose
