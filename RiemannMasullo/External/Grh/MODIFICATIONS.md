@@ -20,3 +20,7 @@ The upstream files have no per-file copyright headers. In each file, the enclosi
 
 The other five lemma modules are copied in full with the header and namespace changes above.
 `LICENSE` is byte-for-byte identical to the upstream license.
+
+## Rational explicit formula
+
+The dependency closure of `Theorems.RationalExplicitFormula` uses the same pinned revision, MIT header, and namespace as the existing modules. Imports of `Props`, `Lemmas`, and `Theorems` modules use the project prefix. Previously vendored shared modules are reused.
