@@ -1668,7 +1668,8 @@ private theorem integrable_logExponentialDecay_moment (f : logExponentialDecaySu
     (ae_of_all _ fun x ↦ le_of_eq ?_)
   rw [norm_mul, norm_pow, Complex.norm_real]
 
-private theorem mellin_logProfile (f : ℝ → ℂ) (s : ℂ) :
+/-- In logarithmic coordinates the scalar Mellin transform is the bilateral exponential integral. -/
+theorem mellin_logProfile (f : ℝ → ℂ) (s : ℂ) :
     mellin (fun t ↦ f (Real.log t)) s = ∫ x : ℝ, f x * Complex.exp (s * x) := by
   rw [mellin, ← integral_comp_exp]
   apply integral_congr_ae
@@ -5428,6 +5429,26 @@ private theorem sobolev_character_pull (hm : IsModulation m) (hsurj : Surjective
   filter_upwards [hM (T f), Lp.coeFn_compMeasurePreserving f hw] with x hx hx'
   exact hx.trans (congrArg (fun z ↦ v x * z) hx')
 
+/-- Pullback along the logarithmic modulation with a unitary character sends scalar
+interval Sobolev vectors continuously to the canonical group interval space. On
+exponential-decay tests the pullback has an ordinary Schwartz–Bruhat representative. -/
+theorem exists_modulatedIntervalSobolev_characterLogPullback (hm : IsModulation m) (hms : Surjective m)
+    (χ : PontryaginDual G) (a b s : ℝ) :
+    ∃ L : CompactIntervalSobolev volume id a b s →L[ℂ] ModulatedIntervalSobolev m hm a b s,
+      (∀ u, (L u : G → ℂ) =ᵐ[canonicalModulatedHaar m hm] (fun g ↦ (χ g : ℂ) * u (logModule m g))) ∧
+      ∀ f : PositiveRealExponentialDecay univ, ∃ v : SchwartzBruhat G,
+        ∀ g, v g = (χ g : ℂ) * f.val (logModule m g) := by
+  obtain ⟨L,hL⟩ := sobolev_character_pull m hm hms _ (continuous_intervalSobolevDensity' a b s)
+    (intervalSobolevDensity_pos a b s) (fun g ↦ (χ g : ℂ))
+    (continuous_subtype_val.comp χ.continuous) (fun _ ↦ Circle.norm_coe _)
+  refine ⟨L,hL,fun f ↦ ?_⟩
+  obtain ⟨τ,hτ⟩ := exists_section_of_surjective hm.1 hms
+  let u : ModulatedExponentialDecay m univ := ⟨f.val ∘ logModule m, sobolev_radial_decay m hm τ hτ f⟩
+  have hu : u.val ∈ schwartzBruhatSubmodule G := by
+    simpa only [modulationWeight_zero] using modulationWeight_mem_schwartzBruhat m univ ⟨0,mem_univ _⟩ u
+  obtain ⟨M,hM⟩ := schwartzBruhat_mul_unitaryCharacter χ
+  exact ⟨M ⟨u.val,hu⟩,hM _⟩
+
 /-- On the upper tail the reciprocal weight supplies either exponential decay or an
 integrable power. At the critical power the latter argument requires a strict inequality. -/
 private theorem sobolev_endpoint_kernel (a b c s : ℝ) (hs : 0 ≤ s) (z : ℂ)
@@ -5669,5 +5690,32 @@ theorem modulatedIntervalSobolev_cutoff_closure (_hms : Surjective m) (a b A s :
 -- right target even though the induced Mellin map on that arrow has one-sided source.
 
 end ModulatedInterval
+
+
+/-- On the closed base interval, each admissible Mellin derivative is represented
+by one continuous functional on the weighted scalar space. Its action agrees
+with the Mellin derivative on profiles from every larger open strip. -/
+theorem scalarIntervalSobolev_admitted_mellin_functional (a b s : ℝ) (hs : 0 ≤ s)
+    (z : ℂ) (k : ℕ) (hz : z.re ∈ Ioo a b ∨ z.re ∈ Icc a b ∧ 2 * (k : ℝ) + 1 < s) :
+    let E := CompactIntervalSobolev volume id a b s
+    ∃ Λ : StrongDual ℂ E, ∀ (I : Set ℝ), IsOpen I → z.re ∈ I →
+      ∀ (p : PositiveRealExponentialDecay I) (x : E), (x : ℝ → ℂ) =ᵐ[volume] p.val →
+        Λ x = iteratedDeriv k (mellin (fun t ↦ p.val (Real.log t))) z := by
+  intro E
+  have hintegral : ∃ Λ : StrongDual ℂ E, ∀ x : E,
+      Λ x = ∫ t : ℝ, x t * (t : ℂ)^k * Complex.exp (z * (t : ℂ)) := by
+    rcases hz with h | ⟨h,hk⟩
+    · obtain ⟨Λ,hΛ⟩ := scalarIntervalSobolev_eval_interior a b s hs z h k
+      exact ⟨Λ, fun x ↦ (hΛ x).2⟩
+    · obtain ⟨Λ,hΛ⟩ := intervalSobolev_boundary_moment_functional a b s k z h hk MeasurableSet.univ
+      refine ⟨Λ, fun x ↦ ?_⟩
+      simpa only [Set.indicator_univ, mul_assoc] using (hΛ x).2
+  obtain ⟨Λ,hΛ⟩ := hintegral
+  refine ⟨Λ, fun I hI hz p x hx ↦ ?_⟩
+  rw [hΛ, scalarDecay_mellin_deriv hI p k hz, mellin_logProfile (fun t : ℝ ↦ (t : ℂ)^k * p.val t)]
+  apply integral_congr_ae
+  filter_upwards [hx] with t ht
+  rw [ht]
+  ring
 
 end RiemannMasullo

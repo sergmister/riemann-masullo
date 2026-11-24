@@ -784,4 +784,33 @@ theorem exists_holomorphic_disk_tails {ι : Type*} (a : ι → ℂ) (m : ι → 
   exact product_divisible (fun j : {j // j ∉ S} ↦ a j.val) (fun j ↦ m j.val)
     (fun j ↦ ha j.val) (fun j ↦ ha' j.val) (hs.subtype _) ⟨i, hi⟩
 
+/-- The normalized Blaschke tails are contractive. Their distance from one is
+bounded by the disk distortion times the remaining Blaschke mass, uniformly
+on each closed subdisk. -/
+theorem exists_holomorphic_disk_tails_bound {ι : Type*} (a : ι → ℂ) (m : ι → ℕ)
+    (ha : ∀ i, a i ≠ 0) (ha' : ∀ i, ‖a i‖ < 1)
+    (hs : Summable (fun i ↦ (m i : ℝ) * (1 - ‖a i‖))) :
+    ∃ B : Finset ι → ℂ → ℂ,
+      (∀ S, AnalyticOnNhd ℂ (B S) (ball 0 1)) ∧
+      (∀ S z, ‖z‖ < 1 → ‖B S z‖ ≤ 1) ∧
+      (∀ (S : Finset ι) (z : ℂ), ‖z‖ < 1 → ‖B S z - 1‖ ≤
+        ((1 + ‖z‖) / (1 - ‖z‖)) * ∑' j : {j // j ∉ S}, (m j.val : ℝ) * (1 - ‖a j.val‖)) ∧
+      ∀ (S : Finset ι) (i : ι), i ∉ S →
+        ∃ G : ℂ → ℂ, AnalyticAt ℂ G (a i) ∧
+          B S =ᶠ[𝓝 (a i)] fun z ↦ (z - a i) ^ m i * G z := by
+  classical
+  let ar (S : Finset ι) (j : {j // j ∉ S}) := a j.val
+  let mult (S : Finset ι) (j : {j // j ∉ S}) := m j.val
+  let tail (S : Finset ι) (z : ℂ) := ∏' j : {j // j ∉ S}, factor (ar S j) z ^ mult S j
+  have hn (S : Finset ι) (j) : ar S j ≠ 0 := ha j.val
+  have hlt (S : Finset ι) (j) : ‖ar S j‖ < 1 := ha' j.val
+  have hconv (S : Finset ι) : Summable (fun j ↦ (mult S j : ℝ) * (1 - ‖ar S j‖)) := hs.subtype _
+  have hA (S : Finset ι) : AnalyticOnNhd ℂ (tail S) (ball 0 1) :=
+    product_analytic (ar S) (mult S) (hn S) (hlt S) (hconv S)
+  have hbound (S : Finset ι) (z : ℂ) (hz : ‖z‖ < 1) := product_bound
+    (ar S) (mult S) (hn S) (hlt S) (hconv S) z hz
+  refine ⟨tail, hA, fun S z hz ↦ (hbound S z hz).1, fun S z hz ↦ (hbound S z hz).2, ?_⟩
+  intro S i hi
+  exact product_divisible (ar S) (mult S) (hn S) (hlt S) (hconv S) ⟨i, hi⟩
+
 end RiemannMasullo.Blaschke
