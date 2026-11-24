@@ -1381,7 +1381,7 @@ theorem exists_sLocalThetaSobolevUnweightedAction {a α β s : ℝ} (ha : 0 < a)
         (fun g ↦ (measurePreserving_mul_left μ g⁻¹).quasiMeasurePreserving))
 
 /-- The modulation weight shifts the interval of the Sobolev density. -/
-private theorem globalThetaSobolev_norm_density (a α β s l : ℝ) :
+theorem globalThetaSobolev_norm_density (a α β s l : ℝ) :
     Real.exp (a * l) ^ 2 * intervalSobolevDensity α β s l =
       intervalSobolevDensity (a + α) (a + β) s l := by
   unfold intervalSobolevDensity
@@ -1391,7 +1391,7 @@ private theorem globalThetaSobolev_norm_density (a α β s l : ℝ) :
 
 /-- The norm of a weighted L² class represented by a weighted function, on an abstract
 measure space. -/
-private theorem globalThetaSobolev_norm_aux {G : Type*} [MeasurableSpace G] (μ : Measure G)
+theorem globalThetaSobolev_norm_aux {G : Type*} [MeasurableSpace G] (μ : Measure G)
     (r : G → ℝ) (hr : ∀ g, 0 < r g) (hrm : Measurable r) (a α β s : ℝ) (φ : G → ℂ)
     (u : CompactIntervalSobolev μ (fun g ↦ Real.log (r g)) α β s)
     (hu : (u : G → ℂ) =ᵐ[μ] fun g ↦ ((r g ^ a : ℝ) : ℂ) * φ g) :

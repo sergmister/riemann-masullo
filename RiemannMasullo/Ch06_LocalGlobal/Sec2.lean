@@ -6413,7 +6413,7 @@ end StandardFunctions
 
 /-- Pullback along the unique real coordinate identifies real Schwartz functions with
 the rational adelic test functions at the stage with no finite places. -/
-private theorem ratTrivialHomogeneousTheta_quotient_realEquiv :
+theorem ratTrivialHomogeneousTheta_quotient_realEquiv :
     ∃ E : SchwartzMap ℝ ℂ ≃L[ℂ] ℬ(SAdeleRing ℚ ∅),
       ∀ (f : SchwartzMap ℝ ℂ) (x : SAdeleRing ℚ ∅),
         E f (Multiplicative.ofAdd x) = f (InfinitePlace.Completion.ringEquivRealOfIsReal

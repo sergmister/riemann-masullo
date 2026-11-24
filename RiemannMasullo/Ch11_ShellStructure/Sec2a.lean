@@ -2008,7 +2008,8 @@ theorem OrbitalJetIndex.isZero {χ : PontryaginDual C𝔽} {S : Finset V} {s : �
   OrbitalJetIndex.isZero_of_order_pos (OrbitalJetIndex.isZero_analyticAt χ S _)
     (Nat.zero_lt_of_lt (lt_of_lt_of_le j.property (min_le_left _ _)))
 
-private theorem orbitalJet_logNorm_continuous :
+/-- The log-norm function on the idele class group is continuous. -/
+theorem orbitalJet_logNorm_continuous :
     Continuous (fun g : C𝔽 ↦ logNorm g) :=
   Real.continuousOn_log.comp_continuous
     (NNReal.continuous_coe.comp (Units.continuous_val.comp (m𝔽).continuous))
@@ -2034,7 +2035,8 @@ private theorem orbitalJet_log_positiveRealHaar :
     rw [Real.coe_toNNReal _ (Real.exp_pos x).le, Real.log_exp]
   rw [hid, Measure.map_id]
 
-private theorem orbitalJet_logNorm_measurePreserving :
+/-- The log-norm pushes canonical modulated Haar measure forward to Lebesgue measure on `ℝ`. -/
+theorem orbitalJet_logNorm_measurePreserving :
     MeasurePreserving (fun g : C𝔽 ↦ logNorm g)
       (canonicalModulatedHaar m𝔽
         (⟨isProperMap_ideleClassNorm F, ideleClassNorm_ne_one (F := F)⟩ : IsModulation m𝔽))
@@ -2128,7 +2130,8 @@ private theorem orbitalJet_density_pos (s : ℝ) (g : C𝔽) :
   rw [orbitalJet_density_eq]
   exact inv_pos.mpr (Real.rpow_pos_of_pos (by positivity) _)
 
-private theorem orbitalJet_density_continuous (s : ℝ) :
+/-- The reciprocal Sobolev weight `(intervalSobolevDensity 0 0 s (logNorm g))⁻¹` is continuous. -/
+theorem orbitalJet_density_continuous (s : ℝ) :
     Continuous (fun g : C𝔽 ↦ (intervalSobolevDensity 0 0 s (logNorm g))⁻¹) := by
   have hρ : Continuous (fun g : C𝔽 ↦ (1 + (logNorm g) ^ 2) ^ (s / 2)) :=
     ((continuous_const : Continuous (fun _ : C𝔽 ↦ (1 : ℝ))).add

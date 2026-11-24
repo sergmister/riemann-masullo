@@ -221,7 +221,8 @@ private theorem existsUnique_sLocalZetaPair_eval (χ : PontryaginDual Jₛ) (s :
   rw [u.prop]
   simp
 
-private theorem existsUnique_sLocalZetaPair_equation (χ : PontryaginDual Jₛ) (f : ℬₛ)
+/-- The S-local zeta function satisfies the functional equation in the overlap strip. -/
+theorem existsUnique_sLocalZetaPair_equation (χ : PontryaginDual Jₛ) (f : ℬₛ)
     (s : ℂ) (hs : s ∈ overlap) :
     Zₛ f (normChart(χ) s) = ρₛ(χ, s) * Zₛ (Fourierₛ f) (normChart(χ⁻¹) (1 - s)) := by
   have ht : 1 - s ∈ rightHalf := by simpa [mem_preimage, mem_Ioi] using sub_pos.mpr hs.2

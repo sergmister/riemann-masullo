@@ -303,7 +303,7 @@ theorem sLocalThetaPrincipalPartCoeff_mk (ω : PontryaginDual J₁) (c : Xₛ)
       sLocalZLaurentCoeff f c (-(k : ℤ)) := rfl
 
 /-- Residues at `0` only depend on the germ on a punctured neighbourhood. -/
-private theorem sLocalPrincipalPartCoeff_translate_congr {g h : ℂ → ℂ}
+theorem sLocalPrincipalPartCoeff_translate_congr {g h : ℂ → ℂ}
     (he : g =ᶠ[𝓝[≠] (0 : ℂ)] h) : complexResidue g 0 = complexResidue h 0 := by
   obtain ⟨δ, hδ, hEq⟩ := Metric.nhdsWithin_basis_ball.eventually_iff.mp he
   unfold complexResidue limUnder
@@ -395,7 +395,7 @@ private theorem sLocalPrincipalPartCoeff_translate_poly (c : ℕ → ℂ) (n i :
 /-- The Laurent coefficient of exponent `-k` of `exp (L z)` times a germ with a pole of order at
 most `m ≥ k` is the convolution of the Taylor coefficients of the exponential with the
 coefficients of exponents `-k, …, -m` of the germ. -/
-private theorem sLocalPrincipalPartCoeff_translate_laurent {Z : ℂ → ℂ} (hZ : MeromorphicAt Z 0)
+theorem sLocalPrincipalPartCoeff_translate_laurent {Z : ℂ → ℂ} (hZ : MeromorphicAt Z 0)
     {m k : ℕ} (hk : k ≤ m) (hord : ((-(m : ℤ) : ℤ) : WithTop ℤ) ≤ meromorphicOrderAt Z 0)
     (C L : ℂ) :
     complexResidue (fun z ↦ C * (Complex.exp (L * z) * Z z / z ^ (-(k : ℤ) + 1))) 0 =
@@ -489,7 +489,7 @@ private theorem sLocalPrincipalPartCoeff_translate_laurent {Z : ℂ → ℂ} (hZ
 
 /-- Translating a test by a unit multiplies its zeta function by the value of the
 quasi-character at the class of the unit. -/
-private theorem sLocalPrincipalPartCoeff_translate_zeta (u : Aₛˣ) (f : ℬₛ) (d : Xₛ) :
+theorem sLocalPrincipalPartCoeff_translate_zeta (u : Aₛˣ) (f : ℬₛ) (d : Xₛ) :
     sLocalIdelicZFunction (schwartzBruhatUnitTranslate u f) d =
       d (QuotientGroup.mk u) * sLocalIdelicZFunction f d := by
   obtain ⟨χ, s, rfl⟩ := exists_sLocalNormTwist (F := F) (S := S) d
@@ -641,7 +641,7 @@ def sLocalThetaPoleBound (ω : PontryaginDual J₁) (m : Xₛ → ℕ) : Submodu
     ∀ c : Xₛ, onComponent(c, ω) → sLocalPolarMultiplicity f c ≤ m c}
 
 /-- Residues only depend on the germ on a punctured neighbourhood. -/
-private theorem mem_sLocalThetaPoleBound_iff_residue_congr {g h : ℂ → ℂ}
+theorem mem_sLocalThetaPoleBound_iff_residue_congr {g h : ℂ → ℂ}
     (he : g =ᶠ[𝓝[≠] (0 : ℂ)] h) : complexResidue g 0 = complexResidue h 0 := by
   obtain ⟨δ, hδ, hEq⟩ := Metric.nhdsWithin_basis_ball.eventually_iff.mp he
   unfold complexResidue limUnder
@@ -654,7 +654,7 @@ private theorem mem_sLocalThetaPoleBound_iff_residue_congr {g h : ℂ → ℂ}
     exact hr.1.ne (by simpa using hz)
 
 /-- The leading polar coefficient of a meromorphic germ with a pole of order `N` is nonzero. -/
-private theorem mem_sLocalThetaPoleBound_iff_leading {Z : ℂ → ℂ} (hZ : MeromorphicAt Z 0)
+theorem mem_sLocalThetaPoleBound_iff_leading {Z : ℂ → ℂ} (hZ : MeromorphicAt Z 0)
     {N : ℕ} (hN : 0 < N) (ho : (-(meromorphicOrderAt Z 0).untop₀).toNat = N) :
     complexResidue (fun z ↦ Z z / z ^ (-(N : ℤ) + 1)) 0 ≠ 0 := by
   have hord : meromorphicOrderAt Z 0 = ((-(N : ℤ) : ℤ) : WithTop ℤ) := by
@@ -1117,7 +1117,7 @@ private theorem sLocalRhoPoleOrder_eq_card_polePlaces_fin_val (χ : PontryaginDu
 
 /-- At a finite place the restricted Euler factor has a pole exactly where the restricted Tate
 factor has one. -/
-private theorem sLocalRhoPoleOrder_eq_card_polePlaces_finite (χ : PontryaginDual Jₛ) (v : S)
+theorem sLocalRhoPoleOrder_eq_card_polePlaces_finite (χ : PontryaginDual Jₛ) (v : S)
     (s : ℂ) :
     meromorphicOrderAt (finEuler(v, (circleToComplex).comp χ)) s < 0 ↔
       meromorphicOrderAt (fun z ↦ finiteLocalTateFactor v.val
@@ -1953,7 +1953,7 @@ theorem sLocalRhoFactor_eq_div_fourierEulerProduct (c : Xₛ) :
 
 /-- The geometric denominator of a finite Euler factor has only simple zeros.
 Ramified finite Euler factors are identically one. -/
-private theorem sLocalPrincipalPartCoeff_leading_formula_fin_factor (c : Xₛ) (v : S) :
+theorem sLocalPrincipalPartCoeff_leading_formula_fin_factor (c : Xₛ) (v : S) :
     MeromorphicNFAt (finEuler(v, c)) 0 ∧
       ((-1 : ℤ) : WithTop ℤ) ≤ meromorphicOrderAt (finEuler(v, c)) 0 := by
   classical
@@ -2014,7 +2014,7 @@ private theorem sLocalPrincipalPartCoeff_leading_formula_fin_factor (c : Xₛ) (
 
 /-- In the centered norm chart the archimedean factors are in meromorphic normal
 form, and their poles have order at most one. -/
-private theorem sLocalPrincipalPartCoeff_leading_formula_arch_factor (c : Xₛ) (w : InfinitePlace F) :
+theorem sLocalPrincipalPartCoeff_leading_formula_arch_factor (c : Xₛ) (w : InfinitePlace F) :
     MeromorphicNFAt (archEuler(w, c)) 0 ∧
       ((-1 : ℤ) : WithTop ℤ) ≤ meromorphicOrderAt (archEuler(w, c)) 0 := by
   obtain ⟨χ, a, rfl⟩ := exists_sLocalNormTwist (F := F) (S := S) c

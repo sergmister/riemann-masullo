@@ -1111,7 +1111,8 @@ theorem continuous_sAdeleSchwartz_unitTranslate :
 
 end
 
-private theorem sLocalTheta_translate_onClasses (g : (SAdeleRing F S)ˣ)
+/-- Unit translation of an S-adelic test translates its theta function on quotient classes. -/
+theorem sLocalTheta_translate_onClasses (g : (SAdeleRing F S)ˣ)
     (f : SchwartzBruhat (Multiplicative (SAdeleRing F S))) (x : SIdeleQuotient F S) :
     sLocalAdelicThetaOnClasses F S (schwartzBruhatUnitTranslate g f) x =
       sLocalAdelicThetaOnClasses F S f ((QuotientGroup.mk g)⁻¹ * x) := by
@@ -2455,7 +2456,7 @@ local instance normOneSIdeleQuotientMeasurableSpaceSec2b (F : Type*) [Field F]
 
 /-- On a compact group the character twist is itself a jointly continuous action,
 and compactness makes its operators equicontinuous at zero. -/
-private theorem existsUnique_globalThetaIsotypicAverage_of_compact {H E : Type*}
+theorem existsUnique_globalThetaIsotypicAverage_of_compact {H E : Type*}
     [CommGroup H] [TopologicalSpace H] [IsTopologicalGroup H] (G : Subgroup H)
     [T2Space G] [CompactSpace G] [MeasurableSpace G] [BorelSpace G]
     [AddCommGroup E] [Module ℂ E] [TopologicalSpace E] [IsTopologicalAddGroup E]

@@ -3301,7 +3301,8 @@ private theorem globalThetaPrincipalValue_isotypicAverage_emptyTensor
     (Subsingleton.elim L (fun i ↦ (LinearMap.id : N i →ₗ[ℂ] N i)))).trans PiTensorProduct.map_id
   exact globalThetaPrincipalValue_isotypicAverage_tensor e LinearMap.id P rfl hp
 
-private theorem globalThetaPrincipalValue_isotypicAverage_emptyTest :
+/-- With no places in `S`, the adelic principal value projection is the identity. -/
+theorem globalThetaPrincipalValue_isotypicAverage_emptyTest :
     adelePrincipalValue F ∅ = LinearMap.id := by
   unfold adelePrincipalValue
   with_reducible_and_instances

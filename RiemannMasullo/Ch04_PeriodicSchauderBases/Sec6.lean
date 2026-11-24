@@ -273,7 +273,8 @@ private theorem isotype_le_stage_of_trivial
   exact (congrArg f.val hx.symm).trans (h.trans ((congrArg (· * f.val x) hv).trans (one_mul _)))
 
 include hm hms in
-private theorem exists_surjectiveModulation_section :
+/-- A surjective modulation admits a continuous right-inverse section. -/
+theorem exists_surjectiveModulation_section :
     ∃ τ : ℝ≥0ˣ →ₜ* G, RightInverse τ m := by
   let τ₀ := hm.exists_section.choose
   let τ : ℝ≥0ˣ →ₜ* G := τ₀.comp
@@ -339,7 +340,8 @@ private theorem frechet_of_complete_metrizable (X : Type*) [AddCommGroup X] [Mod
   infer_instance
 
 include hm hms in
-private theorem isotype_frechet : IsFrechetTVS H₀[ω] := by
+/-- The norm-one isotype of the modulated exponential decay space is a Fréchet space. -/
+theorem isotype_frechet : IsFrechetTVS H₀[ω] := by
   have : CompleteSpace H₀[ω] := isotype_complete m hm hms ω
   have : IsUniformAddGroup H₀[ω] := (H₀[ω]).toAddSubgroup.isUniformAddGroup
   exact frechet_of_complete_metrizable H₀[ω] (isotype_nuclear.{_, 0} m hm hms ω).2.1
@@ -593,7 +595,8 @@ private theorem isotype_product_commute_single (s : List G) (g : G) :
 section
 universe v
 
-private theorem separable_nuclear_frechet_of_equiv {X Y : Type*} [AddCommGroup X]
+/-- Separability, nuclearity, and the Fréchet property transport across a continuous linear equivalence. -/
+theorem separable_nuclear_frechet_of_equiv {X Y : Type*} [AddCommGroup X]
     [Module ℂ X] [TopologicalSpace X] [IsTopologicalAddGroup X] [AddCommGroup Y]
     [Module ℂ Y] [TopologicalSpace Y] [IsTopologicalAddGroup Y] (F : X ≃L[ℂ] Y)
     (h : SeparableSpace X ∧ IsNuclearTVS.{v} X ∧ IsFrechetTVS X) :
@@ -980,7 +983,8 @@ private theorem integrable_logMoment (ξ : PontryaginDual G) (r : ℕ) (f : H₀
     (mul_le_mul_of_nonneg_left hbound (norm_nonneg (v x))).trans_eq (by ring)
 
 include hm hms in
-private theorem isotype_eval_continuous (x : G) : Continuous (fun f : H₀[ω] ↦ f.val.val x) := by
+/-- Pointwise evaluation on the norm-one isotype is continuous. -/
+theorem isotype_eval_continuous (x : G) : Continuous (fun f : H₀[ω] ↦ f.val.val x) := by
   let Z := modulatedExponentialDecayTwist m univ ⟨0, mem_univ _⟩
   have hv : Continuous fun f : H₀[ω] ↦ Z f.val x :=
     (continuous_schwartzBruhat_eval x).comp ((modulatedExponentialDecay_zeroTwist_continuous
@@ -1177,7 +1181,7 @@ theorem modulatedQuotientLogMoment_mkQ (j : J) (f : H₀[ω]) :
 -- faster than any inverse power. See the report for the counterexample.
 
 /-- A circle exponential of a multiple of the logarithm is a purely imaginary complex power. -/
-private theorem coe_circleExp_mul_log (s : ℝ) (t : ℝ≥0ˣ) :
+theorem coe_circleExp_mul_log (s : ℝ) (t : ℝ≥0ˣ) :
     (Circle.exp (s * Real.log ((t : ℝ≥0) : ℝ)) : ℂ) =
       (((t : ℝ≥0) : ℝ) : ℂ) ^ ((s : ℂ) * Complex.I) := by
   have hpos : 0 < ((t : ℝ≥0) : ℝ) := NNReal.coe_pos.mpr (Units.zero_lt t)
@@ -1188,7 +1192,7 @@ private theorem coe_circleExp_mul_log (s : ℝ) (t : ℝ≥0ˣ) :
   ring
 
 /-- For each real frequency, `t ↦ exp(i s log t)` is a unitary character of the positive reals. -/
-private theorem exists_positiveRealCharacter (s : ℝ) :
+theorem exists_positiveRealCharacter (s : ℝ) :
     ∃ ψ : PontryaginDual ℝ≥0ˣ, ∀ t, ψ t = Circle.exp (s * Real.log ((t : ℝ≥0) : ℝ)) := by
   have hpos (t : ℝ≥0ˣ) : 0 < ((t : ℝ≥0) : ℝ) := NNReal.coe_pos.mpr (Units.zero_lt t)
   refine ⟨{ toFun := fun t ↦ Circle.exp (s * Real.log ((t : ℝ≥0) : ℝ))
