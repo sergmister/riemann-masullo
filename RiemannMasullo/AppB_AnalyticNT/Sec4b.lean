@@ -15450,11 +15450,13 @@ theorem idelicExplicitFormula_infiniteMatching (τ : ℝ≥0ˣ →ₜ* C[F])
     simp only at h2
     rwa [h2] at h1
 
-/-- Paper: Theorem B.4.4.7, pp. 623–626. The pointwise idelic explicit formula: at every
-test, the multiplicity-weighted Mellin values at the completed Hecke zeros sum to the pole
-terms minus the archimedean and finite Connes–Weil principal values of the restricted tests. -/
-theorem idelicExplicitFormula_pointwise (τ : ℝ≥0ˣ →ₜ* C[F])
+/-- Paper: Theorem B.4.4.7, pp. 623–626. Assuming absolute convergence of the
+zero sum at this test, the characterwise contour formulas and the finite and
+archimedean matching identities give the normalized idelic formula. -/
+theorem idelicExplicitFormula_pointwise_of_summable (τ : ℝ≥0ˣ →ₜ* C[F])
     (_hτ : RightInverse τ (ideleClassNorm F)) (f : 𝒟(C[F]))
+    (hZ : Summable (fun z : chartZeros(τ) ↦ ‖zeroMultiplicity(z) *
+      ∫ g, classMellinIntegrand(f, zeroCharacter(z), -1 / 2) g ∂classMeasure‖))
     (testI : ∀ w : InfinitePlace F, 𝒟(w.Completionˣ))
     (_hI : ∀ w u, (testI w).val u = f.val (infiniteClassMap(w) u))
     (testF : ∀ v : Primes(F), 𝒟((v.adicCompletion F)ˣ))
@@ -15548,7 +15550,7 @@ theorem idelicExplicitFormula_pointwise (τ : ℝ≥0ˣ →ₜ* C[F])
   -- (e): sum over the characters.
   have hS : Summable (fun z : chartZeros(τ) ↦ zeroMultiplicity(z) / V *
       ∫ g, classMellinIntegrand(f, zeroCharacter(z), -1 / 2) g ∂classMeasure) :=
-    ((idelicExplicitFormula_summable_spectral τ _hτ f).of_norm.div_const V).congr fun z ↦ by ring
+    (hZ.of_norm.div_const V).congr fun z ↦ by ring
   let Pr : chartChars(τ) → ℂ → Prop := fun χ s ↦
     0 < MeromorphicOn.divisor (explicitFormulaCompletedHeckeL χ.val) univ s
   let e := Equiv.subtypeProdEquivSigmaSubtype Pr
@@ -15593,6 +15595,24 @@ theorem idelicExplicitFormula_pointwise (τ : ℝ≥0ˣ →ₜ* C[F])
   have hval := hsig.unique htot
   rw [hS.hasSum_iff, hval, Finset.sum_neg_distrib]
   ring
+
+/-- Paper: Theorem B.4.4.7, pp. 623–626. The pointwise idelic explicit formula: at every
+test, the multiplicity-weighted Mellin values at the completed Hecke zeros sum to the pole
+terms minus the archimedean and finite Connes–Weil principal values of the restricted tests. -/
+theorem idelicExplicitFormula_pointwise (τ : ℝ≥0ˣ →ₜ* C[F])
+    (_hτ : RightInverse τ (ideleClassNorm F)) (f : 𝒟(C[F]))
+    (testI : ∀ w : InfinitePlace F, 𝒟(w.Completionˣ))
+    (_hI : ∀ w u, (testI w).val u = f.val (infiniteClassMap(w) u))
+    (testF : ∀ v : Primes(F), 𝒟((v.adicCompletion F)ˣ))
+    (_hF : ∀ v u, (testF v).val u = f.val (finiteClassMap(v) u)) :
+    HasSum (fun z : chartZeros(τ) ↦ zeroMultiplicity(z) / (classVolume : ℂ) *
+        ∫ g, classMellinIntegrand(f, zeroCharacter(z), -1 / 2) g ∂classMeasure)
+      (((∫ g, f.val g * classWeight(g, -1 / 2) ∂classMeasure) +
+          (∫ g, f.val g * classWeight(g, 1 / 2) ∂classMeasure)) / (classVolume : ℂ) -
+        (∑ w, infiniteConnesWeilPrincipalValue w (testI w)) -
+        ∑' v, finiteWeilScale(v) * finiteConnesWeilPrincipalValue v 1 (testF v)) :=
+  idelicExplicitFormula_pointwise_of_summable τ _hτ f (idelicExplicitFormula_summable_spectral τ _hτ f)
+    testI _hI testF _hF
 
 /-- A bounded family of compactly supported tests has common compact support. If the
 supports escape an exhaustion, weighted evaluations are pointwise bounded but unbounded on the family. -/
@@ -15751,13 +15771,12 @@ theorem idelicExplicitFormula_hasSum_strongDual {ι : Type*}
   exact idelicExplicitFormula_hasSum_strongDual_of_compact
     (idelicExplicitFormula_hasSum_strongDual_compact (F := F)) T _hT
 
-/-- Paper: Theorem B.4.4.7, pp. 623–626. The sum over completed Hecke zeros
-equals the pole distributions minus the local principal value distributions.
-The zero and finite-place series converge in the strong dual of the test space.
-Deviation: A norm section indexes each quasi-character once, the signed formula
-counts zero multiplicity, and the archimedean pairing already uses canonical
-Haar normalization. -/
-theorem idelicExplicitFormula (τ : ℝ≥0ˣ →ₜ* C[F]) (_hτ : RightInverse τ (ideleClassNorm F)) :
+/-- Paper: Theorem B.4.4.7, pp. 623–626. Absolute spectral convergence at every
+test gives the distributional explicit formula and strong-dual convergence
+of the spectral and finite-place series. -/
+theorem idelicExplicitFormula_of_summable (τ : ℝ≥0ˣ →ₜ* C[F]) (_hτ : RightInverse τ (ideleClassNorm F))
+    (hZ : ∀ f : 𝒟(C[F]), Summable (fun z : chartZeros(τ) ↦ ‖zeroMultiplicity(z) *
+      ∫ g, classMellinIntegrand(f, zeroCharacter(z), -1 / 2) g ∂classMeasure‖)) :
     ∃ (spectral : chartZeros(τ) → StrongDual ℂ (𝒟(C[F])))
       (poles : StrongDual ℂ (𝒟(C[F])))
       (arch : InfinitePlace F → StrongDual ℂ (𝒟(C[F])))
@@ -15817,7 +15836,7 @@ theorem idelicExplicitFormula (τ : ℝ≥0ˣ →ₜ* C[F]) (_hτ : RightInverse
     show finite v f = 0
     rw [hfin, h0, mul_zero]
   have hsummable (f : 𝒟(C[F])) : Summable (fun z ↦ ‖spectral z f‖) := by
-    refine ((idelicExplicitFormula_summable_spectral τ _hτ f).mul_left
+    refine ((hZ f).mul_left
       ‖(classVolume : ℂ)⁻¹‖).congr fun z ↦ ?_
     rw [hspec, ← norm_mul]
     congr 1
@@ -15830,7 +15849,7 @@ theorem idelicExplicitFormula (τ : ℝ≥0ˣ →ₜ* C[F]) (_hτ : RightInverse
   have hTfeq : (∑' v, finite v) = Tf := hTfsum.tsum_eq
   have hTseq : Ts = poles - (∑ w, arch w) - (∑' v, finite v) := by
     refine ContinuousLinearMap.ext fun f ↦ ?_
-    have h := idelicExplicitFormula_pointwise τ _hτ f (fun w ↦ RI w f) (fun w u ↦ hRI w f u)
+    have h := idelicExplicitFormula_pointwise_of_summable τ _hτ f (hZ f) (fun w ↦ RI w f) (fun w u ↦ hRI w f u)
       (fun v ↦ RF v f) (fun v u ↦ hRF v f u)
     have h' : HasSum (fun z ↦ spectral z f) (((∫ g, f.val g * classWeight(g, -1 / 2) ∂classMeasure) +
           (∫ g, f.val g * classWeight(g, 1 / 2) ∂classMeasure)) / (classVolume : ℂ) -
@@ -15842,6 +15861,34 @@ theorem idelicExplicitFormula (τ : ℝ≥0ˣ →ₜ* C[F]) (_hτ : RightInverse
     rfl
   refine ⟨spectral, poles, arch, finite, hspec, hpoles, fun w f ↦ ⟨RI w f, hRI w f, rfl⟩,
     fun v f ↦ ⟨RF v f, hRF v f, rfl⟩, hsummable, hsupp, hTfsum.summable, hTseq ▸ hTssum⟩
+
+/-- Paper: Theorem B.4.4.7, pp. 623–626. The sum over completed Hecke zeros
+equals the pole distributions minus the local principal value distributions.
+The zero and finite-place series converge in the strong dual of the test space.
+Deviation: A norm section indexes each quasi-character once, the signed formula
+counts zero multiplicity, and the archimedean pairing already uses canonical
+Haar normalization. -/
+theorem idelicExplicitFormula (τ : ℝ≥0ˣ →ₜ* C[F]) (_hτ : RightInverse τ (ideleClassNorm F)) :
+    ∃ (spectral : chartZeros(τ) → StrongDual ℂ (𝒟(C[F])))
+      (poles : StrongDual ℂ (𝒟(C[F])))
+      (arch : InfinitePlace F → StrongDual ℂ (𝒟(C[F])))
+      (finite : Primes(F) → StrongDual ℂ (𝒟(C[F]))),
+      (∀ z f, spectral z f = zeroMultiplicity(z) / (classVolume : ℂ) *
+        ∫ g, classMellinIntegrand(f, zeroCharacter(z), -1 / 2) g ∂classMeasure) ∧
+      (∀ f, poles f =
+        ((∫ g, f.val g * classWeight(g, -1 / 2) ∂classMeasure) +
+          (∫ g, f.val g * classWeight(g, 1 / 2) ∂classMeasure)) / (classVolume : ℂ)) ∧
+      (∀ w f, ∃ test : 𝒟(w.Completionˣ),
+        (∀ u, test.val u = f.val (infiniteClassMap(w) u)) ∧
+        arch w f = infiniteConnesWeilPrincipalValue w test) ∧
+      (∀ v f, ∃ test : 𝒟((v.adicCompletion F)ˣ),
+        (∀ u, test.val u = f.val (finiteClassMap(v) u)) ∧
+        finite v f = finiteWeilScale(v) * finiteConnesWeilPrincipalValue v 1 test) ∧
+      (∀ f, Summable (fun z ↦ ‖spectral z f‖)) ∧
+      (∀ f, (Function.support (fun v ↦ finite v f)).Finite) ∧
+      Summable finite ∧
+      HasSum spectral (poles - (∑ w, arch w) - (∑' v, finite v)) :=
+  idelicExplicitFormula_of_summable τ _hτ (idelicExplicitFormula_summable_spectral τ _hτ)
 
 -- TODO(paper-gap): Discreteness in each component imposes no bound on
 -- the number of points in consecutive height intervals, even for G = ℝ₊ˣ.

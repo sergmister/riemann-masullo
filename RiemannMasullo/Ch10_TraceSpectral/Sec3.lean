@@ -2059,6 +2059,20 @@ private theorem spectralStripConvolution_jet_top
       exact (map_smul ℓ _ _).trans ((congrArg (φ.val g * ·) (hτ g)).trans (mul_assoc _ _ _).symm))
     _ = _ := (integral_mul_const _ _).trans (congrArg (· * f j u) hM.symm)
 
+/-- Paper: (10.3.1.17), p. 450. Evaluation at a retained zero is an eigenfunctional
+for the quotient convolution. The zeroth coordinate has no lower jet terms. -/
+theorem spectralStripConvolution_zeroJet
+    (χ : PontryaginDual C₁ → PontryaginDual C𝔽)
+    (f : J(χ) → StrongDual ℂ Q(a, hStrip(hα), hs₀(hs)))
+    (hj : ∀ j, D (f j) = (spectralStripJet_memLp χ hα hs₀(hs) j).toLp (raw(χ, j)))
+    (φ : BruhatCompactSupport C𝔽) (z : Z(χ, α)) (h : 0 < N(χ, α, s, z))
+    (u : Q(a, hStrip(hα), hs₀(hs))) :
+    let m : Fin (N(χ, α, s, z)) := ⟨0,h⟩
+    f (jet(z, m)) (spectralConvolution (F := F) a (hStrip(hα)) hs₀(hs) φ u) =
+      M(φ, χ z.val.1, shift(z.val.2.1, z.val.2.2)) * f (jet(z, m)) u :=
+  spectralStripConvolution_jet_top a hα hs χ f hj φ z ⟨0,h⟩ u
+    (fun k hk ↦ (Nat.not_lt_zero k.val hk).elim)
+
 /-- Paper: (10.3.1.17), p. 450, and Theorem 10.3.2.1(2), p. 454. In a basis realizing the strip jets, the
 convolution matrix has no coefficients between distinct zeros. Each diagonal coefficient
 is the Mellin value at the unshifted exponent of its zero. -/

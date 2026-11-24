@@ -1763,6 +1763,16 @@ private theorem schwartzBruhat_mem_comp_equiv {G H : Type*}
     exact schwartzBruhat_stage_comp_equiv e a p f
   exact hle hg
 
+/-- Composition with a topological group isomorphism preserves the Schwartz–Bruhat
+submodule. -/
+theorem schwartzBruhatSubmodule_comp_continuousMulEquiv {G H : Type*}
+    [CommGroup G] [CommGroup H] [TopologicalSpace G] [TopologicalSpace H]
+    [IsTopologicalGroup G] [IsTopologicalGroup H] [T2Space G] [T2Space H]
+    [LocallyCompactSpace G] [LocallyCompactSpace H]
+    (e : G ≃ₜ* H) {g : H → ℂ} (hg : g ∈ schwartzBruhatSubmodule H) :
+    g ∘ e ∈ schwartzBruhatSubmodule G :=
+  schwartzBruhat_mem_comp_equiv e hg
+
 /-- Pullback by a topological group isomorphism is continuous because its restriction
 to every elementary stage factors continuously through a stage. -/
 private theorem exists_schwartzBruhat_comp_equivCLM {G H : Type*}

@@ -1367,13 +1367,10 @@ theorem eta_test (f : BruhatCompactSupport Iₛ) (ξ : Hₛ) :
 
 end SLocalTraceEta
 
-/-- Paper: (12.4.1.21)–(12.4.1.22), p. 518. The additive Tamagawa Fourier transform
-of the translated, zero-extended S-idelic test is integrable.
-Deviation: Step III uses Fourier integration on p. 518. We state explicitly the
-absolute integrability required for the constant frequency symbol. -/
-private theorem sLocalTraceEta_fourier_integrable (f : BruhatCompactSupport Iₛ) (ξ : Hₛ) :
-    Integrable (fourierₛ (sLocalTraceEta f ξ)) νₛ := by
-  obtain ⟨η, hη⟩ := SLocalTraceEta.eta_test f ξ
+/-- Additive Schwartz–Bruhat tests are continuous and integrable for the S-local
+Tamagawa measure. -/
+theorem sLocalTraceTest_continuous_integrable (b : testₛ) :
+    Continuous (fun x : Aₛ ↦ testAt(b, x)) ∧ Integrable (fun x : Aₛ ↦ testAt(b, x)) νₛ := by
   let G := Multiplicative Aₛ
   let μ : Measure G := νₛ
   have hν : (νₛ).IsAddHaarMeasure := sLocalTrace_additiveHaar
@@ -1386,8 +1383,18 @@ private theorem sLocalTraceEta_fourier_integrable (f : BruhatCompactSupport Iₛ
     (((w : InfinitePlace F) → w.Completion) × ((v : S) → v.val.adicCompletion F)))
   let : LocallyCompactSpace G := inferInstanceAs (LocallyCompactSpace Aₛ)
   let : BorelSpace G := sAdeleRing_borelSpace (F := F) (S := S)
+  exact ⟨(schwartzBruhat_continuous b).comp continuous_ofAdd,
+    SchwartzBruhat.integrable μ b⟩
+
+/-- Paper: (12.4.1.21)–(12.4.1.22), p. 518. The additive Tamagawa Fourier transform
+of the translated, zero-extended S-idelic test is integrable.
+Deviation: Step III uses Fourier integration on p. 518. We state explicitly the
+absolute integrability required for the constant frequency symbol. -/
+private theorem sLocalTraceEta_fourier_integrable (f : BruhatCompactSupport Iₛ) (ξ : Hₛ) :
+    Integrable (fourierₛ (sLocalTraceEta f ξ)) νₛ := by
+  obtain ⟨η, hη⟩ := SLocalTraceEta.eta_test f ξ
   rw [← funext hη]
-  exact SchwartzBruhat.integrable μ (sAdeleSchwartzFourier η)
+  exact (sLocalTraceTest_continuous_integrable (sAdeleSchwartzFourier η)).2
 
 /-- Paper: (12.4.1.12)–(12.4.1.22), pp. 517–518. The skew diagonal of the
 composed kernel is the integral of the Fourier transform of the translated test,
@@ -1573,6 +1580,12 @@ private theorem sLocalTrace_nonunits_null :
     rw [Measure.prod_prod, Measure.pi_eval_preimage_null
       (fun v : S ↦ finiteLocalAdditiveTamagawaMeasure F v.val) (i := v) (hv v), mul_zero]
 
+private theorem sLocalTraceMeasureFactor_ne_zero :
+    (sLocalTraceMeasureFactor (F := F) S : ℂ) ≠ 0 := by
+  refine Complex.ofReal_ne_zero.mpr (Finset.prod_ne_zero_iff.mpr fun v _ ↦ ?_)
+  have hv : (1 : ℝ) < v.asIdeal.absNorm := by exact_mod_cast HeightOneSpectrum.one_lt_absNorm v
+  exact div_ne_zero (by linarith) (sub_pos.mpr hv).ne'
+
 /-- Paper: (12.4.1.22)–(12.4.1.23), p. 518. The change of variable w = xu by an S-idele
 scales additive Tamagawa measure by the S-idelic norm and the frequency band by the same
 factor. -/
@@ -1590,10 +1603,7 @@ private theorem sLocalTrace_integral_band_dilate (g : Aₛ → ℂ) (x : Iₛ) (
   have hfull : ∀ᵐ u ∂νₛ, u ∈ range (Units.val : Iₛ → Aₛ) :=
     measure_eq_zero_iff_ae_notMem.mp sLocalTrace_nonunits_null |>.mono fun _ h ↦ not_not.mp h
   let c := sLocalTraceMeasureFactor (F := F) S
-  have hc : (c : ℂ) ≠ 0 := by
-    refine Complex.ofReal_ne_zero.mpr (Finset.prod_ne_zero_iff.mpr fun v _ ↦ ?_)
-    have hv : (1 : ℝ) < v.asIdeal.absNorm := by exact_mod_cast HeightOneSpectrum.one_lt_absNorm v
-    exact div_ne_zero (by linarith) (sub_pos.mpr hv).ne'
+  have hc : (c : ℂ) ≠ 0 := sLocalTraceMeasureFactor_ne_zero
   have hx : (normS(x) : ℂ) ≠ 0 :=
     Complex.ofReal_ne_zero.mpr (NNReal.coe_pos.mpr (Units.zero_lt (sIdeleNorm F S x))).ne'
   -- The integral over a band of a function vanishing off the units, through the units.
@@ -1629,6 +1639,103 @@ private theorem sLocalTrace_integral_band_dilate (g : Aₛ → ℂ) (x : Iₛ) (
   apply mul_left_cancel₀ hc
   rw [← h1]
   ring
+
+/-- Paper: Theorem 12.4.1.1, pp. 515–518. Inverse dilation by an S-idele multiplies an
+additive Tamagawa integral by its S-idelic norm. -/
+theorem sLocalTrace_integral_inverse_dilation (p : Aₛ → ℂ) (u : Iₛ) :
+    (∫ x : Aₛ, p (u⁻¹.val * x) ∂νₛ) = (normS(u) : ℂ) * ∫ x, p x ∂νₛ := by
+  have : BorelSpace Iₛ := sIdeleGroup_borelSpace
+  have : (μₛ).IsHaarMeasure := sMultiplicativeTamagawaMeasure_isHaarMeasure
+  let unitLocus := Set.range (Units.val : Iₛ → Aₛ)
+  have hfull : ∀ᵐ x ∂νₛ, x ∈ unitLocus :=
+    (measure_eq_zero_iff_ae_notMem.mp sLocalTrace_nonunits_null).mono fun _ h ↦ not_not.mp h
+  let c := sLocalTraceMeasureFactor (F := F) S
+  have hc : (c : ℂ) ≠ 0 := sLocalTraceMeasureFactor_ne_zero
+  have hconvert (f : Aₛ → ℂ) :
+      (∫ t : Iₛ, (normS(t) : ℂ) * f t.val ∂μₛ) = (c : ℂ) * ∫ x, f x ∂νₛ := by
+    have h₁ := sLocalTrace_integral_units (unitLocus.indicator f) (fun x hx ↦ Set.indicator_of_notMem hx f)
+    have he (t : Iₛ) : unitLocus.indicator f t.val = f t.val := Set.indicator_of_mem (mem_range_self t) _
+    have ha : unitLocus.indicator f =ᵐ[νₛ] f := hfull.mono fun x hx ↦ Set.indicator_of_mem hx f
+    simpa only [he, integral_congr_ae ha] using h₁
+  have h := hconvert (fun x ↦ p (u⁻¹.val * x))
+  rw [← integral_mul_left_eq_self _ u] at h
+  have hit (t : Iₛ) : (normS(u * t) : ℂ) * p (u⁻¹.val * (u * t).val) =
+      (normS(u) : ℂ) * ((normS(t) : ℂ) * p t.val) := by
+    simp only [map_mul, Units.val_mul, ← mul_assoc, Units.inv_mul, one_mul,
+      NNReal.coe_mul, Complex.ofReal_mul]
+  simp only [hit, integral_const_mul, hconvert] at h
+  apply mul_left_cancel₀ hc
+  calc
+    _ = (normS(u) : ℂ) * ((c : ℂ) * ∫ x, p x ∂νₛ) := h.symm
+    _ = _ := by ring
+
+/-- Paper: (12.4.1.5)–(12.4.1.7), pp. 515–516. The scalar, half-density-normalized
+dilation acts on the two polar moments by the inverse and direct square-root Mellin
+integrals, respectively. The second coordinate is the additive integral of the output.
+Deviation: This computes the uncut operator. The cutoff and Paley–Wiener projections
+on p. 515 require a separate comparison. -/
+theorem sLocalTraceDilationKernel_polar_moments (f : BruhatCompactSupport Iₛ)
+    (b : Aₛ → ℂ) (hb : Continuous b) (hi : Integrable b νₛ) :
+    Integrable (sLocalTraceDilationKernel f b) νₛ ∧
+      (sLocalTraceDilationKernel f b 0, ∫ x, sLocalTraceDilationKernel f b x ∂νₛ) =
+      ((∫ g : Iₛ, f.val g / (Real.sqrt (normS(g)) : ℂ) ∂μₛ) * b 0,
+       (∫ g : Iₛ, f.val g * (Real.sqrt (normS(g)) : ℂ) ∂μₛ) * ∫ x, b x ∂νₛ) := by
+  have : BorelSpace Aₛ := sAdeleRing_borelSpace
+  have : BorelSpace Iₛ := sIdeleGroup_borelSpace
+  let (v : S) : ProperSpace (v.val.adicCompletion F) := properSpace_adicCompletion v.val
+  let (w : InfinitePlace F) : SecondCountableTopology w.Completion :=
+    (InfinitePlace.Completion.isometry_extensionEmbedding w).isEmbedding.secondCountableTopology
+  let : SecondCountableTopology Aₛ := inferInstanceAs (SecondCountableTopology
+    (((w : InfinitePlace F) → w.Completion) × ((v : S) → v.val.adicCompletion F)))
+  let : SecondCountableTopology Iₛ := (sIdeleGroup_description F S).1.secondCountableTopology
+  let : (μₛ).IsHaarMeasure := sMultiplicativeTamagawaMeasure_isHaarMeasure
+  let : (νₛ).IsAddHaarMeasure := sLocalTrace_additiveHaar
+  let : LocallyCompactSpace Aₛ := inferInstanceAs (LocallyCompactSpace
+    (((w : InfinitePlace F) → w.Completion) × ((v : S) → v.val.adicCompletion F)))
+  let n (g : Iₛ) := normS(g)
+  let w (g : Iₛ) := f.val g / (Real.sqrt (n g) : ℂ)
+  have hn : Continuous n := NNReal.continuous_coe.comp (Units.continuous_val.comp
+    (sLocalTrace_sIdeleNorm_continuous (F := F) (S := S)))
+  have hp (g : Iₛ) : 0 < n g := NNReal.coe_pos.mpr (Units.zero_lt _)
+  have hroot (g : Iₛ) : (Real.sqrt (n g) : ℂ) ≠ 0 :=
+    Complex.ofReal_ne_zero.mpr (Real.sqrt_pos.mpr (hp g)).ne'
+  have hc : Continuous w := (sLocalTraceDilationKernel_apply_zero_continuous
+    ((mem_bruhatSmoothSubmodule_iff _).mp f.property.1)).div
+      (Complex.continuous_ofReal.comp hn.sqrt) hroot
+  have hK : HasCompactSupport w := f.property.2.mono (fun x hx hzero ↦ hx (by simp [w, hzero]))
+  have hnorm (g : Iₛ) : (∫ x, ‖b (g⁻¹.val * x)‖ ∂νₛ) = n g * ∫ x, ‖b x‖ ∂νₛ := by
+    have h := sLocalTrace_integral_inverse_dilation (fun x ↦ (‖b x‖ : ℂ)) g
+    rw [integral_complex_ofReal, integral_complex_ofReal, ← Complex.ofReal_mul] at h
+    exact Complex.ofReal_injective h
+  let k (g : Iₛ) (x : Aₛ) := w g * b (g⁻¹.val * x)
+  have hkc : Continuous (Function.uncurry k) := (hc.comp continuous_fst).mul (hb.comp
+    ((Units.continuous_val.comp (continuous_inv.comp continuous_fst)).mul continuous_snd))
+  have hki : Integrable (Function.uncurry k) ((μₛ).prod νₛ) := by
+    refine (integrable_prod_iff hkc.aestronglyMeasurable).mpr ⟨.of_forall fun g ↦ ?_, ?_⟩
+    · have h := sLocalTrace_integrable_symbol_dilate b hi g⁻¹ (fun _ ↦ 1) measurable_const 1
+        (fun _ ↦ by simp)
+      exact (show Integrable (fun x ↦ b (g⁻¹.val * x)) νₛ by simpa only [one_mul] using h).const_mul (w g)
+    · have he (g : Iₛ) : (∫ x, ‖k g x‖ ∂νₛ) = ‖w g‖ * n g * ∫ x, ‖b x‖ ∂νₛ := by
+        simp only [k, norm_mul, integral_const_mul, hnorm, mul_assoc]
+      change Integrable (fun g ↦ ∫ x, ‖k g x‖ ∂νₛ) μₛ
+      simp_rw [he]
+      exact (((hc.norm.mul hn).integrable_of_hasCompactSupport
+        (hK.norm.mul_right : HasCompactSupport (fun g ↦ ‖w g‖ * n g))).mul_const _)
+  have hweight (g : Iₛ) : w g * (n g : ℂ) = f.val g * (Real.sqrt (n g) : ℂ) := by
+    have hr : (Real.sqrt (n g) : ℂ) ^ 2 = (n g : ℂ) := by
+      exact_mod_cast Real.sq_sqrt (hp g).le
+    change f.val g / _ * _ = _
+    rw [← hr]
+    field_simp [hroot g]
+  refine ⟨hki.integral_prod_right, Prod.ext ?_ ?_⟩
+  · simp only [sLocalTraceDilationKernel, mul_zero, integral_mul_const]
+  · change (∫ x, ∫ g, k g x ∂μₛ ∂νₛ) = _
+    rw [← integral_integral_swap hki]
+    have hinner (g : Iₛ) : (∫ x, k g x ∂νₛ) =
+        (f.val g * (Real.sqrt (n g) : ℂ)) * ∫ x, b x ∂νₛ := by
+      simp only [k, integral_const_mul, sLocalTrace_integral_inverse_dilation]
+      exact (mul_assoc _ _ _).symm.trans (congrArg (· * ∫ x, b x ∂νₛ) (hweight g))
+    simp only [hinner, integral_mul_const, n]
 
 /-- Additive Tamagawa measure pulled back to the S-ideles is s-finite. -/
 private theorem sLocalTrace_comap_sFinite :
