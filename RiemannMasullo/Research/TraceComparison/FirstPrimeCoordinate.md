@@ -10,7 +10,7 @@ Write $U_B$ for the ambient norm-closure of the half-twisted rational theta prof
 $$
  \|\ell|_{U_B}\|\asymp_{\alpha,s} B^{1/2-\alpha}(1+\log B)^{-s/2}\qquad (B\to\infty).
 $$
-**At $\alpha=1/2,\ s>1$, this row is bounded on the whole line. For the genuine singly unit-sieved family it measures exactly the real-origin value that the finite unit factor allows.** Both conclusions use a fixed prime. No unknown zero location is used.
+**At $\alpha=1/2,\ s>1$, this row is bounded on the whole line. For the genuine singly unit-sieved family it measures exactly the real-origin value that the finite unit factor allows.** Both conclusions use a fixed prime and the rational theta series.
 
 ## A bandlimited test with coordinate $\log 2$
 
@@ -42,7 +42,7 @@ For $1-2\alpha>0$ the first integral is asymptotic to $B^{1-2\alpha}(1+\log^2 B)
 
 ## What the finite unit factor does to the origin condition
 
-There are two legitimate real test families at a single unit-sieved prime. Denote by $C_{p,B}$ the closed span of the sieved profiles obtained from $f(0)=\widehat f(0)=0$. Denote by $D_{p,B}$ the closed span obtained from even $\widehat f(0)=0$ with the finite test $1_{\mathbb Z_p^\times}$ at $p$ and integer indicators elsewhere. That adelic test vanishes at the origin for *every* $f(0)$, since its finite unit indicator is zero there. Its total additive integral is a nonzero finite volume times $\widehat f(0)$.
+There are two legitimate real test families at a single unit-sieved prime. Denote by $C_{p,B}$ the closed span of the sieved profiles obtained from $f(0)=\widehat f(0)=0$. Denote by $D_{p,B}$ the closed span obtained from even $\widehat f(0)=0$ with the finite test $1_{\mathbb Z_p^\times}$ at $p$ and integer indicators elsewhere. That adelic test vanishes at the origin for *every* $f(0)$, since its finite unit indicator is zero there. Its additive Fourier value at zero is exactly $(1-p^{-1})\widehat f(0)$ in the rational normalization. At a positive-real, finite-unit idèle representative the literal mask selects precisely the nonzero integers prime to $p$. Pairing their signs and integrating over norm-one classes supplies the same factor $2V_{\mathbb Q}$ as in the original rational chart. [Adelic mask and polar values](RationalUnitSieve.lean)
 
 For the second family let $u_f(x)=\sum_{n\ge1}f(nx)$. Below the reciprocal band, Poisson gives $u_f(x)=-f(0)/2$. The half-twisted unit-sieved output is $2\sqrt{x}(u_f(x)-u_f(px))$, so the same boundary calculation yields
 $$
