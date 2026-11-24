@@ -17,12 +17,12 @@ namespace RiemannMasullo.StripNuclearity
 
 set_option quotPrecheck false
 local notation "Cℚ" => IdeleClassGroup (𝓞 ℚ) ℚ
-local instance : MeasurableSpace Cℚ := borel _
-local instance : BorelSpace Cℚ := ⟨rfl⟩
-local instance : T2Space Cℚ := (ideleGroup_quotient.{_, 0} ℚ).2.2.2.2.2.1
-local instance : LocallyCompactSpace Cℚ := (ideleGroup_quotient.{_, 0} ℚ).2.2.2.2.2.2.1
+local instance rationalSieveMeasurableSpace : MeasurableSpace Cℚ := borel _
+local instance rationalSieveBorelSpace : BorelSpace Cℚ := ⟨rfl⟩
+local instance rationalSieveT2Space : T2Space Cℚ := (ideleGroup_quotient.{_, 0} ℚ).2.2.2.2.2.1
+local instance rationalSieveLocallyCompactSpace : LocallyCompactSpace Cℚ := (ideleGroup_quotient.{_, 0} ℚ).2.2.2.2.2.2.1
 attribute [local instance] instIdeleClassSecondCountableSec1
-local instance : Measure.IsHaarMeasure (ideleClassTamagawaMeasure ℚ) := (ideleClassTamagawaMeasure_isWeil ℚ).1
+local instance rationalSieveIsHaarMeasure : Measure.IsHaarMeasure (ideleClassTamagawaMeasure ℚ) := (ideleClassTamagawaMeasure_isWeil ℚ).1
 
 local notation "μ" => ideleClassTamagawaMeasure ℚ
 local notation "m" => (⟨ideleClassNorm ℚ, (isProperMap_ideleClassNorm ℚ).continuous⟩ : Cℚ →ₜ* ℝ≥0ˣ)
