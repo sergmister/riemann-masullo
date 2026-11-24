@@ -4,6 +4,7 @@ public import RiemannMasullo.Ch10_TraceSpectral.Sec1
 public import RiemannMasullo.Ch03_IdelicZeta.RatEmptyFourier
 import RiemannMasullo.Ch11_ShellStructure.Sec1b
 import Mathlib.Analysis.Distribution.SchwartzSpace.CompactSupport
+import Mathlib.NumberTheory.NumberField.Discriminant.Different
 
 /-! # The rational radial generators of the geometric theta space -/
 
@@ -70,6 +71,31 @@ theorem ratStandardAdelicTest_polar_iff (f : 𝓢ℝ) :
   rw [ratStandardAdelicTest, sAdeleSchwartzToGlobal_mem_polarSubspace_iff, realEmptyTest_apply,
     sAdeleSchwartzFourier_ratEmpty_apply f (realEmptyTest f) (realEmptyTest_apply f)]
   change (f (realCoord 0) = 0 ∧ 𝓕 f (realCoord 0) = 0) ↔ _
+  rw [map_zero]
+
+/-- The rational integer tail is self-dual with unit mass. The global Schwartz transform
+of the standard insertion inserts the ordinary real Fourier transform with the same tail. -/
+theorem ratStandardAdelicTest_fourier (f : 𝓢ℝ) :
+    adeleSchwartzFourier (ratStandardAdelicTest f) = ratStandardAdelicTest (𝓕 f) := by
+  have hd : differentIdeal ℤ (𝓞 ℚ) = 1 := by
+    rw [Ideal.one_eq_top, ← Ideal.absNorm_eq_one_iff, NumberField.absNorm_differentIdeal ℚ (𝓞 ℚ),
+      Rat.numberField_discr]
+    rfl
+  apply adeleSchwartzFourier_sAdeleSchwartzToGlobal_of_different (F := ℚ) (S := ∅)
+  · intro v hv
+    rw [hd] at hv
+    exact (v.isPrime.ne_top (Ideal.isUnit_iff.mp (isUnit_of_dvd_one hv))).elim
+  · funext y
+    exact (sAdeleSchwartzFourier_ratEmpty_apply f (realEmptyTest f) (realEmptyTest_apply f) y).trans
+      (realEmptyTest_apply (𝓕 f) y).symm
+
+/-- The unmodified rational global Fourier value at the origin equals the real Fourier value. -/
+theorem ratStandardAdelicTest_fourier_zero (f : 𝓢ℝ) :
+    adeleSchwartzFourier (ratStandardAdelicTest f) (Multiplicative.ofAdd 0) = 𝓕 f 0 := by
+  classical
+  rw [ratStandardAdelicTest_fourier, ratStandardAdelicTest_apply]
+  rw [ite_eq_left (fun v ↦ (v.adicCompletionIntegers ℚ).zero_mem)]
+  change 𝓕 f (realCoord 0) = _
   rw [map_zero]
 
 private def ratThetaClass := ratTrivialHomogeneousTheta_quotient.choose

@@ -94,6 +94,12 @@ private theorem fourier_zero_translate (v : IdeleGroup (𝓞 F) F) (f : 𝓑) :
     ENNReal.coe_toReal]
   rfl
 
+/-- At additive frequency zero, unit translation multiplies the global Fourier value
+by the idelic norm of the translating unit. -/
+theorem adeleUnitTranslate_fourier_zero (v : IdeleGroup (𝓞 F) F) (f : 𝓑) :
+    p(schwartzBruhatUnitTranslate v f) = q(QuotientGroup.mk v) • p(f) :=
+  fourier_zero_translate v f
+
 /-- The dilation difference of a compensated, origin-vanishing theta is itself
 the half-twisted theta of a test with both polar values zero. -/
 theorem exists_polarFree_dilation_difference (f : 𝓑) (hf : f 𝟎ₐ = 0) (u : C𝔽) :
