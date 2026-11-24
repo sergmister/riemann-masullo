@@ -148,6 +148,25 @@ theorem divisorialStratum_not_preimage_ideleClass {T : Finset V} (hT : T.Nonempt
     exact h1
   exact hout hgmem
 
+private theorem clopen_indicator_not_ae_ideleClass (μ : Measure I𝔽) [μ.IsHaarMeasure]
+    {A : Set I𝔽} (ho : IsClopen A) (h1 : 1 ∈ A) {g : I𝔽} (hg : q𝔽 g = 1) (hout : g ∉ A) :
+    ¬ ∃ f : C𝔽 → ℂ, A.indicator (fun _ ↦ (1 : ℂ)) =ᵐ[μ] f ∘ q𝔽 := by
+  let W := A ∩ (fun x : I𝔽 ↦ g * x) ⁻¹' Aᶜ
+  have hw : IsOpen W := ho.isOpen.inter (ho.isClosed.isOpen_compl.preimage (continuous_const_mul g))
+  have hn : W.Nonempty := ⟨1, h1, by simpa only [mem_preimage, mul_one, mem_compl_iff] using hout⟩
+  rintro ⟨f, hf⟩
+  have hfg := (measurePreserving_mul_left μ g).quasiMeasurePreserving.ae hf
+  have hzero : Wᶜ ∈ ae μ := by
+    filter_upwards [hf, hfg] with x hx hxt
+    intro hmem
+    have hm : x ∈ A ∧ g * x ∉ A := hmem
+    change A.indicator (fun _ ↦ (1 : ℂ)) x = f (q𝔽 x) at hx
+    change A.indicator (fun _ ↦ (1 : ℂ)) (g * x) = f (q𝔽 (g * x)) at hxt
+    rw [indicator_of_mem hm.1] at hx
+    rw [indicator_of_notMem hm.2, map_mul, hg, one_mul] at hxt
+    exact one_ne_zero (hx.trans hxt.symm)
+  exact (hw.measure_pos μ hn).ne' (compl_mem_ae_iff.mp hzero)
+
 /-- Paper: (11.3.1.2), p. 492, and §12.3, p. 514. For every Haar measure on the
 idèles, a nonempty finite divisorial indicator fails to descend to an idèle-class
 function even almost everywhere.
@@ -157,23 +176,34 @@ theorem divisorialIndicator_not_ae_ideleClass (μ : Measure I𝔽) [μ.IsHaarMea
     {T : Finset V} (hT : T.Nonempty) :
     ¬ ∃ f : C𝔽 → ℂ, divisorialIndicator T =ᵐ[μ] f ∘ q𝔽 := by
   obtain ⟨g, hg, hout⟩ := exists_principal_outside_divisorialStratum hT
-  let A := divisorialStratum F T
-  let W := A ∩ (fun x : I𝔽 ↦ g * x) ⁻¹' Aᶜ
-  have ho := isClopen_divisorialStratum (F := F) T
-  have hw : IsOpen W := ho.isOpen.inter (ho.isClosed.isOpen_compl.preimage (continuous_const_mul g))
-  have h1 : (1 : I𝔽) ∈ A := fun _ _ ↦ map_one _
-  have hn : W.Nonempty := ⟨1, h1, by simpa only [mem_preimage, mul_one, mem_compl_iff] using hout⟩
-  rintro ⟨f, hf⟩
-  have hfg := (measurePreserving_mul_left μ g).quasiMeasurePreserving.ae hf
-  have hzero : Wᶜ ∈ ae μ := by
-    filter_upwards [hf, hfg] with x hx hxt
-    intro hmem
-    have hm : x ∈ A ∧ g * x ∉ A := hmem
-    change divisorialIndicator T x = f (q𝔽 x) at hx
-    change divisorialIndicator T (g * x) = f (q𝔽 (g * x)) at hxt
-    rw [divisorialIndicator_eq_indicator, indicator_of_mem hm.1] at hx
-    rw [divisorialIndicator_eq_indicator, indicator_of_notMem hm.2, map_mul, hg, one_mul] at hxt
-    exact one_ne_zero (hx.trans hxt.symm)
-  exact (hw.measure_pos μ hn).ne' (compl_mem_ae_iff.mp hzero)
+  rw [divisorialIndicator_eq_indicator]
+  exact clopen_indicator_not_ae_ideleClass μ (isClopen_divisorialStratum T)
+    (fun _ _ ↦ map_one _) hg hout
+
+/-- Paper: §11.3.2, p. 495, and §12.3, p. 514. For every finite S, the
+indicator of being an integral unit outside S also fails to descend almost
+everywhere to the idèle classes. A prime outside S yields a principal translate
+of this open subgroup disjoint from it. -/
+theorem sLocalDivisorialStratum_indicator_not_ae_ideleClass (μ : Measure I𝔽) [μ.IsHaarMeasure]
+    (S : Finset V) : ¬ ∃ f : C𝔽 → ℂ,
+      (sLocalDivisorialStratum F S).indicator (fun _ ↦ (1 : ℂ)) =ᵐ[μ] f ∘ q𝔽 := by
+  let : Infinite (HeightOneSpectrum (𝓞 ℚ)) := Infinite.of_injective
+    Rat.HeightOneSpectrum.primesEquiv.symm Rat.HeightOneSpectrum.primesEquiv.symm.injective
+  obtain ⟨p, hp⟩ := (S.image fun v ↦ v.under (𝓞 ℚ)).finite_toSet.infinite_compl.nonempty
+  have := p.isMaximal
+  obtain ⟨P, hP, hPp⟩ := Ideal.exists_maximal_ideal_liesOver_of_isIntegral (S := 𝓞 F) p.asIdeal
+  let v : V := ⟨P, hP.isPrime, Ideal.ne_bot_of_liesOver_of_ne_bot p.ne_bot P⟩
+  have hv : v ∉ S := fun hv ↦ hp (Finset.mem_image.mpr ⟨v, hv, HeightOneSpectrum.ext hPp.over.symm⟩)
+  obtain ⟨g, hg, hout⟩ := exists_principal_outside_divisorialStratum (Finset.singleton_nonempty v)
+  have hbad : g ∉ sLocalDivisorialStratum F S := by
+    intro h
+    exact hout (fun w hw ↦ (Finset.mem_singleton.mp hw) ▸ h v hv)
+  have hopen : IsOpen (sLocalDivisorialStratum F S) := by
+    rw [sLocalDivisorialStratum_eq_range_integralIdeleInsertion]
+    exact (integralIdeleInsertion_isOpenEmbedding F S).isOpen_range
+  have hclosed : IsClosed (sLocalDivisorialStratum F S) := by
+    rw [sLocalDivisorialStratum_eq_range_integralIdeleInsertion] at hopen ⊢
+    exact (integralIdeleInsertion F S).range.isClosed_of_isOpen hopen
+  exact clopen_indicator_not_ae_ideleClass μ ⟨hclosed,hopen⟩ (fun _ _ ↦ map_one _) hg hbad
 
 end RiemannMasullo
