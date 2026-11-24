@@ -1,6 +1,6 @@
 module
 public import RiemannMasullo.Research.TraceComparison.RationalThetaSpan
-import Mathlib.NumberTheory.LSeries.RiemannZeta
+import Mathlib.Topology.Algebra.InfiniteSum.NatInt
 
 /-! # The physical rational radial theta representative -/
 
@@ -142,5 +142,67 @@ theorem ratStandardAdelicTest_homogeneousTheta (f : 𝓢ℝ) (he : Function.Even
     rw [map_mul, show ideleClassNorm ℚ k.val = 1 from k.property, one_mul]
   simp only [ratStandardAdelicTest_theta f he hf, hr, PontryaginDual.one_apply,
     Circle.coe_one, mul_one, integral_const, Measure.real, Complex.real_smul]
+
+local notation "mℚ" => (⟨ideleClassNorm ℚ, (isProperMap_ideleClassNorm ℚ).continuous⟩ : Cℚ →ₜ* ℝ≥0ˣ)
+local notation "W(" α ", " β ", " s ")" =>
+  CompactIntervalSobolev (ideleClassTamagawaMeasure ℚ) (logIdeleClassNorm ℚ) α β s
+local notation "I(" a ", " h ", " s ")" =>
+  actionIsotype ((exists_globalThetaSobolevAction (F := ℚ) a h s).choose.comp (ideleClassNorm ℚ).ker.subtype) 1
+
+/-- The physical scalar profile lifted by the idelic norm, including the exact Haar factor
+from the Chapter 10 homogeneous average. At the central exponent the first factor is a square root. -/
+def ratRadialThetaProfile (a : ℝ) (f : 𝓢ℝ) (x : Cℚ) : ℂ :=
+  ((((ideleClassNorm ℚ x).val : ℝ) ^ a : ℝ) : ℂ) *
+    (mass * (2 * ∑' n : ℕ, f (((n : ℝ) + 1) * ((ideleClassNorm ℚ x).val : ℝ))))
+
+private theorem weighted_homogeneous_eq (a : ℝ) (f : 𝓢ℝ) (he : Function.Even (f : ℝ → ℂ))
+    (hf : f 0 = 0) :
+    modulationWeight mℚ a (homogeneousAdelicTheta 1 (ratStandardAdelicTest f)) =
+      ratRadialThetaProfile a f := by
+  funext x
+  change _ * homogeneousAdelicTheta 1 (ratStandardAdelicTest f) x = _
+  rw [ratStandardAdelicTest_homogeneousTheta f he hf x]
+  rfl
+
+private theorem closure_eq_range_of_dense_preimage {X Y : Type*} [TopologicalSpace X]
+    [TopologicalSpace Y] {i : X → Y} (hi : IsClosedEmbedding i) {s : Set Y}
+    (hs : s ⊆ Set.range i) (hd : Dense (i ⁻¹' s)) : closure s = Set.range i := by
+  refine Set.Subset.antisymm (closure_minimal hs hi.isClosed_range) ?_
+  rintro _ ⟨x, rfl⟩
+  exact (Set.mapsTo_preimage i s).closure hi.continuous (hd x)
+
+private theorem exists_geometric_profile (a : ℝ) {α β s : ℝ} (hI : α ≤ β) (hs : 0 ≤ s)
+    (f : 𝓢ℝ) (he : Function.Even (f : ℝ → ℂ)) (h0 : f 0 = 0) (hF : 𝓕 f 0 = 0) :
+    ∃ y : I(a, hI, hs), (y.val.val : Cℚ → ℂ) =ᵐ[ideleClassTamagawaMeasure ℚ] ratRadialThetaProfile a f := by
+  let j := (exists_globalHomogeneousThetaSobolevInclusion (F := ℚ) (a := a) hI hs 1).choose
+  let F : adelePolarSubspace ℚ := ⟨ratStandardAdelicTest f, (ratStandardAdelicTest_polar_iff f).2 ⟨h0, hF⟩⟩
+  let z : globalPolarFreeThetaSubmodule (F := ℚ) 1 :=
+    ⟨Submodule.Quotient.mk F.val, ⟨F.val, F.property, rfl⟩⟩
+  have hz : z.val = Submodule.Quotient.mk F.val := rfl
+  refine ⟨j z, ?_⟩
+  have hy := ((exists_globalHomogeneousThetaSobolevInclusion (F := ℚ) (a := a) hI hs 1).choose_spec.2.2 F z hz).2
+  exact hy.trans (Eventually.of_forall (congrFun (weighted_homogeneous_eq a f he h0)))
+
+/-- The closure of the actual scalar even bandlimited theta profiles in the full idelic
+Sobolev space is precisely its Chapter 10 geometric trivial angular component.
+Both polar moments vanish before passage to the closure, and the Fourier bound can grow. -/
+theorem ratRadialTheta_closure_eq_globalThetaSobolev_trivial (a : ℝ) {α β s : ℝ}
+    (hI : α ≤ β) (hs : 0 ≤ s) :
+    closure {w : W(α, β, s) | ∃ f : 𝓢ℝ, Function.Even (f : ℝ → ℂ) ∧
+      HasCompactSupport ((𝓕 f : 𝓢ℝ) : ℝ → ℂ) ∧ f 0 = 0 ∧ 𝓕 f 0 = 0 ∧
+      (w : Cℚ → ℂ) =ᵐ[ideleClassTamagawaMeasure ℚ] ratRadialThetaProfile a f} =
+        Set.range (fun y : I(a, hI, hs) ↦ y.val.val) := by
+  let incl (y : I(a, hI, hs)) : W(α, β, s) := y.val.val
+  have hH : IsClosed (globalThetaSobolev ℚ a hI hs : Set W(α, β, s)) :=
+    Submodule.isClosed_topologicalClosure _
+  have hi : IsClosedEmbedding incl :=
+    hH.isClosedEmbedding_subtypeVal.comp (isClosed_actionIsotype _ _).isClosedEmbedding_subtypeVal
+  apply closure_eq_range_of_dense_preimage hi
+  · rintro w ⟨f, he, _, h0, hF, hw⟩
+    obtain ⟨y, hy⟩ := exists_geometric_profile a hI hs f he h0 hF
+    exact ⟨y, Lp.ext ((withDensity_absolutelyContinuous _ _).ae_eq (hy.trans hw.symm))⟩
+  · apply (rat_even_bandlimited_globalThetaSobolev_dense a hI hs).mono
+    rintro y ⟨f, he, hb, h0, hF, hy⟩
+    exact ⟨f, he, hb, h0, hF, hy.trans (Eventually.of_forall (congrFun (weighted_homogeneous_eq a f he h0)))⟩
 
 end RiemannMasullo.StripNuclearity
