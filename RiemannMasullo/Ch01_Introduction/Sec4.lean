@@ -4865,39 +4865,272 @@ theorem introTraceApprox_rat_spectral_tendsto_atBot (h ρ : ℕ → ℝ → ℝ)
   change _ ≤ (A n).re at hAn
   linarith
 
+/-- A nonnegative smooth profile of mass one fits inside any sufficiently short positive interval. -/
+private theorem introTrace_positive_divisor_infinite_test {d : ℝ} (hd : 0 < d) :
+    ∃ (g : ℝ → ℝ) (f : SchwartzMap ℝ ℂ), Continuous g ∧ Integrable g ∧ (∀ x, 0 ≤ g x) ∧
+      (∫ x, g x) = 1 ∧ (∀ x, g x ≠ 0 → d/4 ≤ x ∧ x ≤ d) ∧
+      (∀ x, f x = (g x : ℂ)) ∧ ExponentialDecay f := by
+  let β : ContDiffBump (d/2) := ⟨d/8, d/4, by positivity, by linarith⟩
+  let g := β.normed volume
+  have hc : HasCompactSupport (fun x ↦ (g x : ℂ)) :=
+    (β.hasCompactSupport_normed (μ := volume)).comp_left Complex.ofReal_zero
+  let f := hc.toSchwartzMap (Complex.ofRealCLM.contDiff.comp β.contDiff_normed)
+  refine ⟨g, f, β.continuous_normed, β.integrable_normed, β.nonneg_normed,
+    β.integral_normed, ?_, fun _ ↦ rfl, ?_⟩
+  · intro x hx
+    have hball : x ∈ Metric.ball (d/2) β.rOut := (β.support_normed_eq (μ := volume)) ▸ hx
+    change dist x (d/2) < d/4 at hball
+    rw [Real.dist_eq, abs_lt] at hball
+    constructor <;> linarith
+  · have hz (j : ℕ) : iteratedDeriv j (f : ℝ → ℂ) =ᶠ[cocompact ℝ] 0 := by
+      have hfc : HasCompactSupport (f : ℝ → ℂ) := hc
+      have hh := hfc.iteratedFDeriv (𝕜 := ℝ) j
+      rw [hasCompactSupport_iff_eventuallyEq, coclosedCompact_eq_cocompact] at hh
+      filter_upwards [hh] with x hx
+      rw [iteratedDeriv_eq_iteratedFDeriv, hx]
+      rfl
+    exact ⟨fun j _ _ ↦ ((hz j).filter_mono atTop_le_cocompact).trans_isBigO
+      (Asymptotics.isBigO_zero _ _), fun j _ _ ↦ ((hz j).filter_mono atBot_le_cocompact).trans_isBigO
+      (Asymptotics.isBigO_zero _ _)⟩
+
+/-- A unit-mass positive profile supported in the unit interval has a uniform Mellin bound at each
+fixed point. -/
+private theorem introTrace_positive_divisor_infinite_mellin {g : ℝ → ℝ} {d : ℝ}
+    (hd : 0 < d) (hd1 : d ≤ 1) (hi : Integrable g) (hn : ∀ x, 0 ≤ g x)
+    (hm : (∫ x, g x) = 1) (hs : ∀ x, g x ≠ 0 → d/4 ≤ x ∧ x ≤ d)
+    (s : ℂ) : ‖mellin (fun t : ℝ ↦ (g (Real.log t) : ℂ)) s‖ ≤ Real.exp |s.re| := by
+  have he : mellin (fun t : ℝ ↦ (g (Real.log t) : ℂ)) s =
+      ∫ x : ℝ, (g x : ℂ) * Complex.exp (s * ↑x) := by
+    rw [mellin, ← integral_comp_exp]
+    refine integral_congr_ae (.of_forall fun x ↦ ?_)
+    simp only [Real.log_exp, Complex.real_smul, smul_eq_mul]
+    rw [Complex.cpow_def_of_ne_zero (by exact_mod_cast (Real.exp_pos x).ne'),
+      ← Complex.ofReal_log (Real.exp_pos x).le, Real.log_exp, Complex.ofReal_exp,
+      ← mul_assoc, ← Complex.exp_add, mul_comm]
+    congr 1
+    ring_nf
+  rw [he]
+  calc
+    _ ≤ ∫ x : ℝ, g x * Real.exp |s.re| := norm_integral_le_of_norm_le (hi.mul_const _) (.of_forall fun x ↦ by
+      rw [norm_mul, Complex.norm_real, Real.norm_eq_abs, abs_of_nonneg (hn x), Complex.norm_exp,
+        Complex.mul_re, Complex.ofReal_re, Complex.ofReal_im, mul_zero, sub_zero]
+      by_cases hx : g x = 0
+      · simp [hx]
+      apply mul_le_mul_of_nonneg_left _ (hn x)
+      apply Real.exp_le_exp.mpr
+      have h := hs x hx
+      calc s.re * x ≤ |s.re| * x := mul_le_mul_of_nonneg_right (le_abs_self _) (by linarith)
+           _ ≤ |s.re| * 1 := mul_le_mul_of_nonneg_left (by linarith) (abs_nonneg _)
+           _ = _ := mul_one _)
+    _ = _ := by rw [integral_mul_const, hm, one_mul]
+
+/-- A short positive profile samples the real part of the gamma kernel near its singularity. Its
+integral is at most `-C` once the support is sufficiently close to zero. -/
+private theorem introTrace_positive_divisor_infinite_arch {g : ℝ → ℝ} {d k C : ℝ}
+    (hd : 0 < d) (hk : 0 < k) (hC : 0 < C) (hdC : 2 * C * d ≤ k)
+    (hc : Continuous g) (hi : Integrable g) (hn : ∀ x, 0 ≤ g x)
+    (hm : (∫ x, g x) = 1) (hs : ∀ x, g x ≠ 0 → d/4 ≤ x ∧ x ≤ d)
+    (p q : ℂ) (hp : ∀ t : ℝ, 0 < t → k*t ≤ d → 1/2 ≤ (Complex.exp (-p * t)).re) :
+    (∫ t in Ioi (0 : ℝ), heckeArchimedeanDigammaKernel k p q (fun u ↦ (g u : ℂ)) t).re ≤ -C := by
+  let H (t : ℝ) : ℂ := -(k : ℂ) * (g (k*t) : ℂ) * Complex.exp (-p * t) / (1 - (Real.exp (-t) : ℂ))
+  have h0 {x : ℝ} (hx : x ≤ 0) : g x = 0 := by
+    by_contra h
+    linarith [(hs x h).1]
+  have hK : (∫ t in Ioi (0 : ℝ), heckeArchimedeanDigammaKernel k p q (fun u ↦ (g u : ℂ)) t) =
+      ∫ t in Ioi (0 : ℝ), H t := by
+    apply setIntegral_congr_fun measurableSet_Ioi
+    intro t ht
+    change 0 < t at ht
+    simp [heckeArchimedeanDigammaKernel, H, h0 le_rfl, h0 (neg_nonpos.mpr (mul_nonneg hk.le ht.le))]
+    ring
+  have hsupport : support H ⊆ Icc (d/4/k) (d/k) := by
+    intro t ht
+    have ht' : g (k*t) ≠ 0 := fun he ↦ ht (by simp [H, he])
+    obtain ⟨hl, hu⟩ := hs _ ht'
+    exact ⟨(div_le_iff₀ hk).mpr (by linarith), (le_div_iff₀ hk).mpr (by linarith)⟩
+  have hI : Integrable H := by
+    apply (integrableOn_iff_integrable_of_support_subset hsupport).mp
+    have hnum : Continuous (fun t : ℝ ↦ -(k : ℂ) * (g (k*t) : ℂ) * Complex.exp (-p * t)) := by fun_prop
+    have hden : Continuous (fun t : ℝ ↦ (1 : ℂ) - (Real.exp (-t) : ℂ)) := by fun_prop
+    have hnz (x : ℝ) (hx : x ∈ Icc (d/4/k) (d/k)) : (1 : ℂ) - (Real.exp (-x) : ℂ) ≠ 0 := by
+      have hpos : 0 < x := lt_of_lt_of_le (by positivity : 0 < d/4/k) hx.1
+      have hne : Real.exp (-x) < 1 := Real.exp_lt_one_iff.mpr (by linarith)
+      exact sub_ne_zero.mpr (by exact_mod_cast hne.ne.symm)
+    exact (hnum.continuousOn.div hden.continuousOn hnz).integrableOn_compact isCompact_Icc
+  have hgI : Integrable (fun t ↦ g (k*t)) := (integrable_comp_mul_left_iff g hk.ne').mpr hi
+  have hcmp : ∀ t ∈ Ioi (0:ℝ), (H t).re ≤ (-C*k)*g (k*t) := by
+    intro t ht
+    change 0 < t at ht
+    by_cases hgt : g (k*t) = 0
+    · simp [H, hgt]
+    have hu := (hs (k*t) hgt).2
+    have hden : 0 < 1 - Real.exp (-t) := sub_pos.mpr (Real.exp_lt_one_iff.mpr (by linarith))
+    have hdt : 1 - Real.exp (-t) ≤ t := by linarith [Real.add_one_le_exp (-t)]
+    have hCt : C * t ≤ 1/2 := by
+      apply (mul_le_mul_iff_left₀ hk).mp
+      nlinarith [mul_le_mul_of_nonneg_left hu (show 0 ≤ 2*C by positivity)]
+    have hweight : C ≤ (Complex.exp (-p * t)).re / (1 - Real.exp (-t)) := by
+      apply (le_div_iff₀ hden).mpr
+      exact ((mul_le_mul_of_nonneg_left hdt hC.le).trans hCt).trans (hp t ht hu)
+    have hre : (H t).re = -(k*g (k*t)) * ((Complex.exp (-p * t)).re / (1 - Real.exp (-t))) := by
+      change (-(k:ℂ) * (g (k*t) : ℂ) * _ / ((1:ℂ) - (Real.exp (-t) : ℂ))).re = _
+      rw [show (1:ℂ) - (Real.exp (-t) : ℂ) = ((1 - Real.exp (-t) : ℝ) : ℂ) by push_cast; rfl,
+        Complex.div_ofReal_re]
+      simp [Complex.mul_re, Complex.mul_im]
+      ring
+    rw [hre]
+    nlinarith [mul_le_mul_of_nonneg_left hweight (mul_nonneg hk.le (hn (k*t)))]
+  have hmass : (∫ t in Ioi (0 : ℝ), g (k*t)) = k⁻¹ := by
+    rw [integral_comp_mul_left_Ioi g 0 hk, mul_zero, setIntegral_eq_integral_of_forall_compl_eq_zero
+        (fun x hx ↦ h0 (le_of_not_gt hx)), hm, smul_eq_mul, mul_one]
+  have hRe : (∫ t in Ioi (0 : ℝ), H t).re = ∫ t in Ioi (0 : ℝ), (H t).re :=
+    (integral_re (hI.integrableOn (s := Ioi (0 : ℝ)))).symm
+  rw [hK, hRe]
+  calc
+    _ ≤ ∫ t in Ioi (0 : ℝ), (-C*k)*g (k*t) :=
+      setIntegral_mono_on hI.integrableOn.re (hgI.const_mul _).integrableOn measurableSet_Ioi hcmp
+    _ = -C := by rw [integral_const_mul, hmass]; field_simp
+
+
+/-- A completed Hecke function has at most two poles, so finitely many positive orders force a
+finite signed divisor. -/
+private theorem introTrace_positive_divisor_infinite_support (χ : U𝔽)
+    (h : {z : ℂ | 0 < MeromorphicOn.divisor (continuedCompletedHeckeL χ) univ z}.Finite) :
+    ∃ S : Finset ℂ, ∀ z ∉ S, MeromorphicOn.divisor (continuedCompletedHeckeL χ) univ z = 0 := by
+  classical
+  let L := continuedCompletedHeckeL χ
+  have hL := continuedCompletedHeckeL_spec χ
+  have hp : ∃ P : Finset ℂ, ∀ z ∉ P, AnalyticAt ℂ L z := by
+    by_cases hχ : χ.toMonoidHom.comp (ideleClassNorm F).ker.subtype = 1
+    · obtain ⟨t, ⟨-, -, -, han⟩, -⟩ := completedHeckeL_continuation_simplePoles χ L hL.1 hL.2 hχ
+      exact ⟨{Complex.I * (t : ℂ), 1 + Complex.I * (t : ℂ)}, fun z hz ↦ han z (by simpa using hz)⟩
+    · exact ⟨∅, fun z _ ↦ (completedHeckeL_continuation_entire χ L hL.1 hL.2 hχ).analyticAt z⟩
+  obtain ⟨P, hP⟩ := hp
+  refine ⟨P ∪ h.toFinset, fun z hz ↦ ?_⟩
+  have hn := hP z (fun h ↦ hz (Finset.mem_union_left _ h))
+  have hz' : ¬0 < MeromorphicOn.divisor L univ z := fun hp ↦ hz
+    (Finset.mem_union_right _ (h.mem_toFinset.mpr hp))
+  apply le_antisymm (le_of_not_gt hz')
+  rw [MeromorphicOn.divisor_apply hL.1.meromorphicOn (mem_univ z)]
+  have ht := hn.meromorphicOrderAt_nonneg
+  change 0 ≤ (meromorphicOrderAt L z).untop₀
+  generalize meromorphicOrderAt L z = o at ht ⊢
+  cases o with
+  | top => simp
+  | coe n => simpa using ht
+
+/-- Apply the one-character explicit formula of Theorem B.4.2.2, p. 616, to a profile below the
+first prime-power logarithm. The prime and conductor terms vanish. Each infinite place then
+contributes less than a uniform lower bound for any finite signed divisor. -/
+private theorem introTrace_positive_divisor_infinite_from_digamma (χ : U𝔽) :
+    Infinite {z : ℂ // 0 < MeromorphicOn.divisor (continuedCompletedHeckeL χ) univ z} := by
+  classical
+  let L := continuedCompletedHeckeL χ
+  let m := MeromorphicOn.divisor L univ
+  by_contra hinf
+  have : Finite {z : ℂ // 0 < m z} := not_infinite_iff_finite.mp hinf
+  obtain ⟨S, hS⟩ := introTrace_positive_divisor_infinite_support χ (Set.toFinite _)
+  let M := ∑ z ∈ S, ‖(m z : ℂ)‖ * Real.exp |(z - 1/2).re|
+  let C := M + 1
+  have hM : 0 ≤ M := Finset.sum_nonneg fun _ _ ↦ mul_nonneg (norm_nonneg _) (Real.exp_pos _).le
+  have hC : 0 < C := by dsimp [C]; linarith
+  let k (w : InfinitePlace F) : ℝ := if w.IsReal then 1/2 else 1
+  let p (w : InfinitePlace F) : ℂ := if hw : w.IsReal then
+    let e := (realHeckeCharacter_parameters χ w hw).exists.choose
+    (1/2 + e.1 + e.2.val)/2
+    else
+    let e := (complexHeckeCharacter_parameters χ w (InfinitePlace.not_isReal_iff_isComplex.mp hw)).exists.choose
+    1/2 + e.1 + (e.2.natAbs : ℂ)/2
+  let q (w : InfinitePlace F) : ℂ := if hw : w.IsReal then
+    let e := (realHeckeCharacter_parameters χ w hw).exists.choose
+    (1/2 - e.1 + e.2.val)/2
+    else
+    let e := (complexHeckeCharacter_parameters χ w (InfinitePlace.not_isReal_iff_isComplex.mp hw)).exists.choose
+    1/2 - e.1 + (e.2.natAbs : ℂ)/2
+  have hk (w) : 1/2 ≤ k w := by dsimp [k]; split_ifs <;> norm_num
+  have hev : ∀ᶠ t : ℝ in 𝓝 0, ∀ w, 1/2 < (Complex.exp (-(p w) * t)).re := by
+    apply eventually_all.mpr
+    intro w
+    have hcont : Continuous (fun t : ℝ ↦ (Complex.exp (-(p w) * t)).re) := by fun_prop
+    exact continuousAt_const.eventually_lt (hcont.continuousAt (x := 0)) (by norm_num)
+  obtain ⟨e, he, hew⟩ := Metric.eventually_nhds_iff.mp hev
+  let d := min (e/4) (min (1/(8*C)) (min (Real.log 2 / 2) (1/2)))
+  have hlog : 0 < Real.log 2 := Real.log_pos (by norm_num)
+  have hd : 0 < d := by dsimp [d]; positivity
+  have hde : d ≤ e/4 := min_le_left _ _
+  have hdC : d ≤ 1/(8*C) := (min_le_right _ _).trans (min_le_left _ _)
+  have hds : d ≤ min (Real.log 2/2) (1/2) := (min_le_right _ _).trans (min_le_right _ _)
+  have hdlog : d < Real.log 2 := by linarith [hds.trans (min_le_left _ _)]
+  have hd1 : d ≤ 1 := by linarith [hds.trans (min_le_right _ _)]
+  obtain ⟨g, f, hc, hi, hn, hm, hs, hf, hexf⟩ := introTrace_positive_divisor_infinite_test hd
+  have hfg : (f : ℝ → ℂ) = fun x ↦ (g x : ℂ) := funext hf
+  have hvan {x : ℝ} (hx : x ≤ 0 ∨ d < x) : f x = 0 := by
+    rw [hf, Complex.ofReal_eq_zero]
+    by_contra h
+    rcases hx with h₁ | h₁ <;> linarith [(hs _ h).1, (hs _ h).2]
+  have hz := hvan (x := 0) (Or.inl le_rfl)
+  have hpr (v : HeightOneSpectrum (𝓞 F)) (n : ℕ) :
+      f (((n + 1 : ℕ) : ℝ) * Real.log (v.asIdeal.absNorm : ℝ)) = 0 ∧
+      f (-(((n + 1 : ℕ) : ℝ) * Real.log (v.asIdeal.absNorm : ℝ))) = 0 := by
+    have hv : (2 : ℝ) ≤ v.asIdeal.absNorm := by exact_mod_cast NumberField.HeightOneSpectrum.one_lt_absNorm v
+    have hℓ := Real.log_le_log (by norm_num : (0:ℝ)<2) hv
+    have hn₁ : (1 : ℝ) ≤ (n+1:ℕ) := by exact_mod_cast Nat.succ_pos n
+    have hx : d < ((n + 1 : ℕ) : ℝ) * Real.log (v.asIdeal.absNorm : ℝ) := calc
+      _ < Real.log 2 := hdlog
+      _ ≤ _ := hℓ.trans (le_mul_of_one_le_left (by linarith) hn₁)
+    exact ⟨hvan (Or.inr hx), hvan (Or.inl (by linarith))⟩
+  let A (w : InfinitePlace F) := ∫ t in Ioi (0:ℝ), heckeArchimedeanDigammaKernel (k w) (p w) (q w) f t
+  have hA (w : InfinitePlace F) : (A w).re ≤ -C := by
+    dsimp only [A]
+    rw [hfg]
+    refine introTrace_positive_divisor_infinite_arch hd (lt_of_lt_of_le (by norm_num) (hk w))
+      hC ?_ hc hi hn hm hs _ _ (fun t ht hu ↦ ?_)
+    · have h := (le_div_iff₀ (by positivity : 0 < 8*C)).mp hdC
+      linarith [hk w]
+    · apply (hew (show dist t 0 < e from ?_) w).le
+      rw [Real.dist_eq, sub_zero, abs_of_pos ht]
+      nlinarith [mul_le_mul_of_nonneg_right (hk w) ht.le]
+  have hL := continuedCompletedHeckeL_spec χ
+  have form := (hasSum_heckeExplicitFormula χ f hexf L hL.1 hL.2).tsum_eq
+  have hpSum : ∑' j : HeightOneSpectrum (𝓞 F) × ℕ,
+      (if (ideleClassNormTwist χ 0).IsUnramifiedAt j.1 then
+        let x := ((j.2 + 1 : ℕ) : ℝ) * Real.log (j.1.asIdeal.absNorm : ℝ)
+        ((Real.log (j.1.asIdeal.absNorm : ℝ) * Real.exp (-x/2) : ℝ) : ℂ) *
+          (((ideleClassNormTwist χ 0).localValue j.1) ^ (j.2 + 1) * f x +
+           ((ideleClassNormTwist χ⁻¹ 0).localValue j.1) ^ (j.2 + 1) * f (-x))
+       else 0) = 0 := by
+    rw [tsum_congr (g := fun _ ↦ (0 : ℂ)) ?_, tsum_zero]
+    rintro ⟨v,n⟩
+    simp only [(hpr v n).1, (hpr v n).2, mul_zero, add_zero, ite_self]
+  rw [hpSum, hz, mul_zero, sub_zero, zero_add] at form
+  have hid : (∑ z ∈ S, (m z : ℂ) * mellin (fun t : ℝ ↦ f (Real.log t)) (z-1/2)) = ∑ w, A w := by
+    rw [tsum_eq_sum (s := S) (fun z hz ↦ by rw [hS z hz, Int.cast_zero, zero_mul])] at form
+    refine form.trans (Finset.sum_congr rfl fun w _ ↦ ?_)
+    by_cases hw : w.IsReal <;> simp [hw, A, k, p, q]
+  have hb : ‖∑ w, A w‖ ≤ M := by
+    rw [← hid]
+    refine (norm_sum_le _ _).trans (Finset.sum_le_sum fun z _ ↦ ?_)
+    rw [norm_mul, hfg]
+    exact mul_le_mul_of_nonneg_left (introTrace_positive_divisor_infinite_mellin hd hd1 hi hn hm hs _) (norm_nonneg _)
+  have hreal : (∑ w, A w).re ≤ -C := by
+    rw [Complex.re_sum]
+    calc
+      _ ≤ ∑ _w : InfinitePlace F, -C := Finset.sum_le_sum fun w _ ↦ hA w
+      _ = (Fintype.card (InfinitePlace F) : ℝ) * (-C) := by simp
+      _ ≤ -C := by
+        have hcard : (1 : ℝ) ≤ Fintype.card (InfinitePlace F) := by exact_mod_cast Fintype.card_pos
+        nlinarith
+  have hh := (abs_le.mp ((Complex.abs_re_le_norm (∑ w, A w)).trans hb)).1
+  dsimp [C] at hreal
+  linarith
+
 /-- Paper: §1.4.3, p. 29. The completed L-function of the trivial rational character
 has infinitely many distinct positive-divisor zeros. Otherwise its smoothed spectral
 sum in the unit window would have a finite limit at parameter two, since each
 individual Mellin moment converges there. -/
 theorem introTrace_rat_positive_divisor_infinite :
     Infinite {z : ℂ // 0 < MeromorphicOn.divisor (continuedCompletedHeckeL (F := ℚ) 1) univ z} := by
-  classical
-  let m := MeromorphicOn.divisor (continuedCompletedHeckeL (F := ℚ) 1) univ
-  let Z := {z : ℂ // 0 < m z ∧ |z.re - 1 / 2| < (1 : ℝ)}
-  by_contra hn
-  let : Finite {z : ℂ // 0 < m z} := not_infinite_iff_finite.mp hn
-  let i (r : Z) : {z : ℂ // 0 < m z} := ⟨r.val, r.property.1⟩
-  let : Finite Z := Finite.of_injective i fun r s h ↦
-    Subtype.ext (congrArg (fun z : {z : ℂ // 0 < m z} ↦ z.val) h)
-  let : Fintype Z := Fintype.ofFinite Z
-  obtain ⟨h, ρ, hA⟩ := exists_introTraceApproximation
-  let f (n : ℕ) := introTraceApprox (h n) (ρ n) 2
-  let s (r : Z) := r.val - 1 / 2
-  have hlim (r : Z) : Tendsto (fun n ↦ (m r.val : ℂ) * introTraceMellin (f n) (s r)) atTop
-      (𝓝 ((m r.val : ℂ) * introTraceMellin (introTracePower 2) (s r))) := by
-    apply Filter.Tendsto.const_mul
-    apply (introTraceApprox_mellin_tendsto h ρ hA (s r)).tendsto_at
-    change (s r).re < (2 : ℂ).re
-    have hs := (abs_lt.mp r.property.2).2
-    dsimp [s]
-    norm_num
-    linarith
-  have hsum := tendsto_finsetSum Finset.univ (fun r _ ↦ hlim r)
-  let q := ∑ r : Z, (m r.val : ℂ) * introTraceMellin (introTracePower 2) (s r)
-  apply not_tendsto_nhds_of_tendsto_atBot (introTraceApprox_rat_spectral_tendsto_atBot h ρ hA) q.re
-  have hspec : Tendsto (fun n ↦ introTraceSpectralSum (F := ℚ) 1 (f n) 1) atTop (𝓝 q) := by
-    simpa only [introTraceSpectralSum, tsum_fintype] using hsum
-  exact Complex.continuous_re.continuousAt.tendsto.comp hspec
+  exact introTrace_positive_divisor_infinite_from_digamma (F := ℚ) 1
 
 /-- Paper: §1.4.4, p. 29. The negative prime-power norms lie below one,
 where every cutoff test vanishes. -/
@@ -7983,34 +8216,7 @@ many distinct positive-order zeros of its completed L-function. Finiteness would
 make the spectral sum a finite sum of convergent Mellin moments. -/
 theorem introTrace_positive_divisor_infinite (χ : U𝔽) :
     Infinite {z : ℂ // 0 < MeromorphicOn.divisor (continuedCompletedHeckeL (F := F) χ) univ z} := by
-  classical
-  let m := MeromorphicOn.divisor (continuedCompletedHeckeL (F := F) χ) univ
-  let Z := {z : ℂ // 0 < m z ∧ |z.re - 1 / 2| < (1 : ℝ)}
-  by_contra hn
-  let : Finite {z : ℂ // 0 < m z} := not_infinite_iff_finite.mp hn
-  let i (r : Z) : {z : ℂ // 0 < m z} := ⟨r.val, r.property.1⟩
-  let : Finite Z := Finite.of_injective i fun r s h ↦
-    Subtype.ext (congrArg (fun z : {z : ℂ // 0 < m z} ↦ z.val) h)
-  let : Fintype Z := Fintype.ofFinite Z
-  obtain ⟨h, ρ, hA⟩ := exists_introTraceApproximation
-  let f (n : ℕ) := introTraceApprox (h n) (ρ n) 2
-  let s (r : Z) := r.val - 1 / 2
-  have hlim (r : Z) : Tendsto (fun n ↦ (m r.val : ℂ) * introTraceMellin (f n) (s r)) atTop
-      (𝓝 ((m r.val : ℂ) * introTraceMellin (introTracePower 2) (s r))) := by
-    apply Filter.Tendsto.const_mul
-    apply (introTraceApprox_mellin_tendsto h ρ hA (s r)).tendsto_at
-    change (s r).re < (2 : ℂ).re
-    have hs := (abs_lt.mp r.property.2).2
-    dsimp [s]
-    norm_num
-    linarith
-  have hsum := tendsto_finsetSum Finset.univ (fun r _ ↦ hlim r)
-  let q := ∑ r : Z, (m r.val : ℂ) * introTraceMellin (introTracePower 2) (s r)
-  apply not_tendsto_nhds_of_tendsto_atBot (introTraceApprox_spectral_tendsto_atBot χ h ρ hA) q.re
-  have hspec : Tendsto (fun n ↦ introTraceSpectralSum (F := F) χ (f n) 1) atTop (𝓝 q) := by
-    simpa only [introTraceSpectralSum, tsum_fintype] using hsum
-  exact Complex.continuous_re.continuousAt.tendsto.comp hspec
-
+  exact introTrace_positive_divisor_infinite_from_digamma χ
 
 /-- Paper: §1.4.5, p. 30. The completed functional equation reflects the
 zero-free region for the inverse character to the left of one half for the

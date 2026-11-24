@@ -2,8 +2,11 @@ module
 
 public import RiemannMasullo.Ch10_TraceSpectral.Sec4b
 public import RiemannMasullo.Ch04_PeriodicSchauderBases.Sec6
+public import Mathlib.NumberTheory.LSeries.DirichletContinuation
 import RiemannMasullo.Ch10_TraceSpectral.Sec1
 import RiemannMasullo.Ch13_ZerosHecke.Targets
+import RiemannMasullo.Ch13_ZerosHecke.RationalExteriorZeros
+import Mathlib.Topology.ContinuousMap.SecondCountableSpace
 import RiemannMasullo.External.ZetaLab.HardyFirstZero.FirstZero
 
 import all RiemannMasullo.Ch03_IdelicZeta.Sec2
@@ -621,14 +624,259 @@ def Printed.spectralLineJet_cofinite_iff_coordinates : Prop :=
           Tendsto i atTop cofinite ↔
             Tendsto (fun n ↦ ((i n).val.1, (i n).val.2.1)) atTop atTop
 
+section CofiniteCoordinates
+
+open IsDedekindDomain
+
+local notation "K[" F "]" => (ideleClassNorm F).ker
+local notation "point(" a ", " t ")" => (((a : ℝ) : ℂ) + ((t : ℝ) : ℂ) * Complex.I)
+local notation "ord(" χ ", " z ")" => meromorphicOrderAt (continuedCompletedHeckeL χ) z
+local notation "Z(" χ ", " a ")" => {t : ℝ // 0 < ord(χ, point(a, t))}
+local notation "J(" χ ", " ω ", " t ", " a ", " s ")" =>
+  {i : ℕ × ℕ × ℕ // i.2.2 < min (ord((χ) ((ω) i.1), point(a, ((t) i.1 i.2.1).val))).untop₀.toNat
+    ⌊(s - 1) / 2 + 1⌋₊}
+
+private theorem positiveOrder {F : Type} [Field F] [NumberField F] (χ : PontryaginDual C[F])
+    {z : ℂ} (hz : 0 < ord(χ, z)) : 0 < (ord(χ, z)).untop₀ := by
+  obtain ⟨hL, heq⟩ := continuedCompletedHeckeL_spec χ
+  have htwo : ord(χ, (2 : ℂ)) ≠ ⊤ := by
+    intro h
+    have hp : 0 < ord(χ, (2 : ℂ)) := h ▸ WithTop.coe_lt_top (0 : ℤ)
+    have hb := completedHeckeL_continuation_zeros χ _ hL heq (by norm_num : 0 < (2 : ℂ).re) hp
+    norm_num at hb
+  have hne := hL.meromorphicOn.meromorphicOrderAt_ne_top_of_isPreconnected
+    isPreconnected_univ (mem_univ _) (mem_univ z) htwo
+  apply WithTop.coe_lt_coe.mp
+  rwa [WithTop.coe_untop₀_of_ne_top hne]
+
+private theorem enumeration_contradicts (F : Type) [Field F] [NumberField F] (a : ℝ) (ha : 0 < a)
+    (χ : PontryaginDual K[F] → PontryaginDual C[F]) (hχ : IsSpectralBasepointChoice χ)
+    (ω : ℕ ≃ PontryaginDual K[F]) (t : ∀ k, ℕ ≃ Z(χ (ω k), a))
+    (ht : ∀ k, Monotone (fun j ↦ |(t k j).val|)) :
+    ¬ Printed.spectralLineJet_cofinite_iff_coordinates := by
+  intro hall
+  let i (n : ℕ) : J(χ, ω, t, a, (4 : ℝ)) := ⟨(0,n,0), lt_min
+    (by have h := positiveOrder (χ (ω 0)) (t 0 n).property; dsimp; omega)
+    (Nat.floor_pos.mpr (by norm_num))⟩
+  have hi : Injective i := fun _ _ h ↦ congrArg (fun j ↦ j.val.2.1) h
+  have hc : Tendsto i atTop cofinite := Nat.cofinite_eq_atTop ▸ hi.tendsto_cofinite
+  have hp := (hall F a 4 ha (by norm_num) χ hχ ω t ht i).mp hc
+  obtain ⟨n, hn⟩ := (hp.eventually_ge_atTop (1, 0)).exists
+  exact Nat.not_succ_le_zero 0 hn.1
+
+private theorem bounded_zeros {F : Type} [Field F] [NumberField F] (χ : PontryaginDual C[F])
+    (a b : ℝ) : {t : Z(χ, a) | |t.val| ≤ b}.Finite := by
+  let p (t : ℝ) := point(a, t)
+  let K := p '' Icc (-b) b
+  have hK : IsCompact K := isCompact_Icc.image (by fun_prop : Continuous p)
+  let D := MeromorphicOn.divisor (continuedCompletedHeckeL χ) K
+  have hf := D.finiteSupport hK
+  let f (t : Z(χ, a)) := p t.val
+  have hi : Injective f := by
+    intro x y h
+    apply Subtype.ext
+    simpa [f, p] using congrArg Complex.im h
+  apply (hf.preimage hi.injOn).subset
+  intro t ht
+  change D (p t.val) ≠ 0
+  have hM : MeromorphicOn (continuedCompletedHeckeL χ) K :=
+    fun z _ ↦ (continuedCompletedHeckeL_spec χ).1.meromorphicOn z (mem_univ _)
+  have hmem : p t.val ∈ K := ⟨t.val, abs_le.mp ht, rfl⟩
+  change MeromorphicOn.divisor _ K (p t.val) ≠ 0
+  rw [MeromorphicOn.divisor_apply hM hmem]
+  exact (positiveOrder _ t.property).ne'
+
+private theorem enumerate_zeros {F : Type} [Field F] [NumberField F] (χ : PontryaginDual C[F])
+    (a : ℝ) [Infinite Z(χ, a)] : ∃ t : ℕ ≃ Z(χ, a), Monotone (fun j ↦ |(t j).val|) := by
+  classical
+  let key (x : Z(χ, a)) := toLex (|x.val|, x.val)
+  let pred (x : Z(χ, a)) := {y | key y < key x}
+  have hp (x) : (pred x).Finite := (bounded_zeros χ a |x.val|).subset
+    fun y hy ↦ Prod.Lex.monotone_fst (key y) (key x) (le_of_lt hy)
+  let rank (x : Z(χ, a)) := (pred x).ncard
+  have hlt {x y} (h : key x < key y) : rank x < rank y := by
+    refine Set.ncard_lt_ncard (ssubset_iff_subset_ne.mpr ⟨fun _ hz ↦ lt_trans hz h, ?_⟩) (hp y)
+    intro he
+    have : x ∈ pred x := he ▸ (show x ∈ pred y from h)
+    exact (lt_irrefl (key x)) this
+  have hinj : Injective rank := by
+    intro x y h
+    rcases lt_trichotomy (key x) (key y) with hxy | he | hyx
+    · exact False.elim ((hlt hxy).ne h)
+    · exact Subtype.ext (congrArg (fun k ↦ (ofLex k).2) he)
+    · exact False.elim ((hlt hyx).ne h.symm)
+  let e := Equiv.ofInjective rank hinj
+  let : Infinite (range rank) := Infinite.of_injective e e.injective
+  let o := Nat.Subtype.orderIsoOfNat (range rank)
+  let t := o.toEquiv.trans e.symm
+  refine ⟨t, fun i j hij ↦ ?_⟩
+  have hr (i) : rank (t i) = (o i).val := congrArg Subtype.val (e.apply_symm_apply (o i))
+  by_contra! h
+  have hji := hlt (x := t j) (y := t i) (Prod.Lex.toLex_lt_toLex.mpr (Or.inl h))
+  rw [hr, hr] at hji
+  exact (not_lt_of_ge (o.monotone hij)) hji
+
+-- Distinct primes give distinct norm-one classes by inserting -1 at one prime.
+private theorem rat_normOne_infinite : Infinite K[ℚ] := by
+  classical
+  let V := HeightOneSpectrum (𝓞 ℚ)
+  let : Infinite V := Infinite.of_injective
+    (Rat.HeightOneSpectrum.primesEquiv (R := 𝓞 ℚ)).symm
+    (Rat.HeightOneSpectrum.primesEquiv (R := 𝓞 ℚ)).symm.injective
+  let g (v : V) := IdeleGroup.ofAdicCompletion (𝓞 ℚ) ℚ v (-1)
+  let i (v : V) : K[ℚ] := ⟨QuotientGroup.mk (g v), by
+    change ideleClassNorm ℚ (IdeleClassGroup.ofAdicCompletion (𝓞 ℚ) ℚ v (-1)) = 1
+    rw [ideleClassNorm_ofAdicCompletion]
+    apply Units.ext
+    change ‖(-1 : v.adicCompletion ℚ)‖₊ = 1
+    simp⟩
+  refine Infinite.of_injective i fun v w h ↦ ?_
+  by_contra hvw
+  have hm : (QuotientGroup.mk (g v) : C[ℚ]) = QuotientGroup.mk (g w) := congrArg Subtype.val h
+  obtain ⟨a, ha⟩ := QuotientGroup.eq.mp hm
+  have hq := congrArg (fun x : IdeleGroup (𝓞 ℚ) ℚ ↦ x.val.1 Rat.infinitePlace) ha
+  change algebraMap ℚ Rat.infinitePlace.Completion a.val =
+    (g v)⁻¹.val.1 Rat.infinitePlace * 1 at hq
+  have he (v : V) : (g v)⁻¹ = g v := by
+    change (IdeleGroup.ofAdicCompletion (𝓞 ℚ) ℚ v (-1))⁻¹ = _
+    rw [← map_inv]
+    simp [g]
+  rw [he] at hq
+  change algebraMap ℚ Rat.infinitePlace.Completion a.val = 1 * 1 at hq
+  have ha1 : a = 1 := Units.ext ((algebraMap ℚ Rat.infinitePlace.Completion).injective
+    (hq.trans ((one_mul _).trans (map_one _).symm)))
+  rw [ha1, map_one, eq_comm, inv_mul_eq_one] at ha
+  have hc := congrArg (fun d : IdeleGroup (𝓞 ℚ) ℚ ↦ d.val.2 v) ha
+  change Pi.mulSingle (M := fun u : V ↦ u.adicCompletion ℚ) v (-1) v =
+    Pi.mulSingle (M := fun u : V ↦ u.adicCompletion ℚ) w (-1) v at hc
+  rw [Pi.mulSingle_eq_same, Pi.mulSingle_eq_of_ne hvw] at hc
+  have hrat : (-1 : ℚ) = 1 := (algebraMap ℚ (v.adicCompletion ℚ)).injective (by
+    simpa only [map_neg, map_one] using hc)
+  norm_num at hrat
+
+private theorem rat_character_enumeration : Nonempty (ℕ ≃ PontryaginDual K[ℚ]) := by
+  let : CompactSpace K[ℚ] := (ideleClassGroup_finiteness ℚ).2.1
+  have : SecondCountableTopology K[ℚ] := TopologicalSpace.Subtype.secondCountableTopology _
+  have : LocallyCompactSpace K[ℚ] := (isCompact_iff_compactSpace.mpr ‹CompactSpace K[ℚ]›).isClosed.locallyCompactSpace
+  let : SecondCountableTopology Circle :=
+    inferInstanceAs (SecondCountableTopology (Metric.sphere (0 : ℂ) 1))
+  let : SecondCountableTopology (PontryaginDual K[ℚ]) :=
+    (ContinuousMonoidHom.isEmbedding_toContinuousMap K[ℚ] Circle).secondCountableTopology
+  have : Countable (PontryaginDual K[ℚ]) := countable_of_Lindelof_of_discrete
+  have : Infinite (PontryaginDual K[ℚ]) := by
+    apply Infinite.of_not_fintype
+    intro _
+    obtain ⟨e, _⟩ := pontryaginDual_bidual (G := K[ℚ])
+    have : Infinite K[ℚ] := rat_normOne_infinite
+    have := Finite.of_injective e e.injective
+    exact _root_.not_finite K[ℚ]
+  exact nonempty_equiv_of_countable
+
+private theorem counterexample_of_infinite_rows
+    (χ : PontryaginDual K[ℚ] → PontryaginDual C[ℚ]) (hχ : IsSpectralBasepointChoice χ)
+    (hinf : ∀ η, Infinite Z(χ η, (1 / 2 : ℝ))) :
+    ¬ Printed.spectralLineJet_cofinite_iff_coordinates := by
+  obtain ⟨ω⟩ := rat_character_enumeration
+  have enum (k : ℕ) : ∃ t : ℕ ≃ Z(χ (ω k), (1 / 2 : ℝ)), Monotone (fun j ↦ |(t j).val|) := by
+    let := hinf (ω k)
+    exact enumerate_zeros _ _
+  choose t ht using enum
+  exact enumeration_contradicts ℚ _ (by norm_num) χ hχ ω t ht
+
+-- The only analytic input below is stated for Mathlib Dirichlet characters.
+-- Classification of the normalized rational rows is already in RationalExteriorZeros.
+private theorem counterexample_of_primitive_dirichlet_zeros
+    (hInf : ∀ (N : ℕ) [NeZero N] (χ : DirichletCharacter ℂ N), χ.IsPrimitive →
+      {t : ℝ | χ.LFunction ((1 / 2 : ℂ) + (t : ℂ) * Complex.I) = 0}.Infinite) :
+    ¬ Printed.spectralLineJet_cofinite_iff_coordinates := by
+  let q : (AdeleRing (𝓞 ℚ) ℚ)ˣ →ₜ* C[ℚ] := ⟨QuotientGroup.mk' _, continuous_quotient_mk'⟩
+  let τ := q.comp ⟨canonicalIdeleNormSection ℚ, canonicalIdeleNormSection_continuous ℚ⟩
+  have hτ : RightInverse τ (ideleClassNorm ℚ) := canonicalIdeleNormSection_rightInverse ℚ
+  let n : C[ℚ] →ₜ* ℝ≥0ˣ := ⟨ideleClassNorm ℚ, (isProperMap_ideleClassNorm ℚ).continuous⟩
+  let p := ContinuousMonoidHom.id C[ℚ] / τ.comp n
+  have hp (x : C[ℚ]) : p x ∈ K[ℚ] := by
+    change ideleClassNorm ℚ (x / τ (ideleClassNorm ℚ x)) = 1
+    rw [map_div, hτ, div_self']
+  let r : C[ℚ] →ₜ* K[ℚ] := ⟨p.toMonoidHom.codRestrict _ hp, p.continuous.subtype_mk _⟩
+  let χ (η : PontryaginDual K[ℚ]) := η.comp r
+  apply counterexample_of_infinite_rows χ
+  · intro η
+    ext g : 1
+    apply congrArg η
+    apply Subtype.ext
+    change g.val / τ (ideleClassNorm ℚ g.val) = g.val
+    rw [show ideleClassNorm ℚ g.val = 1 from g.property, map_one, div_one]
+  intro η
+  have hnorm (t) : χ η (τ t) = 1 := by
+    change η (r (τ t)) = 1
+    rw [show r (τ t) = 1 from Subtype.ext (by
+      change τ t / τ (ideleClassNorm ℚ (τ t)) = 1
+      rw [hτ, div_self']), map_one]
+  obtain ⟨N, hN, ψ, hprim, hL⟩ := exists_primitive_finiteHeckeL_eq_of_trivial_on_section τ hτ (χ η) hnorm
+  let S := {t : ℝ | 0 < ord(χ η, point((1 / 2 : ℝ), t))}
+  apply Set.Infinite.to_subtype (s := S)
+  apply (hInf N ψ hprim).mono
+  intro t ht
+  let z := point((1 / 2 : ℝ), t)
+  have hr : z.re = 1 / 2 := by simp [z]
+  have h1 : z ≠ 1 := fun he ↦ by norm_num [he] at hr
+  have hd : DifferentiableOn ℂ ψ.LFunction {1}ᶜ := fun w hw ↦
+    (DirichletCharacter.differentiableAt_LFunction ψ w (.inl hw)).differentiableWithinAt
+  have ha := hd.analyticAt (isOpen_compl_singleton.mem_nhds h1)
+  have hzero : ψ.LFunction z = 0 := by
+    simpa [z] using ht
+  have hz := lt_of_le_of_ne ha.meromorphicOrderAt_nonneg fun h ↦
+    ha.meromorphicNFAt.meromorphicOrderAt_eq_zero_iff.mp h.symm hzero
+  change 0 < ord(χ η, z)
+  rw [← meromorphicOrderAt_finiteHeckeL_continuation (χ η) (meromorphic_dirichletLFunction ψ)
+    (fun w ↦ (DirichletCharacter.LFunction_eq_LSeries ψ w.property).trans (hL w w.property).symm)
+    (show 0 < z.re by rw [hr]; norm_num)]
+  exact hz
+
+end CofiniteCoordinates
+
+/-- Classical input, not a statement of the paper. Every primitive Dirichlet character, the
+character of conductor one included, has infinitely many zeros on the critical line: there
+are infinitely many real `t` with `L(1/2 + it, χ) = 0`. For conductor one this is Hardy's
+theorem of 1914 on the Riemann zeta function; for Dirichlet characters the refutation below
+cites Bauer, Corollary 1. Stated as a proposition, so that what is proved from it takes it as a
+hypothesis by name. -/
+def PrimitiveDirichletLInfiniteCriticalZeros : Prop :=
+  ∀ (N : ℕ) [NeZero N] (χ : DirichletCharacter ℂ N), χ.IsPrimitive →
+    {t : ℝ | χ.LFunction ((1 / 2 : ℂ) + (t : ℂ) * Complex.I) = 0}.Infinite
+
+/-- Paper: Theorem 10.4.3.1(2), pp. 467–468. The printed claim fails if every primitive
+Dirichlet character has infinitely many zeros on the critical line
+(`PrimitiveDirichletLInfiniteCriticalZeros`). Over ℚ take `a = 1/2` and `s = 4`. Use the
+Dirichlet characters for the basepoints and put the trivial character first. Every row then
+has infinitely many critical-line ordinates, finitely many in each bounded interval, so each
+admits an absolute-value enumeration. The zeroth jets `(0,j,0)` escape each finite set while
+their first coordinate is constant. -/
+theorem Printed.spectralLineJet_cofinite_iff_coordinates_false_of_criticalZeros
+    (h : PrimitiveDirichletLInfiniteCriticalZeros) :
+    ¬ Printed.spectralLineJet_cofinite_iff_coordinates :=
+  counterexample_of_primitive_dirichlet_zeros h
+
+/-- Classical input: every primitive Dirichlet character has infinitely many zeros on the
+critical line (Hardy 1914 for the Riemann zeta function; Bauer, Corollary 1, for Dirichlet
+characters). Not a statement of the paper and not a gap in it: a known theorem of which this
+project has no formal proof. The refutation of Theorem 10.4.3.1(2) as printed is proved from
+it by name. -/
+theorem primitiveDirichletL_infinite_criticalZeros : PrimitiveDirichletLInfiniteCriticalZeros := by
+  sorry
+
 /-- Paper: Theorem 10.4.3.1(2), pp. 467–468. Over ℚ take `a = 1/2` and
 `s = 4`. Use the Dirichlet characters for the basepoints and put the
 trivial character first. Every primitive Dirichlet row has infinitely many
 critical-line ordinates (Bauer, Corollary 1), finitely many in each bounded
 interval, so each admits an absolute-value enumeration. The zeroth jets
-`(0,j,0)` escape each finite set while their first coordinate is constant. -/
+`(0,j,0)` escape each finite set while their first coordinate is constant.
+The proof is `Printed.spectralLineJet_cofinite_iff_coordinates_false_of_criticalZeros` applied to
+the classical input `primitiveDirichletL_infinite_criticalZeros`, which is open. -/
 theorem Printed.spectralLineJet_cofinite_iff_coordinates_false :
-    ¬ Printed.spectralLineJet_cofinite_iff_coordinates := by sorry
+    ¬ Printed.spectralLineJet_cofinite_iff_coordinates :=
+  Printed.spectralLineJet_cofinite_iff_coordinates_false_of_criticalZeros
+    primitiveDirichletL_infinite_criticalZeros
 
 /-- Paper: (10.4.3.21), p. 469. As printed: a finite rectangle has image
 given by the finite sum over an initial segment of the lexicographic jet

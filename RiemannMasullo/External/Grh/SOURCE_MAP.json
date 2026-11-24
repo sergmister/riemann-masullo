@@ -3,11 +3,67 @@
   "commit": "e55aab27b744bfb62a4aaa57ea9f13818aad1055",
   "files": [
     {
+      "path": "LICENSE",
+      "upstream_path": "LICENSE",
+      "upstream_lines": "1-21",
+      "upstream_sha256": "9114a56f2f2f0ab22f07abe23d7dfc49f6c4483e292f1287091547241479e7f8",
+      "sha256": "9114a56f2f2f0ab22f07abe23d7dfc49f6c4483e292f1287091547241479e7f8"
+    },
+    {
       "path": "Lemmas/AnalyticGoodHeightDisk.lean",
       "upstream_path": "Proofs/Lemmas/AnalyticGoodHeightDisk.lean",
       "upstream_lines": "1-215",
       "upstream_sha256": "4c342adfa265d90d9ccf75055300115eb0a78d89c3487b44b21a6ec7c2536c71",
       "sha256": "40281341c9e31e0c8c1833cd885cea30f38e3089c2df344893bec529599cc2f8"
+    },
+    {
+      "path": "Lemmas/CompactLogMellin.lean",
+      "upstream_path": "Proofs/Lemmas/CompactLogMellin.lean",
+      "upstream_lines": "1-108",
+      "upstream_sha256": "3306d9ebd0ba8a9dadb76dea532bb0379507b564a7850b05d325029598155f9b",
+      "sha256": "85abf64e9550a062d17fd4a49d8643fd7315d2c65cd7f7bf31e3209667586460"
+    },
+    {
+      "path": "Lemmas/CompactLogMellinInversion.lean",
+      "upstream_path": "Proofs/Lemmas/CompactLogMellinInversion.lean",
+      "upstream_lines": "1-216",
+      "upstream_sha256": "826052877ef07620c0d3df5fd9c798e7f2436177e1c183914e7de9961bd6648c",
+      "sha256": "b0b0928a5ed09e1f1caaaa28bbe3c5a7d573ec5945ad78a60c598fedc5719df5"
+    },
+    {
+      "path": "Lemmas/CompactTestLaplace.lean",
+      "upstream_path": "Proofs/Lemmas/CompactTestLaplace.lean",
+      "upstream_lines": "1-124",
+      "upstream_sha256": "4ebe63f3e42d3f0c37935b967a353ec6e9ef0563a473f9fa31fe93f36915d15c",
+      "sha256": "c6ebd94ef2fdd576cc4086063e078d09b4345826ae5462c137563cf3a9c1b280"
+    },
+    {
+      "path": "Lemmas/CompletedZetaGrowth.lean",
+      "upstream_path": "Proofs/Lemmas/CompletedZetaGrowth.lean",
+      "upstream_lines": "1-176",
+      "upstream_sha256": "02f3b3f59bba964daeb3bf0fe94686997504349451f76bf4bd421db242edab22",
+      "sha256": "0e1742022d3dc1e69a94bb6a871b6d2b67ac67da3e55b24fd849a3d997546ec5"
+    },
+    {
+      "path": "Lemmas/CompletedZetaOrders.lean",
+      "upstream_path": "Proofs/Lemmas/CompletedZetaOrders.lean",
+      "upstream_lines": "1-76",
+      "upstream_sha256": "a3be0c71d9d2b1fa1518f8b607021711db2ebcc3b4d8749b6087b8a6395015c8",
+      "sha256": "4956c71f62d42096c51aa2c0d72df1fafae510edf7a102901a4194bbb8083185"
+    },
+    {
+      "path": "Lemmas/DigammaExponential.lean",
+      "upstream_path": "Proofs/Lemmas/DigammaExponential.lean",
+      "upstream_lines": "1-76",
+      "upstream_sha256": "fea58aff2eeb6f916789ef33dbc81f04d0b1ba63458235ef11ca7b72b8b27df4",
+      "sha256": "ca2221e1958d11a4e93ebc93481714612c77dc9b146b8ddf59767a3ff5314689"
+    },
+    {
+      "path": "Lemmas/DigammaIntegral.lean",
+      "upstream_path": "Proofs/Lemmas/DigammaIntegral.lean",
+      "upstream_lines": "1-154",
+      "upstream_sha256": "a964c9ad121db348a6f8dc7e731f84367ddf85e8b739b5a6986afc63a5668864",
+      "sha256": "69ad49b56e00121c03e5a183f24e3a7da3d8958eba49f4576daf3321f6dfae92"
     },
     {
       "path": "Lemmas/EntireFiniteFactors.lean",
@@ -24,6 +80,13 @@
       "sha256": "1ca4221548759eeab5b72e7683ceff69116d06a18ecc5fd7f94a4101bda691d2"
     },
     {
+      "path": "Lemmas/GammaRealRightLine.lean",
+      "upstream_path": "Proofs/Lemmas/GammaRealRightLine.lean",
+      "upstream_lines": "1-120",
+      "upstream_sha256": "f93ed3b8f40760444e93ad7a44a68634f68f898b557d811c3ba6306118b42bf7",
+      "sha256": "63aff3e816ac380125ce3128e46dec4b5337fbdfbf0a729a50693fbd0538df3f"
+    },
+    {
       "path": "Lemmas/InteriorLogJet.lean",
       "upstream_path": "Proofs/Lemmas/InteriorLogJet.lean",
       "upstream_lines": "1-173",
@@ -38,11 +101,53 @@
       "sha256": "2ebb1296f36daf55a2ffc9f5575953ab78f20304539c9c4c1c403ae4b275ca7e"
     },
     {
+      "path": "Lemmas/LogMellinDerivative.lean",
+      "upstream_path": "Proofs/Lemmas/LogMellinDerivative.lean",
+      "upstream_lines": "1-77",
+      "upstream_sha256": "2b3c792559e83c9682da3316a222fec528eaac1e1a959a9e3f1c0480f2103e82",
+      "sha256": "434fbbffc9e2a9ec31340be5fcb4fbabdce3e3855f1e6b61394269c4bde6d5c9"
+    },
+    {
+      "path": "Lemmas/RationalCompletedZetaZeros.lean",
+      "upstream_path": "Proofs/Lemmas/RationalCompletedZetaZeros.lean",
+      "upstream_lines": "1-55",
+      "upstream_sha256": "66c85ec15a3c0f104a603cd98b287a7063fcf0d21e632023abb239fb82bd296d",
+      "sha256": "9a5aa5378bdf1f0650f0a223d1cbe33531dd94ad9663ab5c327dcdd9f5ace4d7"
+    },
+    {
+      "path": "Lemmas/RectangleCauchyKernel.lean",
+      "upstream_path": "Proofs/Lemmas/RectangleCauchyKernel.lean",
+      "upstream_lines": "1-140",
+      "upstream_sha256": "a4b1444adfac4f82431f1db5fd546508fc53c2eab173d641a67866f8f563d654",
+      "sha256": "4118ab916e7061b20878f4baa8f61c1817578458cc228e01bb40b52a90f73719"
+    },
+    {
+      "path": "Lemmas/ShiftedZetaZeros.lean",
+      "upstream_path": "Proofs/Lemmas/ShiftedZetaZeros.lean",
+      "upstream_lines": "1-77",
+      "upstream_sha256": "f4b0b4f238cad7012bb6a4a0539c5dce65766d7a77b93ba55fc6d8933a8203de",
+      "sha256": "241bbb18de54feba64e66e3d48beb6e3c332902b16dc680fb09005c84f28792c"
+    },
+    {
+      "path": "Lemmas/SimplePrincipalParts.lean",
+      "upstream_path": "Proofs/Lemmas/SimplePrincipalParts.lean",
+      "upstream_lines": "1-58",
+      "upstream_sha256": "62931dcf1072aa1edf76a26e09cd49a6f3792f948bf5b41d7ac2ccfbad3aa325",
+      "sha256": "23a6b750cd1f349f03037fda2e70b584ff371d77b9e1aa046a1dddd70ee6f251"
+    },
+    {
       "path": "Lemmas/SobolevJetTail.lean",
       "upstream_path": "Proofs/Lemmas/SobolevJetTail.lean",
       "upstream_lines": "1-85",
       "upstream_sha256": "9598e4ff3da2da97be9d73595cafbfad9d65ea719d0aca66e501665eccff4497",
       "sha256": "0f7b51efc7f71c069d797069e17206c4a7e1e720a595cb6d3b583430156f126b"
+    },
+    {
+      "path": "Lemmas/TestedLogDeriv.lean",
+      "upstream_path": "Proofs/Lemmas/TestedLogDeriv.lean",
+      "upstream_lines": "1-55",
+      "upstream_sha256": "b86af1ba919583d0b8d5c63c3e6cbf6a43325acf2ed5cf7ffb72f8b9063769af",
+      "sha256": "16742dd9cf875c2fc62ea41ccc0e5866fa8901e3accd945f6c8de5a1c5db15f1"
     },
     {
       "path": "Lemmas/ZeroFreeDiskLogDeriv.lean",
@@ -52,6 +157,83 @@
       "sha256": "bb221df594c3b60cdb77a980a926e724c2547d78fa8012b8c868faae2332d7fd"
     },
     {
+      "path": "Lemmas/ZetaContourAnchor.lean",
+      "upstream_path": "Proofs/Lemmas/ZetaContourAnchor.lean",
+      "upstream_lines": "1-150",
+      "upstream_sha256": "62ae6aace7b4ffded3427af5a429df5e787083dcb1a4b25b372e702ef771a832",
+      "sha256": "ee9c30f565d5e8797c0f5abf8428abb3fddec3d70663d69cbfdec7e035d95a2d"
+    },
+    {
+      "path": "Lemmas/ZetaContourExhaustion.lean",
+      "upstream_path": "Proofs/Lemmas/ZetaContourExhaustion.lean",
+      "upstream_lines": "1-171",
+      "upstream_sha256": "2df0f3030de87f11163f95ce9fdd0d3aa03ad544ae48342c78534d65ae91ca38",
+      "sha256": "272348e427ab94a14af5dd741910454fdab7d9ac0e03e30f6eb1782c6fde7e51"
+    },
+    {
+      "path": "Lemmas/ZetaContourHeights.lean",
+      "upstream_path": "Proofs/Lemmas/ZetaContourHeights.lean",
+      "upstream_lines": "1-115",
+      "upstream_sha256": "fefda628895d2f407bbccceaac72e5a5785c368b1aa8feafd4a9bea4dbc3edb3",
+      "sha256": "3199db0b0958703702cf1b90e7953b6b5558b7bde0fe2d8c6d32deb5a549c1c0"
+    },
+    {
+      "path": "Lemmas/ZetaRightLine.lean",
+      "upstream_path": "Proofs/Lemmas/ZetaRightLine.lean",
+      "upstream_lines": "1-153",
+      "upstream_sha256": "95b1597f9ef4404a0b5c3414abd4dde9010485c3789332588a8bf8fc6de9d3d5",
+      "sha256": "f867da5457a7274aa9d3e2583c281ae3d939c6748b07cd727f3d1a9c8c136c2e"
+    },
+    {
+      "path": "Lemmas/ZetaZeroDiskCount.lean",
+      "upstream_path": "Proofs/Lemmas/ZetaZeroDiskCount.lean",
+      "upstream_lines": "1-197",
+      "upstream_sha256": "4b39704ef614993b462f8cf052ed4eea6094d60321a121ad1156d98ddc674e8e",
+      "sha256": "4f984cdb0de7c61e5133a994969f20500cb5b1f8d5992cde64c8a58de146b250"
+    },
+    {
+      "path": "Lemmas/ZetaZeroOrders.lean",
+      "upstream_path": "Proofs/Lemmas/ZetaZeroOrders.lean",
+      "upstream_lines": "1-107",
+      "upstream_sha256": "4df41dfe95cb37ed4e6ed9d0379f00a03cfdf4ed9fa57127abe5fed4ee3be817",
+      "sha256": "6c32a098710a492fdc0a66d82b135666b14add37d28f6cb06a79fef8dd0c7827"
+    },
+    {
+      "path": "Lemmas/ZetaZeroSummability.lean",
+      "upstream_path": "Proofs/Lemmas/ZetaZeroSummability.lean",
+      "upstream_lines": "1-184",
+      "upstream_sha256": "d2bdf5890ca492f6a1f0766ca1383f0749b4789673ec164b67022d50e214be2a",
+      "sha256": "75673108082699486b08cdb952262d1d69b0351a027f3262f505128e08696119"
+    },
+    {
+      "path": "Props/ArchimedeanGammaLogDerivative.lean",
+      "upstream_path": "Proofs/Props/ArchimedeanGammaLogDerivative.lean",
+      "upstream_lines": "1-114",
+      "upstream_sha256": "d8ae44898a7576857375e75bf95013212ebd4e462fa7e10221cfb986e9712aaa",
+      "sha256": "3330684236bc8ffe092edc06ab412f5b6ea121e875e0148395efcfcaaa8d22b6"
+    },
+    {
+      "path": "Props/CompactLogMellin.lean",
+      "upstream_path": "Proofs/Props/CompactLogMellin.lean",
+      "upstream_lines": "1-66",
+      "upstream_sha256": "dd154ca1d0024725e0438f8fa9fa350f4c24753bbb106a604325a5149cd6bbc8",
+      "sha256": "02d4eb5a7e95ba1be514a28dacf9764fa3d6629083f189cb48d275e55138ba65"
+    },
+    {
+      "path": "Props/GammaRealLogDerivative.lean",
+      "upstream_path": "Proofs/Props/GammaRealLogDerivative.lean",
+      "upstream_lines": "1-33",
+      "upstream_sha256": "b499fae75f9c97966831b6026fbd964cb4eb1bd4853c29b7872df80e08e68590",
+      "sha256": "cb565d4490516c6845c1f502e514f8cea56418928fab6e5611365c3e61ef6e1d"
+    },
+    {
+      "path": "Props/GammaRealMellin.lean",
+      "upstream_path": "Proofs/Props/GammaRealMellin.lean",
+      "upstream_lines": "1-94",
+      "upstream_sha256": "c7f3654073d90073f95908ca175c6a8c519b6a473c08c5617e4fd8e795a9b025",
+      "sha256": "49bc5d657e5f3e8d8c151b0d8183b8a11aac41690a8b28ec98fa4e0af12493ba"
+    },
+    {
       "path": "Props/HeckeContourReflection.lean",
       "upstream_path": "Proofs/Props/HeckeContourReflection.lean",
       "upstream_lines": "26-49",
@@ -59,11 +241,74 @@
       "sha256": "80f503e95061d78b334f3326222a26cf2f7aa2cf21ade9000e3db1e8784f714a"
     },
     {
-      "path": "LICENSE",
-      "upstream_path": "LICENSE",
-      "upstream_lines": "1-21",
-      "upstream_sha256": "9114a56f2f2f0ab22f07abe23d7dfc49f6c4483e292f1287091547241479e7f8",
-      "sha256": "9114a56f2f2f0ab22f07abe23d7dfc49f6c4483e292f1287091547241479e7f8"
+      "path": "Props/RationalExplicitFormulaResidues.lean",
+      "upstream_path": "Proofs/Props/RationalExplicitFormulaResidues.lean",
+      "upstream_lines": "1-62",
+      "upstream_sha256": "419cf29d166d85dbb49698abde6c048832583de47b5ff910782b580a17e5c96e",
+      "sha256": "164f5aedf49f88633f181c1d0f8b5e71956bc59fef95e9f1f2c1bc4da0b904a0"
+    },
+    {
+      "path": "Props/RectangleResidue.lean",
+      "upstream_path": "Proofs/Props/RectangleResidue.lean",
+      "upstream_lines": "1-38",
+      "upstream_sha256": "80a7745042ea221e24503114a06b25ec650430d493a04312ea2840d178b3a646",
+      "sha256": "47b1ed83b817e8bc26e5bda6563c204cdb66c67caae0450d47af1fe6d95ff76b"
+    },
+    {
+      "path": "Props/ZetaContourDisk.lean",
+      "upstream_path": "Proofs/Props/ZetaContourDisk.lean",
+      "upstream_lines": "1-108",
+      "upstream_sha256": "eb4b160f9700e29cf6912374a535b9e1ef080882077d6640f9c3ac66f6344a58",
+      "sha256": "4382c080134c8663480b79a94202fc3e6b24cdefd4d9f151ba9419fe7fae6e98"
+    },
+    {
+      "path": "Props/ZetaContourEdges.lean",
+      "upstream_path": "Proofs/Props/ZetaContourEdges.lean",
+      "upstream_lines": "1-171",
+      "upstream_sha256": "fcd9060845ecfe3f441d1c569eeae32ef9b4b64cbe051ec855eadb23fbf7a38b",
+      "sha256": "ff97ecaace9aaddfcbed83f008f6e6f174192d52abe1deccc8d31f670ac777dc"
+    },
+    {
+      "path": "Props/ZetaContourLogDeriv.lean",
+      "upstream_path": "Proofs/Props/ZetaContourLogDeriv.lean",
+      "upstream_lines": "1-111",
+      "upstream_sha256": "605220a161e754d6be9644b9761b6c6dc7bcb7a5f5a4611081729119e76061c1",
+      "sha256": "8a5653c3e3506155b9c59f7fcc2c7bba7e758062b385628d8c0a41b8833b93a1"
+    },
+    {
+      "path": "Theorems/RationalExplicitFormula.lean",
+      "upstream_path": "Proofs/Theorems/RationalExplicitFormula.lean",
+      "upstream_lines": "1-41",
+      "upstream_sha256": "97c4a03cf40a0244a57edcee9df9a7c5537755be87cc0944f91069849ec8e55e",
+      "sha256": "f9695b2db930431a662caf6631c5d45fa38a4f65c48cce25d40da9bcc97fa8b1"
+    },
+    {
+      "path": "Theorems/RationalExplicitFormulaContour.lean",
+      "upstream_path": "Proofs/Theorems/RationalExplicitFormulaContour.lean",
+      "upstream_lines": "1-112",
+      "upstream_sha256": "7632116112a3a98da1df4eab24de9cc9359453c5b288874ae21ff382df6c12ad",
+      "sha256": "c792c372c3949eb1bbdfd8d8c03fa2d9d4315dd8bc213aaf8a6589b52c266dc1"
+    },
+    {
+      "path": "Theorems/RationalExplicitFormulaExhaustion.lean",
+      "upstream_path": "Proofs/Theorems/RationalExplicitFormulaExhaustion.lean",
+      "upstream_lines": "1-84",
+      "upstream_sha256": "452624a5f32fbd506c96212a461ef2b40142c563835eb914710d220ce718ca90",
+      "sha256": "458533159e7f248743704dee17cd617f4209f279cfa8a6100c95eae1d61d1666"
+    },
+    {
+      "path": "Theorems/RationalExplicitFormulaFinitePlaces.lean",
+      "upstream_path": "Proofs/Theorems/RationalExplicitFormulaFinitePlaces.lean",
+      "upstream_lines": "1-96",
+      "upstream_sha256": "d298f47048f20c40387e9324eea453cf4eade4dec04b1293d9350f9de2b99584",
+      "sha256": "700f2acf7f00e82aa410cf0a94a40d5437de7fd5f169e731e4eb4ad7ebae37ed"
+    },
+    {
+      "path": "Theorems/RationalExplicitFormulaRightLine.lean",
+      "upstream_path": "Proofs/Theorems/RationalExplicitFormulaRightLine.lean",
+      "upstream_lines": "1-82",
+      "upstream_sha256": "293e099b875602487764da04b4dd43bd19f9ce5e0b9b49085cf11bbfe803e207",
+      "sha256": "982841eb1ff83e0f6b6c3278b793e29483095b854aeee50a78e92cb88d8322e3"
     }
   ]
 }

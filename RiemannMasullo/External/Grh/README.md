@@ -21,3 +21,7 @@
 The Lean declarations are in namespace `RiemannMasullo.External.Grh`. See
 [MODIFICATIONS.md](MODIFICATIONS.md) for the port changes and [SOURCE_MAP.json](SOURCE_MAP.json)
 for the line ranges and checksums.
+
+## Rational explicit formula
+
+[The rational explicit formula](Theorems/RationalExplicitFormula.lean) evaluates the zero sum, both pole moments, the real gamma factor, and the von Mangoldt sum for smooth compact log profiles. Its transitive sources are listed with their original and vendored hashes in [the source map](SOURCE_MAP.json). The cutoff counterexample on p. 29 uses this theorem at the trivial rational character.

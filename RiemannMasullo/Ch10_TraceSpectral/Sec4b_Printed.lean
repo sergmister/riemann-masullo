@@ -1171,6 +1171,333 @@ def spectralStripTransposeLimit_rangeConsequence : Prop :=
         A(F, hα, hs₀(hs), φ) (spectralProjection a hα hs₀(hs) u) ∈
           (globalThetaSobolev F a hStrip(hα) hs₀(hs)).orthogonal
 
+/-- A unitary character times an imaginary power of the norm has absolute value one. -/
+private theorem spectralStripTransposeLimit_rangeConsequence_false_norm
+    (θ : PontryaginDual C𝔽(ℚ)) (t : ℝ) (g : C𝔽(ℚ)) :
+    ‖ideleClassNormTwist θ ((t : ℂ) * Complex.I) g‖ = 1 := by
+  change ‖(θ g : ℂ) * (((ideleClassNorm ℚ g).val : ℝ) : ℂ) ^ ((t : ℂ) * Complex.I)‖ = 1
+  rw [norm_mul, Circle.norm_coe, one_mul, Complex.norm_cpow_eq_rpow_re_of_pos
+    (NNReal.coe_pos.mpr (Units.zero_lt (ideleClassNorm ℚ g)))]
+  simp
+
+/-- Every unitary norm twist is a continuous functional on the rational line
+Sobolev space at exponent two, given by the Haar product integral. A surviving
+line jet supplies the square-integrability for the reciprocal weight. -/
+private theorem spectralStripTransposeLimit_rangeConsequence_false_functional
+    (χ : PontryaginDual C₁(ℚ) → PontryaginDual C𝔽(ℚ)) (j : SpectralLineJetIndex χ (1 / 2) 2)
+    (θ : PontryaginDual C𝔽(ℚ)) (t : ℝ) :
+    ∃ Λ : StrongDual ℂ (CompactIntervalSobolev (μ(ℚ)) logNorm(ℚ) 0 0 2),
+      ∀ f : CompactIntervalSobolev (μ(ℚ)) logNorm(ℚ) 0 0 2,
+        Integrable (fun g ↦ f g * ideleClassNormTwist θ ((t : ℂ) * Complex.I) g) μ(ℚ) ∧
+          Λ f = ∫ g, f g * ideleClassNormTwist θ ((t : ℂ) * Complex.I) g ∂μ(ℚ) := by
+  have hjet := spectralLineJet_memLp χ one_lt_two j
+  have hmem : MemLp (ideleClassNormTwist θ ((t : ℂ) * Complex.I)) 2
+      ((μ(ℚ)).withDensity fun g ↦
+        ENNReal.ofReal (intervalSobolevDensity 0 0 2 (logNorm(ℚ) g))⁻¹) := by
+    refine hjet.congr_norm
+      (ideleClassNormTwist θ ((t : ℂ) * Complex.I)).continuous.aestronglyMeasurable
+      (ae_of_all _ fun g ↦ ?_)
+    rw [spectralStripTransposeLimit_rangeConsequence_false_norm]
+    simp only [spectralZeroJet, extraWeight_jet_order_zero j, pow_zero, mul_one,
+      Complex.ofReal_zero, zero_add]
+    exact spectralStripTransposeLimit_rangeConsequence_false_norm _ _ g
+  have hs0 : (0 : ℝ) ≤ 2 := by norm_num
+  have hdual := modulatedIntervalSobolev_dual m𝔽(ℚ)
+    ⟨isProperMap_ideleClassNorm ℚ, ideleClassNorm_ne_one (F := ℚ)⟩ μ(ℚ) 0 0 2 le_rfl hs0
+  let T := hdual.exists.choose
+  have hT := hdual.exists.choose_spec
+  let u : CompactIntervalSobolev (μ(ℚ)) logNorm(ℚ) 0 0 2 true := hmem.toLp _
+  have hac : μ(ℚ) ≪ (μ(ℚ)).withDensity (fun g ↦ ENNReal.ofReal
+      ((intervalSobolevDensity 0 0 2 (logNorm(ℚ) g))⁻¹)) := by
+    simpa only [neg_zero] using extraWeight_haar_ac.2
+  have hae : (u : C𝔽(ℚ) → ℂ) =ᵐ[μ(ℚ)] ideleClassNormTwist θ ((t : ℂ) * Complex.I) :=
+    hac.ae_le (MemLp.coeFn_toLp hmem)
+  refine ⟨T.symm u, fun f ↦ ?_⟩
+  have h := hT (T.symm u) f
+  have hTu : T (T.symm u) = u := T.apply_symm_apply u
+  have hc : (fun g ↦ f g * T (T.symm u) g) =ᵐ[μ(ℚ)]
+      fun g ↦ f g * ideleClassNormTwist θ ((t : ℂ) * Complex.I) g := by
+    rw [hTu]
+    exact hae.mono fun g hg ↦ congrArg (f g * ·) hg
+  exact ⟨h.1.congr hc, h.2.trans (integral_congr_ae hc)⟩
+
+/-- The radius-two cutoff divided by a quasi-character is a compact Bruhat test. -/
+private theorem spectralStripTransposeLimit_rangeConsequence_false_test
+    (η : QuasiCharacter C𝔽(ℚ)) :
+    ∃ (φ : BruhatCompactSupport C𝔽(ℚ)) (b : C𝔽(ℚ) → ℝ),
+      Continuous b ∧ HasCompactSupport b ∧ (∀ g, 0 ≤ b g) ∧
+        (∀ g, ((ideleClassNorm ℚ g).val : ℝ) = 3 / 2 → b g = 1) ∧
+        ∀ g, φ.val g * η g = (b g : ℂ) := by
+  let hm : IsModulation m𝔽(ℚ) :=
+    ⟨isProperMap_ideleClassNorm ℚ, ideleClassNorm_ne_one (F := ℚ)⟩
+  have hms : Surjective m𝔽(ℚ) := by
+    intro q
+    exact ⟨QuotientGroup.mk (canonicalIdeleNormSection ℚ q),
+      canonicalIdeleNormSection_rightInverse ℚ q⟩
+  obtain ⟨b, hb⟩ := exists_smoothModulatedCutoff_radius_two m𝔽(ℚ) hm hms
+  have hbc : HasCompactSupport b := by
+    let e := Nonneg.unitsHomeomorphPos ℝ
+    have hS : IsCompact ((Subtype.val : Ioi (0 : ℝ) → ℝ) ⁻¹' Icc (2⁻¹ : ℝ) 2) := by
+      rw [Subtype.isCompact_iff, Subtype.image_preimage_coe, inter_eq_right.mpr]
+      · exact isCompact_Icc
+      · intro r hr
+        exact (by norm_num : (0 : ℝ) < 2⁻¹).trans_le hr.1
+    exact (hm.1.isCompact_preimage (e.isCompact_preimage.mpr hS)).of_isClosed_subset
+      (isClosed_tsupport b) hb.1.support_subset
+  have hbC : HasCompactSupport (fun g ↦ (b g : ℂ)) := hbc.comp_left Complex.ofReal_zero
+  let b₀ : BruhatCompactSupport C𝔽(ℚ) := ⟨_, (mem_bruhatSmoothSubmodule_iff _).mpr hb.2, hbC⟩
+  let B := bruhatCompactSupportToModulatedExponentialDecay m𝔽(ℚ) univ hm hms b₀
+  let ηInv := η.comp (ContinuousMonoidHom.inv _)
+  obtain ⟨E, hE⟩ := modulatedExponentialDecay_mul_quasiCharacter m𝔽(ℚ) hm hms ηInv
+  have hEB (g : C𝔽(ℚ)) : (E B).val g = (η g)⁻¹ * (b g : ℂ) :=
+    (hE B g).trans (by change η g⁻¹ * (b g : ℂ) = _; rw [map_inv])
+  have hBs : HasCompactSupport (E B).val := by
+    rw [funext hEB]
+    exact hbC.mul_left (f := fun g ↦ (η g)⁻¹)
+  let φ : BruhatCompactSupport C𝔽(ℚ) :=
+    ⟨_, modulatedExponentialDecay_mem_bruhatSmooth m𝔽(ℚ) univ univ_nonempty (E B), hBs⟩
+  have hηne (g : C𝔽(ℚ)) : η g ≠ 0 := ((Group.isUnit g).map η).ne_zero
+  refine ⟨φ, b, hb.continuous, hbc, hb.1.nonneg, fun g hg ↦ ?_, fun g ↦ ?_⟩
+  · apply hb.1.eq_one
+    change ((ideleClassNorm ℚ g).val : ℝ) ∈ Icc ((2 : ℝ)⁻¹ + 1 / 4) (2 - 1 / 4)
+    rw [hg]
+    norm_num
+  · change (E B).val g * η g = _
+    rw [hEB, mul_right_comm, inv_mul_cancel₀ (hηne g), one_mul]
+
+/-- Two norm twists of one unitary character whose ordinates differ by a positive
+amount at most one are separated by a compact Bruhat test. -/
+private theorem spectralStripTransposeLimit_rangeConsequence_false_separate
+    (θ : PontryaginDual C𝔽(ℚ)) (t δ : ℝ) (hδ : 0 < δ) (hδ1 : δ ≤ 1) :
+    ∃ φ : BruhatCompactSupport C𝔽(ℚ),
+      (∫ g, φ.val g * ideleClassNormTwist θ ((t : ℂ) * Complex.I) g ∂μ(ℚ)) ≠
+        ∫ g, φ.val g * ideleClassNormTwist θ (((t + δ : ℝ) : ℂ) * Complex.I) g ∂μ(ℚ) := by
+  obtain ⟨φ, b, hbc, hbs, hb0, hb1, hφ⟩ :=
+    spectralStripTransposeLimit_rangeConsequence_false_test
+      (ideleClassNormTwist θ ((t : ℂ) * Complex.I))
+  refine ⟨φ, fun heq ↦ ?_⟩
+  let r (g : C𝔽(ℚ)) : ℝ := ((ideleClassNorm ℚ g).val : ℝ)
+  have hr (g : C𝔽(ℚ)) : 0 < r g := NNReal.coe_pos.mpr (Units.zero_lt _)
+  have hrc : Continuous r := NNReal.continuous_coe.comp
+    (Units.continuous_val.comp (isProperMap_ideleClassNorm ℚ).continuous)
+  have hlog : Continuous fun g ↦ δ * Real.log (r g) :=
+    continuous_const.mul (hrc.log fun g ↦ (hr g).ne')
+  let k (g : C𝔽(ℚ)) : ℂ := Complex.exp (((δ * Real.log (r g) : ℝ) : ℂ) * Complex.I)
+  have hk : Continuous k :=
+    Complex.continuous_exp.comp ((Complex.continuous_ofReal.comp hlog).mul continuous_const)
+  have htw (g : C𝔽(ℚ)) : φ.val g * ideleClassNormTwist θ (((t + δ : ℝ) : ℂ) * Complex.I) g =
+      (b g : ℂ) * k g := by
+    rw [← hφ g, mul_assoc]
+    congr 1
+    change (θ g : ℂ) * ((r g : ℝ) : ℂ) ^ (((t + δ : ℝ) : ℂ) * Complex.I) =
+      (θ g : ℂ) * ((r g : ℝ) : ℂ) ^ ((t : ℂ) * Complex.I) * k g
+    have hne : ((r g : ℝ) : ℂ) ≠ 0 := Complex.ofReal_ne_zero.mpr (hr g).ne'
+    rw [mul_assoc, Complex.cpow_def_of_ne_zero hne, Complex.cpow_def_of_ne_zero hne,
+      ← Complex.exp_add, ← Complex.ofReal_log (hr g).le]
+    congr 2
+    push_cast
+    ring
+  have hbC : Continuous fun g ↦ (b g : ℂ) := Complex.continuous_ofReal.comp hbc
+  have hbCs : HasCompactSupport fun g ↦ (b g : ℂ) := hbs.comp_left Complex.ofReal_zero
+  have hi0 : Integrable (fun g ↦ (b g : ℂ)) μ(ℚ) := hbC.integrable_of_hasCompactSupport hbCs
+  have hi1 : Integrable (fun g ↦ (b g : ℂ) * k g) μ(ℚ) :=
+    (hbC.mul hk).integrable_of_hasCompactSupport hbCs.mul_right
+  let h (g : C𝔽(ℚ)) : ℝ := b g * (1 - Real.cos (δ * Real.log (r g)))
+  have hh : Continuous h := hbc.mul (continuous_const.sub (Real.continuous_cos.comp hlog))
+  have hpos : 0 < ∫ g, h g ∂μ(ℚ) := by
+    obtain ⟨g₀, hg₀⟩ : ∃ g₀ : C𝔽(ℚ), r g₀ = 3 / 2 := by
+      let q : ℝ≥0ˣ := Units.mk0 (3 / 2) (by norm_num)
+      refine ⟨QuotientGroup.mk (canonicalIdeleNormSection ℚ q), ?_⟩
+      have hq : ideleClassNorm ℚ (QuotientGroup.mk (canonicalIdeleNormSection ℚ q)) = q :=
+        canonicalIdeleNormSection_rightInverse ℚ q
+      change ((ideleClassNorm ℚ (QuotientGroup.mk (canonicalIdeleNormSection ℚ q))).val : ℝ) =
+        3 / 2
+      rw [hq]
+      simp [q]
+    apply hh.integral_pos_of_hasCompactSupport_nonneg_ne_zero hbs.mul_right
+      (fun g ↦ mul_nonneg (hb0 g) (sub_nonneg.mpr (Real.cos_le_one _))) (x := g₀)
+    change b g₀ * (1 - Real.cos (δ * Real.log (r g₀))) ≠ 0
+    rw [hb1 g₀ hg₀, one_mul, hg₀]
+    have hl0 : 0 < Real.log (3 / 2 : ℝ) := Real.log_pos (by norm_num)
+    have hl1 : Real.log (3 / 2 : ℝ) ≤ 1 / 2 :=
+      (Real.log_le_sub_one_of_pos (by norm_num)).trans (by norm_num)
+    have hx0 : 0 < δ * Real.log (3 / 2 : ℝ) := mul_pos hδ hl0
+    have hx1 : δ * Real.log (3 / 2 : ℝ) < 2 * Real.pi := by
+      nlinarith [Real.pi_gt_three]
+    intro hc
+    exact hx0.ne' ((Real.cos_eq_one_iff_of_lt_of_lt (by linarith [Real.pi_pos]) hx1).mp
+      (sub_eq_zero.mp hc).symm)
+  have hre : (∫ g, ((b g : ℂ) - (b g : ℂ) * k g) ∂μ(ℚ)).re = ∫ g, h g ∂μ(ℚ) := by
+    refine (integral_re (hi0.sub hi1)).symm.trans
+      (integral_congr_ae (ae_of_all _ fun g ↦ ?_))
+    change ((b g : ℂ) - (b g : ℂ) * k g).re = b g * (1 - Real.cos (δ * Real.log (r g)))
+    rw [Complex.sub_re, Complex.re_ofReal_mul, Complex.ofReal_re, Complex.exp_ofReal_mul_I_re]
+    ring
+  rw [integral_sub hi0 hi1] at hre
+  simp_rw [htw, hφ] at heq
+  rw [heq, sub_self, Complex.zero_re] at hre
+  exact hpos.ne hre
+
+/-- Let a closed subspace be the common kernel of a family of functionals, and let a
+vector be annihilated by all of them but one. Its projection to the orthogonal
+complement has the same value under the remaining functional. Every operator that
+scales each functional and keeps the projection in the orthogonal complement has
+the projection as an eigenvector. -/
+private theorem spectralStripTransposeLimit_rangeConsequence_false_eigen {E J : Type*}
+    [NormedAddCommGroup E] [InnerProductSpace ℂ E] (N : Submodule ℂ E)
+    [N.HasOrthogonalProjection] (Λ : J → StrongDual ℂ E)
+    (hN : ∀ f, (∀ j, Λ j f = 0) → f ∈ N) (hN' : ∀ f, f ∈ N → ∀ j, Λ j f = 0)
+    (i : J) (x : E) (hx0 : ∀ j, j ≠ i → Λ j x = 0) :
+    Λ i (N.orthogonal.starProjection x) = Λ i x ∧
+      ∀ (B : E →L[ℂ] E) (c : J → ℂ), (∀ j f, Λ j (B f) = c j * Λ j f) →
+        B (N.orthogonal.starProjection x) ∈ N.orthogonal →
+        B (N.orthogonal.starProjection x) = c i • N.orthogonal.starProjection x := by
+  have hxe : x - N.orthogonal.starProjection x ∈ N := by
+    have h := Submodule.sub_starProjection_mem_orthogonal (K := N.orthogonal) x
+    rwa [N.orthogonal_orthogonal] at h
+  have hΛ (j : J) : Λ j (N.orthogonal.starProjection x) = Λ j x := by
+    have h := hN' _ hxe j
+    rw [map_sub, sub_eq_zero] at h
+    exact h.symm
+  refine ⟨hΛ i, fun B c hB hH ↦ ?_⟩
+  have hd : B (N.orthogonal.starProjection x) - c i • N.orthogonal.starProjection x ∈
+      N.orthogonal :=
+    N.orthogonal.sub_mem hH (N.orthogonal.smul_mem _ (Submodule.starProjection_apply_mem _ _))
+  have hdN : B (N.orthogonal.starProjection x) - c i • N.orthogonal.starProjection x ∈ N := by
+    apply hN
+    intro j
+    rw [map_sub, map_smul, hB, hΛ, smul_eq_mul]
+    by_cases hj : j = i
+    · rw [hj, sub_self]
+    · rw [hx0 j hj, mul_zero, mul_zero, sub_self]
+  exact sub_eq_zero.mp (inner_self_eq_zero.mp (Submodule.inner_right_of_mem_orthogonal hdN hd))
+
+/-- If every convolution after the spectral projection has spectral range, the
+projected interpolant of the certified critical zero is an eigenvector of all
+convolutions, with unit pairing against its own norm twist. -/
+private theorem spectralStripTransposeLimit_rangeConsequence_false_eigenvector
+    (H : ∀ (φ : BruhatCompactSupport C𝔽(ℚ))
+      (u : CompactIntervalSobolev (μ(ℚ)) logNorm(ℚ) 0 0 2),
+      hardySobolevTestAction (μ(ℚ)) m𝔽(ℚ) 0 0 2 h₀ hs₂ φ
+        ((globalThetaSobolev ℚ (1 / 2) h₀ hs₂).orthogonal.starProjection u) ∈
+        (globalThetaSobolev ℚ (1 / 2) h₀ hs₂).orthogonal) :
+    ∃ (χ : PontryaginDual C₁(ℚ) → PontryaginDual C𝔽(ℚ)) (i : SpectralLineJetIndex χ (1 / 2) 2)
+      (e : CompactIntervalSobolev (μ(ℚ)) logNorm(ℚ) 0 0 2),
+      (∫ g, e g * ideleClassNormTwist (χ i.val.1) ((i.val.2.1 : ℂ) * Complex.I) g ∂μ(ℚ)) = 1 ∧
+      ∀ φ : BruhatCompactSupport C𝔽(ℚ),
+        hardySobolevTestAction (μ(ℚ)) m𝔽(ℚ) 0 0 2 h₀ hs₂ φ e =
+          (∫ g, φ.val g * ideleClassNormTwist (χ i.val.1) ((i.val.2.1 : ℂ) * Complex.I) g ∂μ(ℚ)) •
+            e := by
+  refine extraWeight_basepoint_jet.elim fun χ hχi ↦ hχi.2.elim fun i ↦ ?_
+  have hχ := hχi.1
+  choose Λ hΛ using fun j : SpectralLineJetIndex χ (1 / 2) 2 ↦
+    spectralStripTransposeLimit_rangeConsequence_false_functional χ j (χ j.val.1) j.val.2.1
+  have hpair (j : SpectralLineJetIndex χ (1 / 2) 2)
+      (f : CompactIntervalSobolev (μ(ℚ)) logNorm(ℚ) 0 0 2) :
+      spectralSobolevPairing (F := ℚ) f ((spectralLineJet_memLp χ one_lt_two j).toLp _) =
+        Λ j f :=
+    (extraWeight_jet_pair χ j f).trans (hΛ j f).2.symm
+  have hK := spectralLineJet_commonKernel (a := (1 / 2 : ℝ)) χ hχ one_lt_two
+  with_reducible refine (spectralLineJet_denseInterpolants (a := (1 / 2 : ℝ)) χ hχ
+    one_lt_two).elim fun v hv ↦ ?_
+  have hv1 := hv.1
+  have hv0 := hv.2.1
+  have hab := spectralStripTransposeLimit_rangeConsequence_false_eigen
+    (globalThetaSobolev ℚ (1 / 2) h₀ hs₂) Λ
+    (fun f hf ↦ (hK f).mpr fun j ↦ (hpair j f).trans (hf j))
+    (fun f hf j ↦ (hpair j f).symm.trans ((hK f).mp hf j))
+    i (v i) (fun j hj ↦ (hpair j (v i)).symm.trans (hv0 i j (Ne.symm hj)))
+  refine ⟨χ, i, (globalThetaSobolev ℚ (1 / 2) h₀ hs₂).orthogonal.starProjection (v i), ?_,
+    fun φ ↦ ?_⟩
+  · exact (hΛ i _).2.symm.trans (hab.1.trans ((hpair i (v i)).symm.trans (hv1 i)))
+  · exact hab.2 (hardySobolevTestAction (μ(ℚ)) m𝔽(ℚ) 0 0 2 h₀ hs₂ φ)
+      (fun j ↦ ∫ g, φ.val g *
+        ideleClassNormTwist (χ j.val.1) ((j.val.2.1 : ℂ) * Complex.I) g ∂μ(ℚ))
+      (fun j f ↦ (extraWeight_convolution_eigen (F := ℚ) (ideleClassNormTwist (χ j.val.1)
+        ((j.val.2.1 : ℂ) * Complex.I)) (Λ j) (fun f ↦ (hΛ j f).2)).2 φ f)
+      (H φ (v i))
+
+/-- A common eigenvector of all convolutions, with the eigenvalues of one norm
+twist, pairs to zero with every nearby twist of the same character. -/
+private theorem spectralStripTransposeLimit_rangeConsequence_false_vanish
+    (χ : PontryaginDual C₁(ℚ) → PontryaginDual C𝔽(ℚ)) (i : SpectralLineJetIndex χ (1 / 2) 2)
+    (e : CompactIntervalSobolev (μ(ℚ)) logNorm(ℚ) 0 0 2)
+    (he : ∀ φ : BruhatCompactSupport C𝔽(ℚ),
+      hardySobolevTestAction (μ(ℚ)) m𝔽(ℚ) 0 0 2 h₀ hs₂ φ e =
+        (∫ g, φ.val g * ideleClassNormTwist (χ i.val.1) ((i.val.2.1 : ℂ) * Complex.I) g ∂μ(ℚ)) •
+          e)
+    (δ : ℝ) (hδ : 0 < δ) (hδ1 : δ ≤ 1) :
+    AEStronglyMeasurable (fun g ↦ e g * ideleClassNormTwist (χ i.val.1)
+        (((i.val.2.1 + δ : ℝ) : ℂ) * Complex.I) g) μ(ℚ) ∧
+      (∫ g, e g * ideleClassNormTwist (χ i.val.1)
+        (((i.val.2.1 + δ : ℝ) : ℂ) * Complex.I) g ∂μ(ℚ)) = 0 := by
+  refine (spectralStripTransposeLimit_rangeConsequence_false_functional χ i (χ i.val.1)
+    (i.val.2.1 + δ)).elim fun Λ' hΛ' ↦ ?_
+  refine (spectralStripTransposeLimit_rangeConsequence_false_separate (χ i.val.1)
+    i.val.2.1 δ hδ hδ1).elim fun φ hφ ↦ ?_
+  have h1 := (extraWeight_convolution_eigen (F := ℚ) (ideleClassNormTwist (χ i.val.1)
+    (((i.val.2.1 + δ : ℝ) : ℂ) * Complex.I)) Λ' (fun f ↦ (hΛ' f).2)).2 φ e
+  have h4 : Λ' (hardySobolevTestAction (μ(ℚ)) m𝔽(ℚ) 0 0 2 h₀ hs₂ φ e) =
+      (∫ g, φ.val g * ideleClassNormTwist (χ i.val.1) ((i.val.2.1 : ℂ) * Complex.I) g ∂μ(ℚ)) *
+        Λ' e :=
+    (congrArg Λ' (he φ)).trans (map_smul Λ' _ e)
+  have h2 : Λ' e = 0 := by
+    by_contra hne
+    exact hφ (mul_right_cancel₀ hne (h4.symm.trans h1))
+  exact ⟨(hΛ' e).1.aestronglyMeasurable, (hΛ' e).2.symm.trans h2⟩
+
+/-- If the pairings with the norm twists at ordinates decreasing to a limit all
+vanish, so does the pairing at the limit ordinate, by dominated convergence. -/
+private theorem spectralStripTransposeLimit_rangeConsequence_false_limit
+    (θ : PontryaginDual C𝔽(ℚ)) (γ : ℝ) (e : C𝔽(ℚ) → ℂ)
+    (hmeas : ∀ n : ℕ, AEStronglyMeasurable (fun g ↦ e g * ideleClassNormTwist θ
+      (((γ + 1 / ((n : ℝ) + 1) : ℝ) : ℂ) * Complex.I) g) μ(ℚ))
+    (hzero : ∀ n : ℕ, (∫ g, e g * ideleClassNormTwist θ
+      (((γ + 1 / ((n : ℝ) + 1) : ℝ) : ℂ) * Complex.I) g ∂μ(ℚ)) = 0) :
+    (∫ g, e g * ideleClassNormTwist θ ((γ : ℂ) * Complex.I) g ∂μ(ℚ)) = 0 := by
+  by_cases hint :
+      Integrable (fun g ↦ e g * ideleClassNormTwist θ ((γ : ℂ) * Complex.I) g) μ(ℚ)
+  · have ht : Tendsto (fun n : ℕ ↦ γ + 1 / ((n : ℝ) + 1)) atTop (𝓝 γ) := by
+      simpa only [add_zero] using
+        (tendsto_const_nhds (x := γ)).add tendsto_one_div_add_atTop_nhds_zero_nat
+    have hlim : Tendsto (fun n : ℕ ↦ ∫ g, e g * ideleClassNormTwist θ
+        (((γ + 1 / ((n : ℝ) + 1) : ℝ) : ℂ) * Complex.I) g ∂μ(ℚ)) atTop
+        (𝓝 (∫ g, e g * ideleClassNormTwist θ ((γ : ℂ) * Complex.I) g ∂μ(ℚ))) := by
+      refine tendsto_integral_of_dominated_convergence
+        (fun g ↦ ‖e g * ideleClassNormTwist θ ((γ : ℂ) * Complex.I) g‖)
+        hmeas hint.norm (fun n ↦ ae_of_all _ fun g ↦ ?_) (ae_of_all _ fun g ↦ ?_)
+      · rw [norm_mul, norm_mul, spectralStripTransposeLimit_rangeConsequence_false_norm,
+          spectralStripTransposeLimit_rangeConsequence_false_norm]
+      · refine Tendsto.const_mul _ ?_
+        have hc : Continuous fun t : ℝ ↦ ideleClassNormTwist θ ((t : ℂ) * Complex.I) g := by
+          change Continuous fun t : ℝ ↦ (θ g : ℂ) *
+            (((ideleClassNorm ℚ g).val : ℝ) : ℂ) ^ ((t : ℂ) * Complex.I)
+          exact continuous_const.mul ((Complex.continuous_ofReal.mul continuous_const).const_cpow
+            (Or.inl (Complex.ofReal_ne_zero.mpr
+              (NNReal.coe_pos.mpr (Units.zero_lt (ideleClassNorm ℚ g))).ne')))
+        exact (hc.tendsto γ).comp ht
+    exact tendsto_nhds_unique hlim (by simp_rw [hzero]; exact tendsto_const_nhds)
+  · exact integral_undef hint
+
+/-- Over the rationals on the critical line at Sobolev exponent two, the range
+consequence fails. The eigenvector of all convolutions that it would produce at
+the certified zeta zero pairs to zero with the nearby norm twists, and then with
+its own norm twist, against which its pairing is one. -/
+private theorem spectralStripTransposeLimit_rangeConsequence_false_line
+    (H : ∀ (φ : BruhatCompactSupport C𝔽(ℚ))
+      (u : CompactIntervalSobolev (μ(ℚ)) logNorm(ℚ) 0 0 2),
+      hardySobolevTestAction (μ(ℚ)) m𝔽(ℚ) 0 0 2 h₀ hs₂ φ
+        ((globalThetaSobolev ℚ (1 / 2) h₀ hs₂).orthogonal.starProjection u) ∈
+        (globalThetaSobolev ℚ (1 / 2) h₀ hs₂).orthogonal) : False := by
+  refine (spectralStripTransposeLimit_rangeConsequence_false_eigenvector H).elim
+    fun χ hχ ↦ hχ.elim fun i hi ↦ hi.elim fun e he ↦ ?_
+  have hz (n : ℕ) := spectralStripTransposeLimit_rangeConsequence_false_vanish χ i e he.2
+    (1 / ((n : ℝ) + 1)) (by positivity)
+    ((div_le_one (by positivity)).mpr (le_add_of_nonneg_left n.cast_nonneg))
+  exact one_ne_zero (he.1.symm.trans
+    (spectralStripTransposeLimit_rangeConsequence_false_limit (χ i.val.1) i.val.2.1 e
+      (fun n ↦ (hz n).1) (fun n ↦ (hz n).2)))
+
 /-- Paper: Theorem 10.4.3.5(3), p. 473. Over ℚ use α = 0, s = 4
 and a nontrivial zeta zero a + iγ. Its order-zero Riesz vector on the
 log-norm line is g(t) = exp(−iγt)/(1+t²)². Every printed finite section
@@ -1183,7 +1510,19 @@ of integral one concentrated at such a shift as φ. Then A(φ)g has a
 nonzero geometric component, whereas any limit of the printed tensors
 has spectral output. -/
 theorem spectralStripTransposeLimit_rangeConsequence_false :
-    ¬ spectralStripTransposeLimit_rangeConsequence := by sorry
+    ¬ spectralStripTransposeLimit_rangeConsequence := by
+  intro hall
+  -- Specialize to ℚ with a = 1/2, α = 0 and s = 2, where only order-zero jets survive.
+  -- The interval [-0, 0] is identified with [0, 0] before the line lemma applies.
+  have h (l : ℝ) (hl : l ≤ 0) (he : l = 0)
+      (H : ∀ (φ : BruhatCompactSupport C𝔽(ℚ))
+        (u : CompactIntervalSobolev (μ(ℚ)) logNorm(ℚ) l 0 2),
+        hardySobolevTestAction (μ(ℚ)) m𝔽(ℚ) l 0 2 hl hs₂ φ
+          ((globalThetaSobolev ℚ (1 / 2) hl hs₂).orthogonal.starProjection u) ∈
+          (globalThetaSobolev ℚ (1 / 2) hl hs₂).orthogonal) : False := by
+    subst l
+    exact spectralStripTransposeLimit_rangeConsequence_false_line H
+  exact h (-0) (hStrip(h₀)) neg_zero (hall ℚ (1 / 2) 0 2 (by norm_num) h₀ one_lt_two)
 
 /-- Paper: Theorem 10.4.3.6(2), p. 473, second formula. The cutoff
 spectral function is claimed to represent the geometric restriction.

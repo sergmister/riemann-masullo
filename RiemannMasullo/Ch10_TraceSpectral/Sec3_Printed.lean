@@ -295,9 +295,11 @@ private theorem spectralLineJet_rational_phase_dist
   exact spectralLineJet_dist_tendsto ν P hP hcont (fun g ↦ by simp [P]) hsub t u hlim
     (fun n ↦ jet (i n)) (fun n ↦ jet (j n)) (fun n ↦ hc _ _ (hi n)) (fun n ↦ hc _ _ (hj n))
 
-/-- Arithmetic input for the refutation of (10.3.1.18), p. 451. The number of distinct
-critical-line zeta ordinates up to height T, divided by T, is unbounded. This follows from a
-positive proportion of distinct critical-line zeros and the Riemann–von Mangoldt count. -/
+/-- Classical input: the number of distinct critical-line zeta ordinates up to height T,
+divided by T, is unbounded. This follows from a positive proportion of distinct critical-line
+zeros (Selberg 1942) and the Riemann–von Mangoldt count. Not a statement of the paper and not
+a gap in it: a known theorem of which this project has no formal proof. It is the arithmetic
+input for the refutation of (10.3.1.18), p. 451, which is proved from it by name. -/
 private theorem spectralLineJet_rational_critical_zero_count (k : ℕ) :
     ∃ T : ℕ, ∃ S : Finset ℝ, (k + 1) * (T + 1) < S.card ∧
       ∀ t ∈ S, t ∈ Ioc (0 : ℝ) T ∧ riemannZeta (1 / 2 + (t : ℂ) * Complex.I) = 0 := by sorry

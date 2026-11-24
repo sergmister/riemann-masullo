@@ -2429,6 +2429,57 @@ theorem modulatedQuotientLogMoment_bases (σ : ℕ ≃ J) :
     (hms := hms) (ω := ω) (γs := γs) (hγs := hγs) (μ := μ) (hcomm := hcomm) σ ψ hb ha⟩
 
 include hχ hcomm in
+/-- Paper: Theorem 4.6.1.5 and Equations (4.6.1.16)–(4.6.1.17), p. 212. The biorthogonal set
+(4.6.1.16) of the moment family exists in the difference quotient and satisfies condition (1) of
+the theorem: for every continuous seminorm of the quotient, its members grow at most
+polynomially in each lattice frequency, uniformly in the moment order. The set is built on
+p. 213 from the Mellin transforms (4.6.1.19) and the triangular systems (4.6.1.20)–(4.6.1.21);
+the growth bound is (4.6.1.27), p. 216, which rests on the finiteness of the phase set
+(4.6.1.25), p. 215, that is, on Lemma 4.6.1.4 for the log-periods. The hypothesis `hcomm` enters
+only there; the existence of the biorthogonal set does not need it.
+Deviation: The actual log-periods are commensurate (`hcomm`); ERRATA F235 shows the bound
+fails without that. A positive multiple of a power of one plus the frequency norm expresses
+polynomial growth. -/
+theorem modulatedQuotientLogMoment_exists_biorthogonal_growth :
+    ∃ ψ : J → U, (∀ j, D j (ψ j) = 1) ∧ (∀ j k, j ≠ k → D j (ψ k) = 0) ∧
+      ∀ q : Seminorm ℂ U, Continuous q → ∃ d : ℕ, ∀ k : Fin N, ∃ C : ℝ, 0 < C ∧
+        ∀ (n : ℤ) (j : J), j.val.1 = freq[k, n] →
+          q (ψ j) ≤ C * (1 + |(n : ℝ)|) ^ d := by
+  sorry
+
+include hcomm in
+/-- Two biorthogonal families of the descended log-moments coincide. Their difference at any
+index is a class on which every moment vanishes, and the Schauder expansion of
+`modulatedQuotientLogMoment_bases_quotient` along an enumeration of the moment index
+(`modulatedPeriodicMomentIndex_enumerable`) shows that such a class is zero. -/
+private theorem modulatedQuotientLogMoment_biorthogonal_growth_unique (ψ ψ₀ : J → U)
+    (hdiag : ∀ j, D j (ψ j) = 1) (hoff : ∀ j k, j ≠ k → D j (ψ k) = 0)
+    (hdiag₀ : ∀ j, D j (ψ₀ j) = 1) (hoff₀ : ∀ j k, j ≠ k → D j (ψ₀ k) = 0) : ψ = ψ₀ := by
+  funext j
+  have hN : 0 < N := by
+    classical
+    exact lt_of_lt_of_le (lt_of_le_of_lt (Nat.zero_le _) j.2)
+      ((Finset.card_filter_le _ _).trans (Finset.card_fin N).le)
+  obtain ⟨σ⟩ := modulatedPeriodicMomentIndex_enumerable m hm hms ω γs hγs hN
+  have hb := modulatedQuotientLogMoment_bases_quotient (m := m) (hm := hm) (hms := hms)
+    (ω := ω) (γs := γs) (hγs := hγs) (μ := μ) (hcomm := hcomm) σ ψ ⟨hdiag, hoff⟩
+  have hS₀ : ∀ g ∈ List.ofFn γs, 1 < (m g).val := by
+    intro g hg
+    obtain ⟨k, rfl⟩ := List.mem_ofFn.mp hg
+    exact hγs k
+  obtain ⟨-, -, hF⟩ := modulatedIsotypicDifferenceProduct_quotient.{_, 0} (m := m) (hm := hm)
+    (hms := hms) (ω := ω) (List.ofFn γs) hS₀
+  obtain ⟨-, -, hmetr, -⟩ := hF
+  have hz (i : J) : D i (ψ j - ψ₀ j) = 0 := by
+    rw [map_sub, sub_eq_zero]
+    by_cases hij : i = j
+    · rw [hij, hdiag, hdiag₀]
+    · rw [hoff i j hij, hoff₀ i j hij]
+  have hs := hb.2 (ψ j - ψ₀ j)
+  simp only [Function.comp_apply, ContinuousLinearMap.coe_coe, hz, zero_smul] at hs
+  exact sub_eq_zero.mp (hs.unique hasSum_zero)
+
+include hχ hcomm in
 /-- Paper: Theorem 4.6.1.5(1), p. 212. A continuous seminorm of the
 biorthogonal vectors grows at most polynomially in each lattice frequency,
 uniformly in the moment order.
@@ -2439,7 +2490,13 @@ theorem modulatedQuotientLogMoment_biorthogonal_growth (ψ : J → U)
     (q : Seminorm ℂ U) (hq : Continuous q) :
     ∃ d : ℕ, ∀ k : Fin N, ∃ C : ℝ, 0 < C ∧
       ∀ (n : ℤ) (j : J), j.val.1 = freq[k, n] →
-        q (ψ j) ≤ C * (1 + |(n : ℝ)|) ^ d := by sorry
+        q (ψ j) ≤ C * (1 + |(n : ℝ)|) ^ d := by
+  obtain ⟨ψ₀, h1, h2, h3⟩ := modulatedQuotientLogMoment_exists_biorthogonal_growth (m := m)
+    (hm := hm) (hms := hms) (ω := ω) (γs := γs) (hγs := hγs) (χ := χ) (hχ := hχ) (t₀ := t₀)
+    (ht₀ := ht₀) (μ := μ) (hcomm := hcomm)
+  obtain rfl := modulatedQuotientLogMoment_biorthogonal_growth_unique (m := m) (hm := hm)
+    (hms := hms) (ω := ω) (γs := γs) (hγs := hγs) (μ := μ) (hcomm := hcomm) ψ ψ₀ hdiag hoff h1 h2
+  exact h3 q hq
 
 /-- A logarithmic moment along a one-parameter family of characters is the Fourier
 transform of a single Schwartz function on the logarithmic coordinate. -/

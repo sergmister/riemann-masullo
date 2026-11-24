@@ -775,6 +775,17 @@ private theorem isBruhatSmooth_comp_realHom (L : G →* Multiplicative ℝ) (hL 
     exact contDiff_elementary_realHom (q.comp e.equiv.symm.toMulEquiv.toMonoidHom)
       (hq.comp e.equiv.symm.continuous) hH z b
 
+/-- A smooth compact profile pulled back along a proper real logarithmic
+character is a compactly supported Bruhat test. -/
+theorem exists_bruhatCompactSupport_of_proper_realHom (L : G →ₜ* Multiplicative ℝ)
+    (hL : IsProperMap L) (H : ℝ → ℂ) (hH : ContDiff ℝ (∞) H) (hc : HasCompactSupport H) :
+    ∃ f : BruhatCompactSupport G, ∀ x, f.val x = H (L x).toAdd := by
+  have hs := isBruhatSmooth_comp_realHom L.toMonoidHom L.continuous hH
+  have hk : IsCompact ((Multiplicative.toAdd : Multiplicative ℝ → ℝ) ⁻¹' tsupport H) := hc.isCompact
+  have hcs : HasCompactSupport (fun x : G ↦ H (L x).toAdd) :=
+    HasCompactSupport.intro (hL.isCompact_preimage hk) fun _ hx ↦ image_eq_zero_of_notMem_tsupport hx
+  exact ⟨⟨_, (mem_bruhatSmoothSubmodule_iff _).mpr hs, hcs⟩, fun _ ↦ rfl⟩
+
 /-- Multiplying a Bruhat `Cᵖ` function by a smooth function of a continuous real-valued
 homomorphism keeps it Bruhat `Cᵖ` (with the same good subgroup). -/
 private theorem IsBruhatContDiff.mul_comp_realHom {p : ℕ} {f : G → ℂ} (hf : IsBruhatContDiff p f)

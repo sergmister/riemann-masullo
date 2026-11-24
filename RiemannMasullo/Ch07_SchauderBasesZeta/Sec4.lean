@@ -7292,6 +7292,345 @@ private theorem archNuclearityDenominator_isClosed_jetEquiv
   exact isClosed_singleton.preimage
     (e.continuous.comp (Submodule.continuous_mkQ (archNuclearityDenominator χ)))
 
+/-- Smooth compactly supported cut-offs away from the coordinate walls of a mixed real and
+complex coordinate space that are eventually one at every point off the walls. -/
+private theorem archNuclearityDenominator_ne_bot_cutoff (ι κ : Type*) [Fintype ι] [Fintype κ] :
+    ∃ k : ℕ → ((ι → ℝ) × (κ → ℂ)) → ℝ,
+      (∀ n, ContDiff ℝ ((⊤ : ℕ∞) : WithTop ℕ∞) (k n)) ∧
+      (∀ n, HasCompactSupport (k n)) ∧
+      (∀ n, Disjoint (tsupport (k n)) {x | (∃ i, x.1 i = 0) ∨ ∃ j, x.2 j = 0}) ∧
+      (∀ n x, 0 ≤ k n x ∧ k n x ≤ 1) ∧
+      (∀ x, ¬((∃ i, x.1 i = 0) ∨ ∃ j, x.2 j = 0) →
+        ∀ᶠ n in Filter.atTop, k n x = 1) := by
+  let W : Set ((ι → ℝ) × (κ → ℂ)) := {x | (∃ i, x.1 i = 0) ∨ ∃ j, x.2 j = 0}
+  have hW : IsClosed W := by
+    have hWe : W = (⋃ i, {x : (ι → ℝ) × (κ → ℂ) | x.1 i = 0}) ∪
+        ⋃ j, {x : (ι → ℝ) × (κ → ℂ) | x.2 j = 0} := by
+      ext x
+      constructor
+      · rintro (⟨i, hi⟩ | ⟨j, hj⟩)
+        · exact Or.inl (mem_iUnion.mpr ⟨i, hi⟩)
+        · exact Or.inr (mem_iUnion.mpr ⟨j, hj⟩)
+      · rintro (h | h)
+        · exact Or.inl (mem_iUnion.mp h)
+        · exact Or.inr (mem_iUnion.mp h)
+    rw [hWe]
+    exact (isClosed_iUnion_of_finite fun i ↦ isClosed_eq (by fun_prop) continuous_const).union
+      (isClosed_iUnion_of_finite fun j ↦ isClosed_eq (by fun_prop) continuous_const)
+  obtain ⟨f, hfs, hfc, hfr⟩ := hW.isOpen_compl.exists_contDiff_support_eq (n := ⊤)
+  have hf0 (x : (ι → ℝ) × (κ → ℂ)) : 0 ≤ f x := (hfr ⟨x, rfl⟩).1
+  let b (n : ℕ) : ContDiffBump (0 : (ι → ℝ) × (κ → ℂ)) :=
+    ⟨(n : ℝ) + 1, (n : ℝ) + 2, by positivity, by linarith⟩
+  refine ⟨fun n x ↦ Real.smoothTransition (n * f x - 1) * b n x, fun n ↦ ?_, fun n ↦ ?_,
+    fun n ↦ ?_, fun n x ↦ ?_, fun x hx ↦ ?_⟩
+  · exact (Real.smoothTransition.contDiff.comp ((contDiff_const.mul hfc).sub contDiff_const)).mul
+      (b n).contDiff
+  · exact (b n).hasCompactSupport.mul_left
+  · have hcl : IsClosed {x : (ι → ℝ) × (κ → ℂ) | 1 ≤ n * f x} :=
+      isClosed_le continuous_const (continuous_const.mul hfc.continuous)
+    have hsub : tsupport (fun x ↦ Real.smoothTransition (n * f x - 1) * b n x) ⊆
+        {x : (ι → ℝ) × (κ → ℂ) | 1 ≤ n * f x} := by
+      refine closure_minimal (fun x hx ↦ ?_) hcl
+      by_contra hlt
+      have hlt' : n * f x < 1 := not_le.mp hlt
+      exact hx (mul_eq_zero_of_left
+        (Real.smoothTransition.zero_of_nonpos (by linarith)) _)
+    rw [Set.disjoint_left]
+    intro x hx hw
+    have h1 : 1 ≤ n * f x := hsub hx
+    have h0 : f x = 0 := by
+      have hn : x ∉ Function.support f := by
+        rw [hfs]
+        exact fun h ↦ h hw
+      exact Function.notMem_support.mp hn
+    rw [h0, mul_zero] at h1
+    linarith
+  · exact ⟨mul_nonneg (Real.smoothTransition.nonneg _) (b n).nonneg,
+      (mul_le_mul (Real.smoothTransition.le_one _) (b n).le_one (b n).nonneg
+        zero_le_one).trans_eq (one_mul 1)⟩
+  · have hmem : x ∈ Function.support f := by
+      rw [hfs]
+      exact hx
+    have hpos : 0 < f x := lt_of_le_of_ne (hf0 x) (Ne.symm hmem)
+    obtain ⟨N, hN⟩ := exists_nat_ge (max (2 / f x) ‖x‖)
+    filter_upwards [Filter.eventually_ge_atTop N] with n hn
+    have hn' : max (2 / f x) ‖x‖ ≤ n := hN.trans (by exact_mod_cast hn)
+    have h1 : 1 ≤ n * f x - 1 := by
+      have h2 := (div_le_iff₀ hpos).mp ((le_max_left _ _).trans hn')
+      linarith
+    have h2 : x ∈ Metric.closedBall (0 : (ι → ℝ) × (κ → ℂ)) (b n).rIn := by
+      rw [mem_closedBall_zero_iff]
+      exact ((le_max_right _ _).trans hn').trans (le_add_of_nonneg_right zero_le_one)
+    change Real.smoothTransition (n * f x - 1) * b n x = 1
+    rw [Real.smoothTransition.one_of_one_le h1, (b n).one_of_mem_closedBall h2, mul_one]
+
+/-- If an integrable function has zero integral against every member of a sequence of
+cut-offs with values in the unit interval that is eventually one at each point, then its
+integral is zero. -/
+private theorem archNuclearityDenominator_ne_bot_limit {X : Type*} [MeasurableSpace X]
+    (μ : Measure X) (G : X → ℂ) (hG : Integrable G μ) (k : ℕ → X → ℝ)
+    (hk : ∀ n x, 0 ≤ k n x ∧ k n x ≤ 1) (hlim : ∀ x, ∀ᶠ n in Filter.atTop, k n x = 1)
+    (hint : ∀ n, Integrable (fun x ↦ (k n x : ℂ) * G x) μ)
+    (h0 : ∀ n, ∫ x, (k n x : ℂ) * G x ∂μ = 0) : ∫ x, G x ∂μ = 0 := by
+  have h := tendsto_integral_of_dominated_convergence (fun x ↦ ‖G x‖)
+    (fun n ↦ (hint n).aestronglyMeasurable) hG.norm
+    (fun n ↦ ae_of_all _ fun x ↦ by
+      rw [norm_mul, Complex.norm_real, Real.norm_of_nonneg (hk n x).1]
+      exact mul_le_of_le_one_left (norm_nonneg _) (hk n x).2)
+    (ae_of_all _ fun x ↦ tendsto_nhds_of_eventually_eq
+      ((hlim x).mono fun n hn ↦ by rw [hn, Complex.ofReal_one, one_mul]))
+  simp only [h0] at h
+  exact tendsto_nhds_unique h tendsto_const_nhds
+
+/-- A norm twist of a unitary character whose exponent has real part greater than one lies in
+the half-plane of absolute convergence of the zeta integral. -/
+private theorem archNuclearityDenominator_ne_bot_rightHalf
+    (χ : PontryaginDual (IdeleClassGroup (𝓞 F) F)) (s : ℂ) (hs : 1 < s.re) :
+    ideleClassNormTwist χ s ∈
+      (relativeRightHalfPlane (ideleClassNorm F) (isProperMap_ideleClassNorm F)
+        (ideleClassNorm_ne_one (F := F)) 1 : Set (HeckeCharacter (𝓞 F) F)) :=
+  show 1 < quasiCharacterAbscissa (ideleClassNorm F) (isProperMap_ideleClassNorm F)
+      (ideleClassNorm_ne_one (F := F)) (ideleClassNormTwist χ s) from
+    (quasiCharacterAbscissa_ideleClassNormTwist χ s).symm ▸ hs
+
+/-- Some adelic test has a nonzero zeta integral at the square of the norm twist. -/
+private theorem archNuclearityDenominator_ne_bot_zeta_ne_zero
+    (χ : PontryaginDual (IdeleClassGroup (𝓞 F) F)) :
+    ∃ f : ℬ(𝔸[F]), globalIdelicZetaIntegral f (ideleClassNormTwist χ 2) ≠ 0 := by
+  have hs : (2 : ℂ) ∈ Complex.re ⁻¹' Set.Ioi (1 : ℝ) := by
+    change (1 : ℝ) < (2 : ℂ).re
+    norm_num
+  obtain ⟨fA, hfA⟩ := exists_archimedeanHeckeTest χ
+  obtain ⟨f, a, ha, hf⟩ := exists_globalHeckeTest χ fA
+  refine ⟨f, ?_⟩
+  have h1 := hf ⟨2, hs⟩
+  have h2 := hfA ⟨2, hs⟩
+  rw [h1, h2]
+  exact mul_ne_zero ha (mul_ne_zero (heckeGammaFactor_ne_zero_of_re_pos χ (by norm_num))
+    (finiteHeckeL_ne_zero_of_one_lt_re χ ⟨2, hs⟩))
+
+/-- Left invariance of the idelic Haar measure turns a translate of the test function into the
+value of the quasi-character at the translating idele. -/
+private theorem archNuclearityDenominator_ne_bot_zeta_translate
+    (u : IdeleGroup (𝓞 F) F) (f : ℬ(𝔸[F])) (c : HeckeCharacter (𝓞 F) F) :
+    globalIdelicZetaIntegral (schwartzBruhatUnitTranslate u f) c =
+      c (QuotientGroup.mk u) * globalIdelicZetaIntegral f c := by
+  let : MeasurableSpace (IdeleGroup (𝓞 F) F) := borel _
+  let : BorelSpace (IdeleGroup (𝓞 F) F) := ⟨rfl⟩
+  let : (multiplicativeTamagawaMeasure F).IsHaarMeasure :=
+    (multiplicativeTamagawaMeasures_existsUnique F).exists.choose_spec.1
+  let d (g : IdeleGroup (𝓞 F) F) : ℂ := c (QuotientGroup.mk g)
+  have hd (g k : IdeleGroup (𝓞 F) F) : d (g * k) = d g * d k := by
+    change c (QuotientGroup.mk (g * k)) = _
+    rw [QuotientGroup.mk_mul, map_mul]
+  let b (g : IdeleGroup (𝓞 F) F) : ℂ := f (Multiplicative.ofAdd g.val) * d g
+  change (∫ g : IdeleGroup (𝓞 F) F,
+    f (Multiplicative.ofAdd ((↑u⁻¹ : 𝔸[F]) * g.val)) * d g
+      ∂multiplicativeTamagawaMeasure F) = d u * ∫ g, b g ∂multiplicativeTamagawaMeasure F
+  have he (g : IdeleGroup (𝓞 F) F) : d u * d (u⁻¹ * g) = d g :=
+    (hd u (u⁻¹ * g)).symm.trans (congrArg d (mul_inv_cancel_left u g))
+  have e (g : IdeleGroup (𝓞 F) F) :
+      f (Multiplicative.ofAdd ((↑u⁻¹ : 𝔸[F]) * g.val)) * d g = d u * b (u⁻¹ * g) :=
+    (congrArg (f (Multiplicative.ofAdd (u⁻¹ * g).val) * ·) (he g).symm).trans
+      (mul_left_comm _ _ _)
+  exact (integral_congr_ae (ae_of_all _ e)).trans
+    ((integral_const_mul (d u) _).trans
+      (congrArg (d u * ·) (integral_mul_left_eq_self b (u⁻¹))))
+
+/-- A test whose homogeneous theta function vanishes has zero zeta integral on the half-plane
+of absolute convergence, because the zeta integral is the Mellin integral of the theta function. -/
+private theorem archNuclearityDenominator_ne_bot_zeta_of_theta
+    (χ : PontryaginDual (IdeleClassGroup (𝓞 F) F)) (f : ℬ(𝔸[F]))
+    (h : homogeneousAdelicThetaLinearMap F (ω(χ)) f = 0) (s : ℂ) (hs : 1 < s.re) :
+    globalIdelicZetaIntegral f (ideleClassNormTwist χ s) = 0 := by
+  let τ : ℝ≥0ˣ →ₜ* IdeleGroup (𝓞 F) F :=
+    ⟨canonicalIdeleNormSection F, canonicalIdeleNormSection_continuous F⟩
+  have hτ : RightInverse τ (ideleNorm F) := canonicalIdeleNormSection_rightInverse F
+  have h1 := ((homogeneousThetaMellinIntegral_meromorphicContinuation τ (ω(χ)) f hτ χ
+    (fun _ ↦ rfl) _).mpr rfl).2 (show s ∈ Complex.re ⁻¹' Ioi 1 from hs)
+  refine ((globalIdelicZFunction_eq_integral f
+    (archNuclearityDenominator_ne_bot_rightHalf χ s hs)).symm.trans h1).trans ?_
+  refine (integral_congr_ae (ae_of_all _ fun t ↦ ?_)).trans (integral_zero _ _)
+  have ht : homogeneousAdelicTheta (ω(χ)) f (QuotientGroup.mk (τ t)) = 0 :=
+    DFunLike.congr_fun h (QuotientGroup.mk (τ t))
+  exact mul_eq_zero_of_left ht _
+
+/-- On the half-plane of absolute convergence the zeta integral is linear in the test. -/
+private theorem archNuclearityDenominator_ne_bot_zeta_linear
+    (χ : PontryaginDual (IdeleClassGroup (𝓞 F) F)) :
+    ∃ L : ℬ(𝔸[F]) →ₗ[ℂ] ℂ,
+      ∀ f, L f = globalIdelicZetaIntegral f (ideleClassNormTwist χ 2) := by
+  let : MeasurableSpace (IdeleGroup (𝓞 F) F) := borel _
+  have hc := archNuclearityDenominator_ne_bot_rightHalf χ 2 (by norm_num)
+  have hint (f : ℬ(𝔸[F])) :=
+    globalIdelicZetaIntegral_integrable f (ideleClassNormTwist χ 2) hc
+  refine ⟨{ toFun := fun f ↦ globalIdelicZetaIntegral f (ideleClassNormTwist χ 2)
+            map_add' := fun f g ↦ ?_
+            map_smul' := fun r f ↦ ?_ }, fun f ↦ rfl⟩
+  · refine Eq.trans ?_ (integral_add (hint f) (hint g))
+    exact integral_congr_ae (ae_of_all _ fun x ↦ add_mul _ _ _)
+  · refine Eq.trans ?_ (integral_const_mul r _)
+    exact integral_congr_ae (ae_of_all _ fun x ↦ mul_assoc _ _ _)
+
+/-- Some pure adelic tensor has a nonzero zeta integral at the square of the norm twist. -/
+private theorem archNuclearityDenominator_ne_bot_pure
+    (χ : PontryaginDual (IdeleClassGroup (𝓞 F) F)) :
+    ∃ (a : ℬ(InfiniteAdeleRing F)) (b : ℬ(FiniteAdeleRing (𝓞 F) F)),
+      globalIdelicZetaIntegral ((adeleSchwartz_inductiveTensor_equiv F).choose (a ⊗ₜ[ℂ] b))
+        (ideleClassNormTwist χ 2) ≠ 0 := by
+  obtain ⟨L, hL⟩ := archNuclearityDenominator_ne_bot_zeta_linear χ
+  obtain ⟨f, hf⟩ := archNuclearityDenominator_ne_bot_zeta_ne_zero χ
+  by_contra! h
+  have hz : L.comp ((adeleSchwartz_inductiveTensor_equiv F).choose).toLinearMap = 0 :=
+    TensorProduct.ext' fun a b ↦ (hL _).trans (h a b)
+  have ht := LinearMap.congr_fun hz (((adeleSchwartz_inductiveTensor_equiv F).choose).symm f)
+  change L ((adeleSchwartz_inductiveTensor_equiv F).choose
+    (((adeleSchwartz_inductiveTensor_equiv F).choose).symm f)) = 0 at ht
+  rw [((adeleSchwartz_inductiveTensor_equiv F).choose).apply_symm_apply, hL] at ht
+  exact hf ht
+
+/-- Cutting the archimedean factor off near the coordinate walls keeps the zeta integral of
+some pure tensor nonzero, so a tensor with flat archimedean factor has that property. -/
+private theorem archNuclearityDenominator_ne_bot_flat
+    (χ : PontryaginDual (IdeleClassGroup (𝓞 F) F)) :
+    ∃ (a : ℬ(InfiniteAdeleRing F)) (b : ℬ(FiniteAdeleRing (𝓞 F) F)),
+      a ∈ archNuclearity_flatFactors (F := F) ∧
+      globalIdelicZetaIntegral ((adeleSchwartz_inductiveTensor_equiv F).choose (a ⊗ₜ[ℂ] b))
+        (ideleClassNormTwist χ 2) ≠ 0 := by
+  obtain ⟨a₀, b₀, hab⟩ := archNuclearityDenominator_ne_bot_pure χ
+  obtain ⟨J, hJ⟩ := archimedeanSchwartzBruhat_equiv (F := F)
+  obtain ⟨k, hks, hkc, hkd, hk01, hklim⟩ :=
+    archNuclearityDenominator_ne_bot_cutoff RealPlaces ComplexPlaces
+  by_contra! h
+  let h₀ : SchwartzMap Coordinates ℂ := J.symm a₀
+  let φ (n : ℕ) : SchwartzMap Coordinates ℂ :=
+    (show HasCompactSupport (fun x : Coordinates ↦ ((k n x : ℝ) : ℂ) * h₀ x) from
+      ((hkc n).comp_left Complex.ofReal_zero).mul_right).toSchwartzMap
+        ((Complex.ofRealCLM.contDiff.comp (hks n)).mul (h₀.smooth ⊤))
+  have hflat (n : ℕ) :
+      φ n ∈ archimedeanFlatSchwartz (ι := RealPlaces) (κ := ComplexPlaces) :=
+    mem_archimedeanFlatSchwartz_of_tsupport (φ n) ((hkd n).mono_left
+      ((tsupport_mul_subset_left).trans (tsupport_comp_subset Complex.ofReal_zero _)))
+  have hmem (n : ℕ) : J (φ n) ∈ archNuclearity_flatFactors (F := F) :=
+    ⟨⟨φ n, hflat n⟩, fun x ↦ hJ (φ n) x⟩
+  have hwall (g : IdeleGroup (𝓞 F) F) :
+      ¬((∃ i, (InfiniteAdeleRing.ringEquiv_mixedSpace F g.val.1).1 i = 0) ∨
+        ∃ j, (InfiniteAdeleRing.ringEquiv_mixedSpace F g.val.1).2 j = 0) := by
+    have hxy : InfiniteAdeleRing.ringEquiv_mixedSpace F g.val.1 *
+        InfiniteAdeleRing.ringEquiv_mixedSpace F g.inv.1 = 1 := by
+      rw [← map_mul]
+      exact (congrArg _ (congrArg Prod.fst g.val_inv)).trans (map_one _)
+    rintro (⟨i, hi⟩ | ⟨j, hj⟩)
+    · have h1 : (InfiniteAdeleRing.ringEquiv_mixedSpace F g.val.1).1 i *
+          (InfiniteAdeleRing.ringEquiv_mixedSpace F g.inv.1).1 i = 1 :=
+        congrArg (fun z : Coordinates ↦ z.1 i) hxy
+      rw [hi, zero_mul] at h1
+      exact zero_ne_one h1
+    · have h1 : (InfiniteAdeleRing.ringEquiv_mixedSpace F g.val.1).2 j *
+          (InfiniteAdeleRing.ringEquiv_mixedSpace F g.inv.1).2 j = 1 :=
+        congrArg (fun z : Coordinates ↦ z.2 j) hxy
+      rw [hj, zero_mul] at h1
+      exact zero_ne_one h1
+  let : MeasurableSpace (IdeleGroup (𝓞 F) F) := borel _
+  have hc := archNuclearityDenominator_ne_bot_rightHalf χ 2 (by norm_num)
+  let G (g : IdeleGroup (𝓞 F) F) : ℂ :=
+    (adeleSchwartz_inductiveTensor_equiv F).choose (a₀ ⊗ₜ[ℂ] b₀)
+      (Multiplicative.ofAdd g.val) * ideleClassNormTwist χ 2 (QuotientGroup.mk g)
+  let K (n : ℕ) (g : IdeleGroup (𝓞 F) F) : ℝ :=
+    k n (InfiniteAdeleRing.ringEquiv_mixedSpace F g.val.1)
+  have hpt (n : ℕ) (g : IdeleGroup (𝓞 F) F) :
+      (adeleSchwartz_inductiveTensor_equiv F).choose (J (φ n) ⊗ₜ[ℂ] b₀)
+          (Multiplicative.ofAdd g.val) * ideleClassNormTwist χ 2 (QuotientGroup.mk g) =
+        (K n g : ℂ) * G g := by
+    have ha₀ : a₀ (Multiplicative.ofAdd g.val.1) =
+        h₀ (InfiniteAdeleRing.ringEquiv_mixedSpace F g.val.1) := by
+      rw [← hJ, J.apply_symm_apply]
+    change _ = (K n g : ℂ) * ((adeleSchwartz_inductiveTensor_equiv F).choose
+      (a₀ ⊗ₜ[ℂ] b₀) (Multiplicative.ofAdd g.val) *
+        ideleClassNormTwist χ 2 (QuotientGroup.mk g))
+    rw [(adeleSchwartz_inductiveTensor_equiv F).choose_spec,
+      (adeleSchwartz_inductiveTensor_equiv F).choose_spec, hJ, ha₀]
+    change ((k n _ : ℝ) : ℂ) * h₀ _ * _ * _ = (K n g : ℂ) * (_ * _ * _)
+    simp only [K, mul_assoc]
+  have hzero := archNuclearityDenominator_ne_bot_limit (multiplicativeTamagawaMeasure F) G
+    (globalIdelicZetaIntegral_integrable _ (ideleClassNormTwist χ 2) hc) K
+    (fun n g ↦ hk01 n _) (fun g ↦ hklim _ (hwall g))
+    (fun n ↦ (globalIdelicZetaIntegral_integrable ((adeleSchwartz_inductiveTensor_equiv F).choose
+      (J (φ n) ⊗ₜ[ℂ] b₀)) (ideleClassNormTwist χ 2) hc).congr (ae_of_all _ (hpt n)))
+    (fun n ↦ (integral_congr_ae (ae_of_all _ (hpt n))).symm.trans (h (J (φ n)) b₀ (hmem n)))
+  exact hab hzero
+
+/-- A polar test with flat archimedean factors whose homogeneous theta class is not zero:
+a flat pure tensor with nonzero zeta integral, corrected by a translate under an
+archimedean idele of norm two so that its Fourier value at the origin vanishes. -/
+private theorem archNuclearityDenominator_ne_bot_witness
+    (χ : PontryaginDual (IdeleClassGroup (𝓞 F) F)) :
+    ∃ f : P, f.val ∈ globalArchimedeanFlatTests F ∧ mkΘ(χ, f) ≠ 0 := by
+  obtain ⟨a, b, ha, hZ⟩ := archNuclearityDenominator_ne_bot_flat χ
+  obtain ⟨L, hL⟩ := archNuclearityDenominator_ne_bot_zeta_linear χ
+  obtain ⟨w⟩ := (inferInstance : Nonempty (InfinitePlace F))
+  let t : ℝ≥0ˣ := Units.mk0 2 two_ne_zero
+  let g := singlePlaceIdeleNormSection F w t
+  let u := Units.map (RingHom.fst (InfiniteAdeleRing F) (FiniteAdeleRing (𝓞 F) F)).toMonoidHom g
+  have hu : archNuclearity_archUnit u = g := Units.ext (Prod.ext rfl rfl)
+  have hnorm : ideleNorm F (archNuclearity_archUnit u) = t :=
+    hu ▸ singlePlaceIdeleNormSection_rightInverse F w t
+  have hval : ((((ideleNorm F (archNuclearity_archUnit u)).val : ℝ)) : ℂ) = 2 := by
+    rw [hnorm]
+    change (((2 : ℝ≥0) : ℝ) : ℂ) = 2
+    norm_num
+  let f₀ := (adeleSchwartz_inductiveTensor_equiv F).choose (a ⊗ₜ[ℂ] b)
+  let a' := schwartzBruhatUnitTranslate u a - (2 : ℂ) • a
+  have ha' : a' ∈ archNuclearity_flatFactors (F := F) :=
+    Submodule.sub_mem _ (archNuclearity_flatFactors_translate u a ha) (Submodule.smul_mem _ _ ha)
+  let f₁ := (adeleSchwartz_inductiveTensor_equiv F).choose (a' ⊗ₜ[ℂ] b)
+  have htA := archNuclearity_translate_pure u (1 : (FiniteAdeleRing (𝓞 F) F)ˣ) a b
+  rw [archNuclearity_translate_one,
+    show archNuclearity_finiteUnit (F := F) 1 = 1 from Units.ext rfl, mul_one] at htA
+  have hf₁ :
+      f₁ = schwartzBruhatUnitTranslate (archNuclearity_archUnit u) f₀ - (2 : ℂ) • f₀ := by
+    have h1 : a' ⊗ₜ[ℂ] b =
+        schwartzBruhatUnitTranslate u a ⊗ₜ[ℂ] b - (2 : ℂ) • (a ⊗ₜ[ℂ] b) :=
+      (TensorProduct.sub_tmul _ _ _).trans
+        (congrArg (schwartzBruhatUnitTranslate u a ⊗ₜ[ℂ] b - ·)
+          (TensorProduct.smul_tmul' _ _ _).symm)
+    exact (congrArg (adeleSchwartz_inductiveTensor_equiv F).choose h1).trans
+      ((map_sub (adeleSchwartz_inductiveTensor_equiv F).choose _ _).trans
+        (congrArg₂ (· - ·) htA.symm
+          (map_smul (adeleSchwartz_inductiveTensor_equiv F).choose _ _)))
+  have hflat : f₁ ∈ globalArchimedeanFlatTests F := by
+    obtain ⟨h, hh⟩ := ha'
+    exact Submodule.subset_span ⟨a', b, h, hh, fun hF ↦ hF.elim, rfl⟩
+  let H : ℬ(𝔸[F]) →L[ℂ] ℂ := (ContinuousLinearMap.snd ℂ ℂ ℂ).comp
+    (⟨(adelePolarValues_isLinear (F := F)).mk' adelePolarValues,
+      adelePolarValues_continuous⟩ : ℬ(𝔸[F]) →L[ℂ] ℂ × ℂ)
+  have hH : H f₁ = 0 := by
+    have h := archNuclearity_hatC_translate (archNuclearity_archUnit u) f₀
+    rw [hval] at h
+    rw [hf₁, map_sub, map_smul, smul_eq_mul]
+    exact sub_eq_zero.mpr h
+  have hP : f₁ ∈ P := (globalArchimedeanFlatTests_zero_moments f₁ hflat).2.mpr hH
+  refine ⟨⟨f₁, hP⟩, hflat, fun h0 ↦ ?_⟩
+  have hker : (⟨f₁, hP⟩ : P) ∈ Π(χ) := (Submodule.Quotient.mk_eq_zero _).mp h0
+  have hθ : homogeneousAdelicThetaLinearMap F (ω(χ)) f₁ = 0 := LinearMap.mem_ker.mp hker
+  have hZ1 := archNuclearityDenominator_ne_bot_zeta_of_theta χ f₁ hθ 2 (by norm_num)
+  have hZt := archNuclearityDenominator_ne_bot_zeta_translate (archNuclearity_archUnit u) f₀
+    (ideleClassNormTwist χ 2)
+  have hlin : L f₁ =
+      L (schwartzBruhatUnitTranslate (archNuclearity_archUnit u) f₀) - 2 * L f₀ := by
+    rw [hf₁, map_sub, map_smul, smul_eq_mul]
+  rw [hL, hL, hL, hZ1, hZt, ← sub_mul] at hlin
+  have hcU : ideleClassNormTwist χ 2 (QuotientGroup.mk (archNuclearity_archUnit u)) - 2 ≠ 0 := by
+    intro h2
+    have h3 : ((χ (QuotientGroup.mk (archNuclearity_archUnit u)) : Circle) : ℂ) *
+        (((ideleNorm F (archNuclearity_archUnit u)).val : ℝ) : ℂ) ^ (2 : ℂ) = 2 :=
+      sub_eq_zero.mp h2
+    rw [hval] at h3
+    have h4 := congrArg norm h3
+    rw [norm_mul, Circle.norm_coe, one_mul, Complex.cpow_ofNat, norm_pow, Complex.norm_ofNat] at h4
+    norm_num at h4
+  exact hZ ((mul_eq_zero.mp hlin.symm).resolve_left hcU)
+
 /-- Paper: Theorem 7.4.3.1(1), p. 368.
 The archimedean-flat theta image is nontrivial: some archimedean-flat test whose
 archimedean factors have zero additive integral has a nonzero class in the
@@ -7309,7 +7648,10 @@ generator has no nonzero Schwartz-Bergman multiple; on `1 < Re s` its value is a
 product of two nonzero factors by `archRegularizedFiniteHeckeL_apply` and
 `finiteHeckeL_ne_zero_of_one_lt_re`. -/
 private theorem archNuclearityDenominator_ne_bot :
-    archNuclearityDenominator χ ≠ ⊥ := by sorry
+    archNuclearityDenominator χ ≠ ⊥ := by
+  obtain ⟨f, hf, hne⟩ := archNuclearityDenominator_ne_bot_witness χ
+  exact (Submodule.ne_bot_iff _).mpr ⟨mkΘ(χ, f),
+    (mem_archNuclearityDenominator_iff_flatPolarImage χ _).mpr ⟨f, hf, rfl⟩, hne⟩
 
 /-- Paper: Theorem 7.4.3.1(1), p. 368.
 The zero-moment archimedean-flat theta image is nonzero and closed.

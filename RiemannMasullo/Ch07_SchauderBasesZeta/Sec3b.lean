@@ -3173,6 +3173,119 @@ local notation "invPW(" h ", " b ", " ω ")" => sLocalInvariantPW h b (Z₀(_)) 
 -- The basis and growth statements in §7.3.1 assume saturation of the whole target T.
 -- To use them for an unsaturated base S, their proofs must be localized to the fiber over p.
 
+/-- When the Picard group of the `S`-integers is trivial, every idele becomes a unit at
+all finite places outside `S` after division by a single principal idele. -/
+private theorem sLocalPWOrbital_eventually_equiv_inf_unitOutside
+    {F : Type*} [Field F] [NumberField F] (S : Finset (HeightOneSpectrum (𝓞 F)))
+    (hPic : Subsingleton (CommRing.Pic ((S : Set (HeightOneSpectrum (𝓞 F))).integer F)))
+    (g : IdeleGroup (𝓞 F) F) :
+    ∃ x : Fˣ, ∀ v : HeightOneSpectrum (𝓞 F), v ∉ S →
+      Valued.v ((g * IdeleGroup.unitEmbedding (𝓞 F) F x⁻¹).val.2 v) =
+        (1 : WithZero (Multiplicative ℤ)) := by
+  classical
+  have hg : {v : HeightOneSpectrum (𝓞 F) |
+      Valued.v (g.val.2 v) ≠ (1 : WithZero (Multiplicative ℤ))}.Finite :=
+    eventually_cofinite.mp (AdeleRing.isUnit_iff.mp g.isUnit).2.2
+  obtain ⟨T, hT, hPicT⟩ := (picard_uniformization F (S ∪ hg.toFinset)).1
+  have hST : S ⊆ T := Finset.subset_union_left.trans hT
+  let D := T \ S
+  let I (v : HeightOneSpectrum (𝓞 F)) : IdeleGroup (𝓞 F) F →* (v.adicCompletion F)ˣ :=
+    Units.map (((RestrictedProduct.evalRingHom
+      (fun w : HeightOneSpectrum (𝓞 F) ↦ w.adicCompletion F) v).comp
+      (RingHom.snd (InfiniteAdeleRing F) (FiniteAdeleRing (𝓞 F) F))).toMonoidHom)
+  let u : (v : D) → (v.val.adicCompletion F)ˣ ⧸ (v.val.adicCompletionIntegers F).units :=
+    fun v ↦ QuotientGroup.mk (I v.val g)
+  obtain ⟨e, -⟩ := (picard_uniformization F S).2.1 T hST hPicT
+  have he : (QuotientGroup.mk u : _ ⧸ (sUnitLocalClasses F T D).range) = 1 :=
+    e.injective (hPic.elim _ _)
+  obtain ⟨x, hx⟩ := (QuotientGroup.eq_one_iff (N := (sUnitLocalClasses F T D).range) u).mp he
+  refine ⟨x.val, fun v hv ↦ ?_⟩
+  have hmul : I v (g * IdeleGroup.unitEmbedding (𝓞 F) F x.val⁻¹) =
+      I v g * (Units.map (algebraMap F (v.adicCompletion F)).toMonoidHom x.val)⁻¹ := by
+    rw [map_mul, ← map_inv]
+    rfl
+  change Valued.v (I v (g * IdeleGroup.unitEmbedding (𝓞 F) F x.val⁻¹)).val = 1
+  rw [hmul]
+  by_cases hvT : v ∈ T
+  · -- inside the enlarged set the local classes of `g` and of the unit `x` agree
+    let w : D := ⟨v, Finset.mem_sdiff.mpr ⟨hvT, hv⟩⟩
+    have h := congrFun hx w
+    change (QuotientGroup.mk (Units.map (algebraMap F (v.adicCompletion F)).toMonoidHom x.val) :
+        (v.adicCompletion F)ˣ ⧸ (v.adicCompletionIntegers F).units) =
+      QuotientGroup.mk (I v g) at h
+    have hmem : I v g * (Units.map (algebraMap F (v.adicCompletion F)).toMonoidHom x.val)⁻¹ ∈
+        (v.adicCompletionIntegers F).units := by
+      apply (QuotientGroup.eq_one_iff _).mp
+      change (QuotientGroup.mk' (v.adicCompletionIntegers F).units)
+        (I v g * (Units.map (algebraMap F (v.adicCompletion F)).toMonoidHom x.val)⁻¹) = 1
+      rw [map_mul, map_inv]
+      exact mul_inv_eq_one.mpr h.symm
+    exact HeightOneSpectrum.adicCompletionIntegers.mem_units_iff_valued_eq_one.mp hmem
+  · -- outside it both `g` and the unit `x` already have valuation one
+    have hg' : Valued.v (g.val.2 v) = (1 : WithZero (Multiplicative ℤ)) := by
+      by_contra h
+      exact hvT (hT (Finset.mem_union_right _ (hg.mem_toFinset.mpr h)))
+    have hx' : Valued.v ((x.val : F) : v.adicCompletion F) =
+        (1 : WithZero (Multiplicative ℤ)) := by
+      rw [HeightOneSpectrum.valuedAdicCompletion_eq_valuation']
+      exact x.property v hvT
+    rw [Units.val_mul, Units.val_inv_eq_inv_val]
+    change Valued.v (g.val.2 v * (((x.val : F) : v.adicCompletion F)⁻¹)) = 1
+    rw [map_mul, map_inv₀, hg', hx', inv_one, one_mul]
+
+/-- A character of the norm-one idele classes that is unramified outside `S` is trivial as
+soon as its descent to a larger stage `T` is trivial, provided the Picard group of the
+`S`-integers is trivial. -/
+private theorem sLocalPWOrbital_eventually_equiv_inf_character
+    {F : Type*} [Field F] [NumberField F] {S T : Finset (HeightOneSpectrum (𝓞 F))}
+    (hST : S ⊆ T)
+    (hPic : Subsingleton (CommRing.Pic ((S : Set (HeightOneSpectrum (𝓞 F))).integer F)))
+    (ω : PontryaginDual (ideleClassNorm F).ker) (hu : NormOneCharacterUnramifiedOutside ω S)
+    (h : sLocalNormOneCharacter (F := F) T ω
+      (NormOneCharacterUnramifiedOutside.mono (F := F) hu hST) = 1) : ω = 1 := by
+  apply PontryaginDual.ext
+  intro x
+  obtain ⟨g, hg⟩ := QuotientGroup.mk_surjective x.val
+  obtain ⟨a, ha⟩ := sLocalPWOrbital_eventually_equiv_inf_unitOutside S hPic g
+  let d := IdeleGroup.unitEmbedding (𝓞 F) F
+  let t := g * d a⁻¹
+  -- `t` represents the same idele class as `g` and is a unit at every place outside `S`
+  have ht : (QuotientGroup.mk t : IdeleClassGroup (𝓞 F) F) = x.val := by
+    have hd : (QuotientGroup.mk (d a⁻¹) : IdeleClassGroup (𝓞 F) F) = 1 :=
+      (QuotientGroup.eq_one_iff _).mpr ⟨a⁻¹, rfl⟩
+    change (QuotientGroup.mk' _) (g * d a⁻¹) = x.val
+    rw [map_mul]
+    change (QuotientGroup.mk g : IdeleClassGroup (𝓞 F) F) * QuotientGroup.mk (d a⁻¹) = x.val
+    rw [hd, mul_one, hg]
+  have htu : t ∈ range (integralIdeleInsertion F T) := by
+    apply (mem_range_integralIdeleInsertion F T t).mpr
+    intro v hv
+    have hvS : v ∉ S := fun hvS ↦ hv (hST hvS)
+    have h1 : t.val.2 v * t.inv.2 v = 1 :=
+      congrArg (fun z : AdeleRing (𝓞 F) F ↦ z.2 v) t.val_inv
+    have hval : Valued.v (t.inv.2 v) = 1 := by
+      have hvp := congrArg Valued.v h1
+      rw [map_mul, ha v hvS, one_mul, map_one] at hvp
+      exact hvp
+    exact ⟨(ha v hvS).le, hval.le⟩
+  obtain ⟨u, hu'⟩ := htu
+  let y₀ := Units.map (adeleProjection F T).toMonoidHom t
+  have hy : sIdeleQuotientNorm F T (QuotientGroup.mk y₀) = 1 := by
+    rw [sIdeleQuotientNorm_mk]
+    have hh := (sIdeleNorm_spec F T).1 u
+    change ideleNorm F (integralIdeleInsertion F T u) =
+      sIdeleNorm F T (Units.map (adeleProjection F T).toMonoidHom
+        (integralIdeleInsertion F T u)) at hh
+    rw [hu'] at hh
+    change ideleClassNorm F (QuotientGroup.mk t) = sIdeleNorm F T y₀ at hh
+    rw [ht, MonoidHom.mem_ker.mp x.property] at hh
+    exact hh.symm
+  let y : (sIdeleQuotientNorm F T).ker := ⟨QuotientGroup.mk y₀, hy⟩
+  have hh := sLocalNormOneCharacter_apply ω (hu.mono hST) u x y (by rw [hu', ht])
+    (by rw [hu'])
+  rw [h] at hh
+  exact hh.symm
+
 /-- Paper: Theorem 7.3.3.4, equations (7.3.3.18)–(7.3.3.19), p. 361.
 The first of the two level conditions of the theorem: for large enough absolute or
 invariant Paley–Wiener levels, the level meets the primary principal-value image exactly
@@ -3187,7 +3300,15 @@ private theorem sLocalPWOrbital_eventually_equiv_inf {S₀ : Finset V} (hST : S 
     (χ : PontryaginDual J₁(T)) (_hχ : χ = descend(hST, ω, hu)) (_hω : ω ≠ 1) :
     ∃ B : ℝ, 0 < B ∧ ∀ X Y : ℝ, B ≤ X → B ≤ Y → X ^ count(S) ≤ Y →
       ∀ (W : Submodule ℂ (Θ(T, χ))), (W = absPW(hST, X, χ) ∨ W = invPW(hST, Y, χ)) →
-        W ⊓ Rₚ(p, χ) = W ⊓ Rₚ₀(p, χ) := by sorry
+        W ⊓ Rₚ(p, χ) = W ⊓ Rₚ₀(p, χ) := by
+  -- the descended character is nontrivial, because the Picard group is trivial
+  have hχ1 : χ ≠ 1 := fun h ↦ _hω
+    (sLocalPWOrbital_eventually_equiv_inf_character hST _hPic ω hu (_hχ.symm.trans h))
+  -- hence every theta class has a zero-moment representative, and the two images coincide
+  have hR : Rₚ₀(p, χ) = Rₚ(p, χ) := by
+    rw [sLocalZeroMomentTheta_eq_top (F := F) (T := T) χ hχ1, Submodule.map_top]
+    rfl
+  exact ⟨1, one_pos, fun X Y _ _ _ W _ ↦ by rw [hR]⟩
 
 /-- Paper: Theorem 7.3.3.4, arrow (4) of diagram (7.3.3.15), pp. 361–362.
 The second of the two level conditions of the theorem: for large enough absolute or

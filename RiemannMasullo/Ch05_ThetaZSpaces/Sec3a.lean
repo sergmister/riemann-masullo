@@ -1588,6 +1588,394 @@ private theorem sAdelePrincipalValue_preserves_thetaKernel_translate
   exact tsum_congr fun t => congrArg (fun y => f (Multiplicative.ofAdd y))
     (mul_left_comm g.inv (d t).val x.val)
 
+local notation "Fᵥ(" v ")" => HeightOneSpectrum.adicCompletion F v
+local notation "Uᵥ(" v ")" => (HeightOneSpectrum.adicCompletionIntegers F v).units
+local notation "μᵥ(" v ")" => finiteLocalMultiplicativeTamagawaMeasure F v
+local notation "vval(" v ")" => (Valued.v : Valuation Fᵥ(v) (WithZero (Multiplicative ℤ)))
+open scoped BigOperators
+
+/-- The local unit at `v`, viewed as an S-idele, depends continuously on the local unit. -/
+private theorem adelicPrincipalValueLocalUnit_continuous {S : Finset V} (v : S) :
+    Continuous (fun c : Fᵥ(v.val)ˣ ↦ adelicPrincipalValueLocalUnit v c) := by
+  classical
+  let one : ∀ w : S, Fᵥ(w.val) := fun _ ↦ 1
+  have hone : Continuous (fun _ : Fᵥ(v.val)ˣ ↦ one) := continuous_const
+  refine Units.continuous_iff.mpr ⟨?_, ?_⟩
+  · change Continuous (fun c : Fᵥ(v.val)ˣ ↦
+      ((1 : InfiniteAdeleRing F), Function.update one v c.val))
+    exact continuous_const.prodMk (hone.update v Units.continuous_val)
+  · change Continuous (fun c : Fᵥ(v.val)ˣ ↦
+      ((1 : InfiniteAdeleRing F), Function.update one v c.inv))
+    exact continuous_const.prodMk (hone.update v Units.continuous_coe_inv)
+
+private def sUnitDiag (S : Finset V) :
+    (Set.integer (S : Set V) F)ˣ →* (SAdeleRing F S)ˣ :=
+  (Units.map ((adeleProjection F S).comp
+    (integralAdelesOutside F S).subtype).toMonoidHom).comp
+    (Units.map (integralAdeleDiagonal F S).toMonoidHom)
+
+private theorem sAdeleSchwartz_ind {ι : Type*} [Fintype ι] {E N : Type*} {M : ι → Type*}
+    [∀ i, AddCommGroup (M i)] [∀ i, Module ℂ (M i)]
+    [AddCommGroup E] [Module ℂ E] [TopologicalSpace E]
+    [AddCommGroup N] [Module ℂ N] [TopologicalSpace N]
+    (e : InductiveTensor E (FinestLocallyConvex (⨂[ℂ] i, M i)) ≃L[ℂ] N) (P : N → Prop)
+    (h0 : P 0) (hadd : ∀ x y, P x → P y → P (x + y)) (hsmul : ∀ (r : ℂ) x, P x → P (r • x))
+    (hpure : ∀ (a : E) (g : ∀ i, M i), P (e (a ⊗ₜ[ℂ] (⨂ₜ[ℂ] i, g i)))) (x : N) : P x := by
+  have key : ∀ y : E ⊗[ℂ] (⨂[ℂ] i, M i), P (e y) := by
+    intro y
+    induction y using TensorProduct.induction_on with
+    | zero => exact (congrArg P (map_zero e)).mpr h0
+    | tmul a b =>
+      induction b using PiTensorProduct.induction_on with
+      | smul_tprod r g =>
+        exact (congrArg (fun t ↦ P (e t)) (TensorProduct.tmul_smul r a _)).mpr
+          ((congrArg P (map_smul e r _)).mpr (hsmul r _ (hpure a g)))
+      | add b c hb hc =>
+        exact (congrArg (fun t ↦ P (e t)) (TensorProduct.tmul_add a b c)).mpr
+          ((congrArg P (map_add e _ _)).mpr (hadd _ _ hb hc))
+    | add y z hy hz => exact (congrArg P (map_add e y z)).mpr (hadd _ _ hy hz)
+  exact (congrArg P (e.apply_symm_apply x)).mp (key (e.symm x))
+
+open Classical in
+private theorem adelicPrincipalValueLocalUnit_inv_val {S : Finset V} (v : S)
+    (c : Fᵥ(v.val)ˣ) :
+    (adelicPrincipalValueLocalUnit v c).inv =
+      ((1 : InfiniteAdeleRing F), Function.update (fun _ : S ↦ (1 : _)) v c.inv) := by
+  classical
+  simp [adelicPrincipalValueLocalUnit]
+
+private theorem adelicPrincipalValueLocalUnit_inv_arch {S : Finset V} (v : S)
+    (c : Fᵥ(v.val)ˣ) :
+    (adelicPrincipalValueLocalUnit v c).inv.1 = 1 := by
+  rw [adelicPrincipalValueLocalUnit_inv_val]
+
+private theorem adelicPrincipalValueLocalUnit_inv_coord_ne {S : Finset V} (v : S)
+    (c : Fᵥ(v.val)ˣ) (w : S) (hwv : w ≠ v) :
+    (adelicPrincipalValueLocalUnit v c).inv.2 w = 1 := by
+  classical
+  simp [adelicPrincipalValueLocalUnit, Function.update_of_ne hwv]
+
+private theorem adelicPrincipalValueLocalUnit_inv_coord_v {S : Finset V} (v : S)
+    (c : Fᵥ(v.val)ˣ) :
+    (adelicPrincipalValueLocalUnit v c).inv.2 v = c.inv := by
+  classical
+  simp [adelicPrincipalValueLocalUnit]
+
+private theorem sAdeleProd_split {α : Type*} [Fintype α] [DecidableEq α] (v : α) (f : α → ℂ) :
+    Finset.prod (Finset.univ : Finset α) f =
+      f v * Finset.prod ((Finset.univ : Finset α).erase v) f :=
+  (Finset.mul_prod_erase (Finset.univ : Finset α) f (Finset.mem_univ v)).symm
+private theorem sAdelePrincipalValue_singleton_apply {S : Finset V} (v : S)
+    (π : Fᵥ(v.val)ˣ) (hπ : vval(v.val).IsUniformizer π.val) (f : ℬₛ(S))
+    (z : SAdeleRing F S) :
+    sAdelePrincipalValue F (Finset.singleton_subset_iff.mpr v.property) f
+        (Multiplicative.ofAdd z) =
+      f (Multiplicative.ofAdd z) -
+        ((μᵥ(v.val).real Uᵥ(v.val) : ℂ)⁻¹) *
+          ∫ u in Uᵥ(v.val),
+            schwartzBruhatUnitTranslate (adelicPrincipalValueLocalUnit v (π * u)) f
+              (Multiplicative.ofAdd z) ∂μᵥ(v.val) := by
+  classical
+  let e := (sAdeleSchwartz_inductiveTensor_equiv F S).choose
+  have hspec := (sAdeleSchwartz_inductiveTensor_equiv F S).choose_spec
+  let μ := μᵥ(v.val)
+  let U : Set Fᵥ(v.val)ˣ := Uᵥ(v.val)
+  have hUc : IsCompact U := Submonoid.units_isCompact
+    (isCompact_iff_compactSpace.mpr (compactSpace_adicCompletionIntegers v.val))
+  haveI : μ.IsHaarMeasure := finiteLocalMultiplicativeTamagawaMeasure_isHaarMeasure v.val
+  haveI : BorelSpace Fᵥ(v.val)ˣ := ⟨rfl⟩
+  have hint (g : ℬₛ(S)) (y : SAdeleRing F S) :
+      IntegrableOn (fun u : Fᵥ(v.val)ˣ ↦
+        schwartzBruhatUnitTranslate (adelicPrincipalValueLocalUnit v (π * u)) g
+          (Multiplicative.ofAdd y)) U μ := by
+    have hρ : Continuous (fun u : Fᵥ(v.val)ˣ ↦
+        (adelicPrincipalValueLocalUnit v (π * u)).inv * y) :=
+      (Units.continuous_val.comp
+        (((adelicPrincipalValueLocalUnit_continuous v).comp
+          (continuous_const.mul continuous_id)).inv)).mul continuous_const
+    have heq : (fun u : Fᵥ(v.val)ˣ ↦
+        schwartzBruhatUnitTranslate (adelicPrincipalValueLocalUnit v (π * u)) g
+          (Multiplicative.ofAdd y)) =
+        fun u ↦ g (Multiplicative.ofAdd
+          ((adelicPrincipalValueLocalUnit v (π * u)).inv * y)) := by
+      funext u
+      exact schwartzBruhatUnitTranslate_apply _ _ _
+    rw [heq]
+    exact ((schwartzBruhat_continuous g).comp
+      (continuous_ofAdd.comp hρ)).continuousOn.integrableOn_compact hUc
+  let P (g : ℬₛ(S)) : Prop := ∀ y : SAdeleRing F S,
+    sAdelePrincipalValue F (Finset.singleton_subset_iff.mpr v.property) g
+        (Multiplicative.ofAdd y) =
+      g (Multiplicative.ofAdd y) -
+        ((μ.real U : ℂ)⁻¹) *
+          ∫ u in U, schwartzBruhatUnitTranslate (adelicPrincipalValueLocalUnit v (π * u)) g
+            (Multiplicative.ofAdd y) ∂μ
+  have h0 : P 0 := by
+    intro y
+    simp only [P, map_zero]
+    have : (fun u : Fᵥ(v.val)ˣ ↦ schwartzBruhatUnitTranslate (adelicPrincipalValueLocalUnit v (π * u)) 0
+        (Multiplicative.ofAdd y)) = fun _ ↦ 0 := by
+      funext u; simp [schwartzBruhatUnitTranslate_apply]
+    simp [this]
+  have hadd (g₁ g₂ : ℬₛ(S)) (h₁ : P g₁) (h₂ : P g₂) : P (g₁ + g₂) := by
+    intro y
+    simp only [P]
+    have hL : sAdelePrincipalValue F (Finset.singleton_subset_iff.mpr v.property) (g₁ + g₂)
+        (Multiplicative.ofAdd y) =
+        sAdelePrincipalValue F (Finset.singleton_subset_iff.mpr v.property) g₁ (Multiplicative.ofAdd y) +
+        sAdelePrincipalValue F (Finset.singleton_subset_iff.mpr v.property) g₂ (Multiplicative.ofAdd y) := by
+      rw [map_add]; rfl
+    have hI : (∫ u in U, schwartzBruhatUnitTranslate (adelicPrincipalValueLocalUnit v (π * u)) (g₁ + g₂)
+        (Multiplicative.ofAdd y) ∂μ) =
+        (∫ u in U, schwartzBruhatUnitTranslate (adelicPrincipalValueLocalUnit v (π * u)) g₁
+          (Multiplicative.ofAdd y) ∂μ) +
+        (∫ u in U, schwartzBruhatUnitTranslate (adelicPrincipalValueLocalUnit v (π * u)) g₂
+          (Multiplicative.ofAdd y) ∂μ) := by
+      have heq : (fun u : Fᵥ(v.val)ˣ ↦ schwartzBruhatUnitTranslate (adelicPrincipalValueLocalUnit v (π * u))
+          (g₁ + g₂) (Multiplicative.ofAdd y)) =
+          (fun u ↦ schwartzBruhatUnitTranslate (adelicPrincipalValueLocalUnit v (π * u)) g₁
+            (Multiplicative.ofAdd y) +
+            schwartzBruhatUnitTranslate (adelicPrincipalValueLocalUnit v (π * u)) g₂
+            (Multiplicative.ofAdd y)) := by
+        funext u; simp [schwartzBruhatUnitTranslate_apply, Pi.add_apply]
+      rw [heq, integral_add (hint g₁ y) (hint g₂ y)]
+    have hR : (g₁ + g₂) (Multiplicative.ofAdd y) =
+        g₁ (Multiplicative.ofAdd y) + g₂ (Multiplicative.ofAdd y) := rfl
+    rw [hL, hI, hR, h₁ y, h₂ y]
+    ring
+  have hsmul (r : ℂ) (g : ℬₛ(S)) (h : P g) : P (r • g) := by
+    intro y
+    simp only [P]
+    have hL : sAdelePrincipalValue F (Finset.singleton_subset_iff.mpr v.property) (r • g)
+        (Multiplicative.ofAdd y) =
+        r • sAdelePrincipalValue F (Finset.singleton_subset_iff.mpr v.property) g (Multiplicative.ofAdd y) := by
+      rw [map_smul]; rfl
+    have hI : (∫ u in U, schwartzBruhatUnitTranslate (adelicPrincipalValueLocalUnit v (π * u)) (r • g)
+        (Multiplicative.ofAdd y) ∂μ) =
+        r • (∫ u in U, schwartzBruhatUnitTranslate (adelicPrincipalValueLocalUnit v (π * u)) g
+          (Multiplicative.ofAdd y) ∂μ) := by
+      have heq : (fun u : Fᵥ(v.val)ˣ ↦ schwartzBruhatUnitTranslate (adelicPrincipalValueLocalUnit v (π * u))
+          (r • g) (Multiplicative.ofAdd y)) =
+          (fun u ↦ r • schwartzBruhatUnitTranslate (adelicPrincipalValueLocalUnit v (π * u)) g
+            (Multiplicative.ofAdd y)) := by
+        funext u; simp [schwartzBruhatUnitTranslate_apply, Pi.smul_apply]
+      rw [heq, integral_smul]
+    have hR : (r • g) (Multiplicative.ofAdd y) = r • g (Multiplicative.ofAdd y) := rfl
+    rw [hL, hI, hR, h y]
+    ring
+  have hpure (a : ℬ(InfiniteAdeleRing F)) (g : ∀ w : S, ℬ(Fᵥ(w.val))) :
+      P (e (a ⊗ₜ[ℂ] (⨂ₜ[ℂ] w, g w))) := by
+    intro y
+    simp only [P]
+    let Pfun (w : S) := if w.val ∈ ({v.val} : Finset V) then
+      finitePlacePrincipalValue w.val (g w) else g w
+    let fT : ℬₛ(S) := e (a ⊗ₜ[ℂ] (⨂ₜ[ℂ] w, g w))
+    let fP : ℬₛ(S) := e (a ⊗ₜ[ℂ] (⨂ₜ[ℂ] w, Pfun w))
+    have hPV : sAdelePrincipalValue F (Finset.singleton_subset_iff.mpr v.property) fT = fP :=
+      sAdelePrincipalValue_tmul (Finset.singleton_subset_iff.mpr v.property) a g
+    change sAdelePrincipalValue F (Finset.singleton_subset_iff.mpr v.property) fT
+        (Multiplicative.ofAdd y) =
+      fT (Multiplicative.ofAdd y) -
+        (μ.real U : ℂ)⁻¹ *
+          ∫ u in U, schwartzBruhatUnitTranslate (adelicPrincipalValueLocalUnit v (π * u)) fT
+            (Multiplicative.ofAdd y) ∂μ
+    rw [hPV]
+    have hL := hspec a Pfun y
+    have hR := hspec a g y
+    rw [hL, hR]
+    have hrest : ∏ w ∈ (Finset.univ : Finset S).erase v,
+        Pfun w (Multiplicative.ofAdd (y.2 w)) =
+      ∏ w ∈ (Finset.univ : Finset S).erase v, g w (Multiplicative.ofAdd (y.2 w)) := by
+      apply Finset.prod_congr rfl
+      intro w hw
+      have hwv : w ≠ v := by
+        intro he; subst he; exact Finset.notMem_erase _ _ hw
+      have hnm : w.val ∉ ({v.val} : Finset V) := by
+        intro h; apply hwv; exact Subtype.ext (Finset.mem_singleton.mp h)
+      simp only [Pfun, if_neg hnm]
+    have hT (u : Fᵥ(v.val)ˣ) :
+        schwartzBruhatUnitTranslate (adelicPrincipalValueLocalUnit v (π * u)) fT
+          (Multiplicative.ofAdd y) =
+        a (Multiplicative.ofAdd y.1) *
+          ((∏ w ∈ (Finset.univ : Finset S).erase v, g w (Multiplicative.ofAdd (y.2 w))) *
+            g v (Multiplicative.ofAdd ((↑(π * u)⁻¹ : Fᵥ(v.val)) * y.2 v))) := by
+      change schwartzBruhatUnitTranslate (adelicPrincipalValueLocalUnit v (π * u))
+        (e (a ⊗ₜ[ℂ] (⨂ₜ[ℂ] w, g w))) (Multiplicative.ofAdd y) = _
+      rw [schwartzBruhatUnitTranslate_apply, hspec a g]
+      have hinv : (↑(adelicPrincipalValueLocalUnit v (π * u))⁻¹ : SAdeleRing F S) =
+          (adelicPrincipalValueLocalUnit v (π * u)).inv := rfl
+      rw [hinv]
+      have harch : ((adelicPrincipalValueLocalUnit v (π * u)).inv *
+          (y : SAdeleRing F S)).1 = y.1 := by
+        rw [Prod.fst_mul, adelicPrincipalValueLocalUnit_inv_arch, one_mul]
+      rw [harch]
+      have hprod : ∏ w : S, g w (Multiplicative.ofAdd
+          (((adelicPrincipalValueLocalUnit v (π * u)).inv * y).2 w)) =
+        (∏ w ∈ (Finset.univ : Finset S).erase v, g w (Multiplicative.ofAdd (y.2 w))) *
+          g v (Multiplicative.ofAdd ((↑(π * u)⁻¹ : Fᵥ(v.val)) * y.2 v)) := by
+        rw [sAdeleProd_split, mul_comm]
+        congr 1
+        · apply Finset.prod_congr rfl
+          intro w hw
+          have hwv : w ≠ v := by
+            intro he; subst he; exact Finset.notMem_erase _ _ hw
+          have hcx : ((adelicPrincipalValueLocalUnit v (π * u)).inv * y).2 w = y.2 w := by
+            rw [Prod.snd_mul, Pi.mul_apply, adelicPrincipalValueLocalUnit_inv_coord_ne v (π * u) w hwv, one_mul]
+          rw [hcx]
+        · congr 1
+          have hcv : ((adelicPrincipalValueLocalUnit v (π * u)).inv * y).2 v =
+              (↑(π * u)⁻¹ : Fᵥ(v.val)) * y.2 v := by
+            rw [Prod.snd_mul, Pi.mul_apply, adelicPrincipalValueLocalUnit_inv_coord_v v (π * u)]
+            rfl
+          rw [hcv]
+      rw [hprod]
+      try ring
+    rw [integral_congr_ae (Filter.Eventually.of_forall hT)]
+    rw [sAdeleProd_split (f := fun w ↦ Pfun w (Multiplicative.ofAdd (y.2 w)))]
+    rw [sAdeleProd_split (f := fun w ↦ g w (Multiplicative.ofAdd (y.2 w)))]
+    rw [hrest]
+    have hv : v.val ∈ ({v.val} : Finset V) := Finset.mem_singleton_self v.val
+    simp only [Pfun, hv, ite_true]
+    have hassoc (u : Fᵥ(v.val)ˣ) : a (Multiplicative.ofAdd y.1) *
+        ((∏ w ∈ (Finset.univ : Finset S).erase v, g w (Multiplicative.ofAdd (y.2 w))) *
+          g v (Multiplicative.ofAdd ((↑(π * u)⁻¹ : Fᵥ(v.val)) * y.2 v))) =
+        (a (Multiplicative.ofAdd y.1) *
+          (∏ w ∈ (Finset.univ : Finset S).erase v, g w (Multiplicative.ofAdd (y.2 w)))) *
+          g v (Multiplicative.ofAdd ((↑(π * u)⁻¹ : Fᵥ(v.val)) * y.2 v)) := by ring
+    rw [integral_congr_ae (Filter.Eventually.of_forall hassoc)]
+    rw [integral_const_mul]
+    have hpv := finitePlacePrincipalValue_spec v.val π hπ (g v) (Multiplicative.ofAdd (y.2 v))
+    rw [hpv]
+    dsimp only [finitePlacePrincipalValueFun]
+    have hinv (u : Fᵥ(v.val)ˣ) : (↑(π * u)⁻¹ : Fᵥ(v.val)) * y.2 v =
+        (↑u⁻¹ : Fᵥ(v.val)) * ((↑π⁻¹ : Fᵥ(v.val)) * (Multiplicative.ofAdd (y.2 v)).toAdd) := by
+      change (↑(π * u)⁻¹ : Fᵥ(v.val)) * y.2 v =
+        (↑u⁻¹ : Fᵥ(v.val)) * ((↑π⁻¹ : Fᵥ(v.val)) * y.2 v)
+      rw [mul_inv_rev, Units.val_mul]; ring
+    rw [integral_congr_ae (Filter.Eventually.of_forall fun u ↦
+      congrArg (fun t ↦ g v (Multiplicative.ofAdd t)) (hinv u))]
+    ring
+  exact sAdeleSchwartz_ind e P h0 hadd hsmul hpure f z
+private theorem sLocalAdelicTheta_unitAverage_exchange {S : Finset V} (v : S)
+    (π : Fᵥ(v.val)ˣ) (f : ℬₛ(S)) (x : (SAdeleRing F S)ˣ) :
+    HasSum
+      (fun ξ : (Set.integer (S : Set V) F)ˣ ↦
+        ∫ u in Uᵥ(v.val),
+          f (Multiplicative.ofAdd ((sUnitDiag S ξ *
+            ((adelicPrincipalValueLocalUnit v (π * u))⁻¹ * x)).val)) ∂μᵥ(v.val))
+      (∫ u in Uᵥ(v.val),
+        sLocalAdelicTheta F S f ((adelicPrincipalValueLocalUnit v (π * u))⁻¹ * x) ∂μᵥ(v.val)) := by
+  classical
+  let μ := μᵥ(v.val)
+  let U : Set Fᵥ(v.val)ˣ := Uᵥ(v.val)
+  let φ : Fᵥ(v.val)ˣ → (SAdeleRing F S)ˣ := fun u ↦ (adelicPrincipalValueLocalUnit v (π * u))⁻¹ * x
+  have hφ : Continuous φ :=
+    ((adelicPrincipalValueLocalUnit_continuous v).comp (continuous_const.mul continuous_id)).inv.mul
+      continuous_const
+  have hUc : IsCompact U := Submonoid.units_isCompact
+    (isCompact_iff_compactSpace.mpr (compactSpace_adicCompletionIntegers v.val))
+  haveI : μ.IsHaarMeasure := finiteLocalMultiplicativeTamagawaMeasure_isHaarMeasure v.val
+  haveI : BorelSpace Fᵥ(v.val)ˣ := ⟨rfl⟩
+  have hUo : IsOpen U := Submonoid.isOpen_units (Valued.isOpen_valuationSubring _)
+  haveI : IsFiniteMeasure (μ.restrict U) := isFiniteMeasure_restrict.mpr hUc.measure_lt_top.ne
+  letI : Countable F := Countable.of_moduleFinite (R := ℚ)
+  letI : Countable (Set.integer (S : Set V) F)ˣ := Units.val_injective.countable
+  haveI : (atTop : Filter (Finset (Set.integer (S : Set V) F)ˣ)).IsCountablyGenerated :=
+    (atTop_basis (α := Finset (Set.integer (S : Set V) F)ˣ)).isCountablyGenerated
+  let K : Set (SAdeleRing F S)ˣ := φ '' U
+  have hK : IsCompact K := hUc.image hφ
+  let term (ξ : (Set.integer (S : Set V) F)ˣ) (u : Fᵥ(v.val)ˣ) : ℂ :=
+    f (Multiplicative.ofAdd ((sUnitDiag S ξ * φ u).val))
+  have hterm (ξ) : Continuous (term ξ) :=
+    (schwartzBruhat_continuous f).comp (continuous_ofAdd.comp
+      (Units.continuous_val.comp (continuous_const.mul hφ)))
+  let part (s : Finset (Set.integer (S : Set V) F)ˣ) (u : Fᵥ(v.val)ˣ) : ℂ := ∑ ξ ∈ s, term ξ u
+  let lim (u : Fᵥ(v.val)ˣ) : ℂ := sLocalAdelicTheta F S f (φ u)
+  have hsumK := sLocalAdelicTheta_hasSumUniformlyOn F S f K hK
+  have htu : TendstoUniformlyOn part lim atTop U := by
+    have h := ((hasSumUniformlyOn_iff_tendstoUniformlyOn.mp hsumK).comp φ).mono
+      (Set.subset_preimage_image φ U)
+    refine (h.congr ?_).congr_right ?_
+    · apply Filter.Eventually.of_forall
+      intro s u _
+      simp only [part, term, sUnitDiag, Function.comp_apply]
+    · intro u _
+      simp only [lim, sLocalAdelicTheta_apply, Function.comp_apply]
+  have hmeas (s) : AEStronglyMeasurable (part s) (μ.restrict U) :=
+    (continuous_finsetSum _ fun ξ _ ↦ hterm ξ).aestronglyMeasurable
+  have hlim : ∀ᵐ u ∂(μ.restrict U), Tendsto (fun s ↦ part s u) atTop (𝓝 (lim u)) := by
+    apply (ae_restrict_iff' hUo.measurableSet).mpr
+    apply Filter.Eventually.of_forall
+    intro u hu
+    exact htu.tendsto_at hu
+  have hbound : ∃ C, ∀ᶠ s in atTop, ∀ᵐ u ∂(μ.restrict U), ‖part s u‖ ≤ C := by
+    have hclose := (Metric.tendstoUniformlyOn_iff.mp htu) 1 zero_lt_one
+    obtain ⟨s₀, hs₀⟩ := Filter.eventually_atTop.mp hclose
+    have hps0 : Continuous (fun u ↦ ∑ ξ ∈ s₀, term ξ u) :=
+      continuous_finsetSum _ fun ξ _ ↦ hterm ξ
+    obtain ⟨M₀, hM₀⟩ := hUc.exists_bound_of_continuousOn hps0.continuousOn
+    have hsn : Continuous (fun u ↦ ∑ ξ ∈ s₀, ‖term ξ u‖) :=
+      continuous_finsetSum _ fun ξ _ ↦ (hterm ξ).norm
+    obtain ⟨M₁, hM₁⟩ := hUc.exists_bound_of_continuousOn hsn.continuousOn
+    use M₀ + 2 + M₁
+    apply Filter.Eventually.of_forall
+    intro s
+    apply (ae_restrict_iff' hUo.measurableSet).mpr
+    apply Filter.Eventually.of_forall
+    intro u hu
+    have hlim_bdd : ‖lim u‖ ≤ M₀ + 1 := by
+      have hd := hs₀ s₀ le_rfl u hu
+      rw [dist_eq_norm, norm_sub_rev] at hd
+      calc ‖lim u‖ = ‖part s₀ u - (part s₀ u - lim u)‖ := by ring_nf
+        _ ≤ ‖part s₀ u‖ + ‖part s₀ u - lim u‖ := norm_sub_le _ _
+        _ ≤ M₀ + 1 := add_le_add (hM₀ u hu) hd.le
+    have hbig : ‖part (s ∪ s₀) u‖ ≤ M₀ + 2 := by
+      have hd := hs₀ (s ∪ s₀) le_sup_right u hu
+      rw [dist_eq_norm, norm_sub_rev] at hd
+      calc ‖part (s ∪ s₀) u‖ = ‖part (s ∪ s₀) u - lim u + lim u‖ := by ring_nf
+        _ ≤ ‖part (s ∪ s₀) u - lim u‖ + ‖lim u‖ := norm_add_le _ _
+        _ ≤ 1 + (M₀ + 1) := add_le_add hd.le hlim_bdd
+        _ = M₀ + 2 := by ring
+    have hsmall : ‖part (s₀ \ s) u‖ ≤ M₁ := by
+      calc ‖part (s₀ \ s) u‖ ≤ ∑ ξ ∈ s₀ \ s, ‖term ξ u‖ := norm_sum_le _ _
+        _ ≤ ∑ ξ ∈ s₀, ‖term ξ u‖ :=
+          Finset.sum_le_sum_of_subset_of_nonneg Finset.sdiff_subset fun _ _ _ ↦ norm_nonneg _
+        _ ≤ M₁ := by
+          simpa only [Real.norm_of_nonneg (Finset.sum_nonneg (fun _ _ ↦ norm_nonneg _))] using hM₁ u hu
+    have hdecomp : part s u = part (s ∪ s₀) u - part (s₀ \ s) u := by
+      simp only [part]
+      have hunion : s ∪ s₀ = s ∪ (s₀ \ s) := by
+        ext a; simp only [Finset.mem_union, Finset.mem_sdiff]; tauto
+      rw [hunion, Finset.sum_union Finset.disjoint_sdiff]
+      try abel
+    rw [hdecomp]
+    linarith [norm_sub_le (part (s ∪ s₀) u) (part (s₀ \ s) u), hbig, hsmall]
+  have hDCT := tendsto_integral_filter_of_norm_le_const (μ := μ.restrict U)
+    (Filter.Eventually.of_forall hmeas) hbound hlim
+  have hint (ξ) : IntegrableOn (term ξ) U μ :=
+    (hterm ξ).continuousOn.integrableOn_compact hUc
+  have hconv (s) : ∫ u, part s u ∂(μ.restrict U) =
+      ∑ ξ ∈ s, ∫ u in U, term ξ u ∂μ := by
+    simp only [part]
+    exact integral_finsetSum _ (fun ξ _ ↦ hint ξ)
+  have hgoal : HasSum (fun ξ ↦ ∫ u in U, term ξ u ∂μ) (∫ u in U, lim u ∂μ) := by
+    simp only [HasSum]
+    convert hDCT using 1
+    · funext s; exact (hconv s).symm
+    · rfl
+  simpa only [term, lim, φ] using hgoal
+
+private theorem sLocalAdelicTheta_singleton_summand_eq {S : Finset V} (v : S)
+    (π : Fᵥ(v.val)ˣ) (f : ℬₛ(S)) (x : (SAdeleRing F S)ˣ)
+    (ξ : (Set.integer (S : Set V) F)ˣ) (u : Fᵥ(v.val)ˣ) :
+    schwartzBruhatUnitTranslate (adelicPrincipalValueLocalUnit v (π * u)) f
+        (Multiplicative.ofAdd ((sUnitDiag S ξ * x).val)) =
+      f (Multiplicative.ofAdd ((sUnitDiag S ξ *
+        ((adelicPrincipalValueLocalUnit v (π * u))⁻¹ * x)).val)) := by
+  rw [schwartzBruhatUnitTranslate_apply]
+  congr 1
+  simp only [Units.val_mul]
+  ring
 /-- Paper: (5.3.1.9), p. 242.
 The single-place operator at `v` is `1` minus the normalized average over the integer units at
 `v` of the translates by the reciprocal uniformizer times the unit, and S-local theta turns this
@@ -1612,7 +2000,86 @@ private theorem sLocalAdelicTheta_sAdelePrincipalValue_singleton {S : Finset V} 
             sLocalAdelicTheta F S
               (schwartzBruhatUnitTranslate
                 (adelicPrincipalValueLocalUnit v (π * (u : (v.val.adicCompletion F)ˣ))) f) x
-            ∂(finiteLocalMultiplicativeTamagawaMeasure F v.val) := by sorry
+            ∂(finiteLocalMultiplicativeTamagawaMeasure F v.val) := by
+  classical
+  let μ := μᵥ(v.val)
+  let U : Set Fᵥ(v.val)ˣ := Uᵥ(v.val)
+  let c : ℂ := (μ.real U : ℂ)⁻¹
+  let φ : Fᵥ(v.val)ˣ → (SAdeleRing F S)ˣ := fun u ↦ (adelicPrincipalValueLocalUnit v (π * u))⁻¹ * x
+  have hA (z : SAdeleRing F S) := sAdelePrincipalValue_singleton_apply v π hπ f z
+  have hex := sLocalAdelicTheta_unitAverage_exchange v π f x
+  have hsum1 : Summable (fun ξ : (Set.integer (S : Set V) F)ˣ ↦
+      f (Multiplicative.ofAdd ((sUnitDiag S ξ * x).val))) := by
+    have := (sLocalAdelicTheta_hasSumUniformlyOn F S f {x} isCompact_singleton).hasSum rfl
+    simpa only [sUnitDiag] using this.summable
+  have hsum2 : Summable (fun ξ : (Set.integer (S : Set V) F)ˣ ↦
+      ∫ u in U, schwartzBruhatUnitTranslate (adelicPrincipalValueLocalUnit v (π * u)) f
+        (Multiplicative.ofAdd ((sUnitDiag S ξ * x).val)) ∂μ) := by
+    have heq : (fun ξ : (Set.integer (S : Set V) F)ˣ ↦
+        ∫ u in U, schwartzBruhatUnitTranslate (adelicPrincipalValueLocalUnit v (π * u)) f
+          (Multiplicative.ofAdd ((sUnitDiag S ξ * x).val)) ∂μ) =
+        (fun ξ ↦ ∫ u in U, f (Multiplicative.ofAdd ((sUnitDiag S ξ * φ u).val)) ∂μ) := by
+      funext ξ
+      apply integral_congr_ae
+      exact Filter.Eventually.of_forall fun u ↦
+        sLocalAdelicTheta_singleton_summand_eq v π f x ξ u
+    rw [heq]
+    simpa only [φ] using hex.summable
+  calc
+    sLocalAdelicTheta F S (sAdelePrincipalValue F (Finset.singleton_subset_iff.mpr v.property) f) x
+      = ∑' ξ : (Set.integer (S : Set V) F)ˣ,
+          sAdelePrincipalValue F (Finset.singleton_subset_iff.mpr v.property) f
+            (Multiplicative.ofAdd ((sUnitDiag S ξ * x).val)) := by
+        rw [sLocalAdelicTheta_apply]
+        simp only [sUnitDiag]
+    _ = ∑' ξ : (Set.integer (S : Set V) F)ˣ,
+          (f (Multiplicative.ofAdd ((sUnitDiag S ξ * x).val)) -
+            c * ∫ u in U, schwartzBruhatUnitTranslate (adelicPrincipalValueLocalUnit v (π * u)) f
+              (Multiplicative.ofAdd ((sUnitDiag S ξ * x).val)) ∂μ) := by
+        apply tsum_congr
+        intro ξ
+        rw [hA]
+    _ = (∑' ξ : (Set.integer (S : Set V) F)ˣ, f (Multiplicative.ofAdd ((sUnitDiag S ξ * x).val))) -
+          c * ∑' ξ : (Set.integer (S : Set V) F)ˣ,
+            ∫ u in U, schwartzBruhatUnitTranslate (adelicPrincipalValueLocalUnit v (π * u)) f
+              (Multiplicative.ofAdd ((sUnitDiag S ξ * x).val)) ∂μ := by
+        have hf2 : HasSum (fun ξ : (Set.integer (S : Set V) F)ˣ ↦
+            c * ∫ u in U, schwartzBruhatUnitTranslate (adelicPrincipalValueLocalUnit v (π * u)) f
+              (Multiplicative.ofAdd ((sUnitDiag S ξ * x).val)) ∂μ)
+            (c * ∑' ξ : (Set.integer (S : Set V) F)ˣ,
+              ∫ u in U, schwartzBruhatUnitTranslate (adelicPrincipalValueLocalUnit v (π * u)) f
+                (Multiplicative.ofAdd ((sUnitDiag S ξ * x).val)) ∂μ) :=
+          hsum2.hasSum.mul_left c
+        exact (hsum1.hasSum.sub hf2).tsum_eq
+    _ = sLocalAdelicTheta F S f x - c * ∫ u in U, sLocalAdelicTheta F S f (φ u) ∂μ := by
+        have ht1 : (∑' ξ : (Set.integer (S : Set V) F)ˣ,
+            f (Multiplicative.ofAdd ((sUnitDiag S ξ * x).val))) = sLocalAdelicTheta F S f x := by
+          rw [sLocalAdelicTheta_apply]
+          simp only [sUnitDiag]
+        have ht2 : (∑' ξ : (Set.integer (S : Set V) F)ˣ,
+            ∫ u in U, f (Multiplicative.ofAdd ((sUnitDiag S ξ * φ u).val)) ∂μ) =
+            ∫ u in U, sLocalAdelicTheta F S f (φ u) ∂μ := by
+          simpa only [φ] using hex.tsum_eq
+        have heq : (fun ξ : (Set.integer (S : Set V) F)ˣ ↦
+            ∫ u in U, schwartzBruhatUnitTranslate (adelicPrincipalValueLocalUnit v (π * u)) f
+              (Multiplicative.ofAdd ((sUnitDiag S ξ * x).val)) ∂μ) =
+            (fun ξ ↦ ∫ u in U, f (Multiplicative.ofAdd ((sUnitDiag S ξ * φ u).val)) ∂μ) := by
+          funext ξ
+          apply integral_congr_ae
+          exact Filter.Eventually.of_forall fun u ↦
+            sLocalAdelicTheta_singleton_summand_eq v π f x ξ u
+        rw [ht1, heq, ht2]
+    _ = sLocalAdelicTheta F S f x -
+          c * ∫ u in U, sLocalAdelicTheta F S
+            (schwartzBruhatUnitTranslate (adelicPrincipalValueLocalUnit v (π * u)) f) x ∂μ := by
+        have hI : (∫ u in U, sLocalAdelicTheta F S f (φ u) ∂μ) =
+            ∫ u in U, sLocalAdelicTheta F S
+              (schwartzBruhatUnitTranslate (adelicPrincipalValueLocalUnit v (π * u)) f) x ∂μ := by
+          apply integral_congr_ae
+          exact Filter.Eventually.of_forall fun u ↦
+            (sAdelePrincipalValue_preserves_thetaKernel_translate
+              (adelicPrincipalValueLocalUnit v (π * u)) x f).symm
+        rw [hI]
 
 /-- Paper: (5.3.1.9), p. 242.
 The single-place principal value at `v` maps the theta kernel into itself: theta of the average
