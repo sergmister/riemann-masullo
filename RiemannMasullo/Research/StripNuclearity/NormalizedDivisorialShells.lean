@@ -90,4 +90,60 @@ theorem hasSum_normalized_idelic_shells_sub_quotient_diagonal
       hD hb hu hreg hi).symm
   exact ⟨hint, hmass, habs, htotal ▸ hsum⟩
 
+/-- Paper: Proposition 12.2.2.2(2), p. 508. Summing the skew lift over all
+principal translates recovers the diagonal value at each individual idèle. -/
+theorem integral_normalized_idelic_skew_fiber {b : I𝔽 → ℝ} (hb : IsIndentation P𝔽 countP b)
+    (u : C𝔽 × C𝔽 → ℂ) (x : I𝔽) :
+    (∫ h : P𝔽, diagonalIndentationLift P𝔽 countP b u (((h : I𝔽)⁻¹ * x), x) ∂countP) =
+      u (q𝔽 x, q𝔽 x) := by
+  let β : P𝔽 → ℝ := fun k ↦ b ((k : I𝔽)⁻¹ * x)
+  have hi : Integrable β countP := (hb.2.2.2 x).1
+  have h1 : ∫ k, β k ∂countP = 1 := (hb.2.2.2 x).2
+  have hprod : Integrable (fun z : P𝔽 × P𝔽 ↦ β (z.1 * z.2) * β z.2) ((countP).prod countP) :=
+    (measurePreserving_mul_prod countP countP).integrable_comp_of_integrable (hi.mul_prod hi)
+  have hw (h : P𝔽) : diagonalIndentationWeight P𝔽 countP b ((h : I𝔽)⁻¹ * x, x) =
+      ∫ k, β (h * k) * β k ∂countP := by
+    simp only [diagonalIndentationWeight, β, Subgroup.coe_mul, mul_inv_rev, mul_assoc]
+  have hweight : (∫ h : P𝔽, diagonalIndentationWeight P𝔽 countP b ((h : I𝔽)⁻¹ * x, x) ∂countP) = 1 := by
+    simp_rw [hw]
+    rw [integral_integral_swap (f := fun h k ↦ β (h * k) * β k) hprod]
+    simp_rw [integral_mul_const, integral_mul_right_eq_self, h1, one_mul]
+    exact h1
+  have hq (h : P𝔽) : q𝔽 ((h : I𝔽)⁻¹ * x) = q𝔽 x := by
+    have he : q𝔽 (h : I𝔽) = 1 := (QuotientGroup.eq_one_iff _).mpr h.property
+    rw [map_mul, map_inv, he, inv_one, one_mul]
+  simp only [diagonalIndentationLift, Prod.map_apply, hq]
+  rw [integral_mul_const, integral_complex_ofReal, hweight, Complex.ofReal_one, one_mul]
+
+/-- Paper: (11.3.1.4), p. 494, and Proposition 12.2.2.2(2), p. 508. Each
+integrable normalized shell integral is the integral of the quotient diagonal
+weighted by its two idèlic indicators on the chosen representatives. -/
+theorem integral_normalized_idelic_shell_eq {b : I𝔽 → ℝ} (hb : IsIndentation P𝔽 countP b)
+    (u : C𝔽 × C𝔽 → ℂ) (S : Finset V) (k : ℕ) (m : Measure I𝔽) [SFinite m]
+    (hi : Integrable (fun z : I𝔽 × P𝔽 ↦
+      divisorialKernelDifference S k (diagonalIndentationLift P𝔽 countP b u) (skew z))
+      (m.prod countP)) :
+    (∫ z : I𝔽 × P𝔽, divisorialKernelDifference S k (diagonalIndentationLift P𝔽 countP b u)
+      (skew z) ∂m.prod countP) =
+      ∫ x, (divisorialIndicator (primaryDivisorialPlaces F S (k+1)) x -
+        divisorialIndicator (primaryDivisorialPlaces F S k) x) * u (q𝔽 x, q𝔽 x) ∂m := by
+  rw [integral_prod _ hi]
+  refine integral_congr_ae (Filter.Eventually.of_forall fun x ↦ ?_)
+  simp only [divisorialKernelDifference, integral_const_mul, integral_normalized_idelic_skew_fiber hb]
+
+/-- Paper: Proposition 12.2.2.2(2), p. 508, and the restriction on p. 520. The
+normalized skew mass over any idèlic first-coordinate mask is exactly the
+quotient diagonal evaluated on those representatives. The mask remains on the
+chosen fundamental domain. -/
+theorem integral_normalized_idelic_skew_restrict {b : I𝔽 → ℝ} (hb : IsIndentation P𝔽 countP b)
+    (u : C𝔽 × C𝔽 → ℂ) (A : Set I𝔽) (m : Measure I𝔽) [SFinite m]
+    (hi : Integrable (fun z : I𝔽 × P𝔽 ↦ diagonalIndentationLift P𝔽 countP b u (skew z))
+      (m.prod countP)) :
+    (∫ z in (Prod.fst : I𝔽 × P𝔽 → I𝔽) ⁻¹' A,
+      diagonalIndentationLift P𝔽 countP b u (skew z) ∂m.prod countP) =
+      ∫ x in A, u (q𝔽 x, q𝔽 x) ∂m := by
+  have hA : (Prod.fst : I𝔽 × P𝔽 → I𝔽) ⁻¹' A = A ×ˢ univ := by ext z; simp
+  rw [hA, setIntegral_prod _ hi.integrableOn]
+  simp only [Measure.restrict_univ, integral_normalized_idelic_skew_fiber hb]
+
 end RiemannMasullo
