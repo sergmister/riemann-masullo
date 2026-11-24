@@ -101,6 +101,8 @@ $$
 $$
 Here both projections in each difference use the same **physical** cutoff. In the lower-window model obtained after taking the bandwidth limit, a uniform estimate for this signed tail now follows from the cutoff commutator. A sufficiently broad log window works at every fixed narrow width. Passing from those limiting projectors to the finite-band geometric trace on the expanding windows is a remaining step. [Uniform bound and its quantifiers](EndpointWindows.md#a-uniform-bound-for-the-omitted-primes-in-the-lower-window-model) One must also identify the resulting global trace with the §12.3 smoothed diagonal and account for the remaining real-place term. The explicit test meeting $p=2$ in the endpoint calculation shows why the order of the spatial and prime exhaustions has to be specified. [Two orders of exhaustion](EndpointWindows.md#interchanging-two-further-limits-gives-different-traces)
 
+A test at the prime power $2$ imposes a further condition on the selected path. Even with the smooth symmetric annuli of Definition 9.3.3.1, the rational finite-band adjacent compression has no path-independent double limit for a bump meeting $2$. A paired difference of cofinal radii tends to $-(\log2)/\sqrt2$. This locates an obstruction already on the finite-band generators. [Symmetric-annulus calculation](EndpointWindows.md#a-finite-band-test-using-the-manuscripts-symmetric-spatial-cutoffs)
+
 A second control comes from the two ends of the *unsieved* rational Fourier-band family. At $\alpha=1/2$, taking the bandwidth limit in each fixed rescaled endpoint window yields zero at both ends. For a nonnegative nonzero $\phi$ supported in $3/2<a<7/4$, the known whole projected diagonal is strictly negative, since
 
 $$
