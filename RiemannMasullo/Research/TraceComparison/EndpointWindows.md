@@ -71,6 +71,40 @@ If instead $S$ grows with a **fixed window in that aligned coordinate**, both pr
 
 For a concrete check, take $\phi$ supported in $7/4<a<9/4$ with $\phi(2)=1$. The two respective iterated limits are $-(\log2)/\sqrt2$ and $0$. This is a failure of interchange for the limiting endpoint operators. For the prime-free support $1<a<2$ these two particular numbers agree at zero. In the p. 520 prescription a place whose prime power is in the test support belongs in $S$. The example identifies an order-of-limits issue for a proposed method and gives a nonzero calibration of the fixed-prime calculation.
 
+## A uniform bound for the omitted primes in the lower-window model
+
+For a smooth test supported in $1<a<2$, one can let the number of primes and the window radius grow together **after taking the bandwidth limit**. Fix $0\le\alpha<1/2$ and a compactly supported Lipschitz window $\chi$ equal to one near zero. In the limiting log coordinate use $\chi_R(t)=\chi((t-t_0)/R)$. The estimates are uniform over its center $t_0$. Write $\eta_\Theta(R)$ for the smoothed commutator norm defined below. For primes through $Y\ge2$, the sum of the **absolute values** of their adjacent, spatially localized relative traces is at most
+$$
+C_{\alpha,\phi,\chi}\big(Y\eta_\Theta(R)+Y^2/R\big),\qquad \eta_\Theta(R)\longrightarrow0 .
+$$
+
+To see the cancellation, fix $p$ and put $\ell=\log p$, so the convolution kernel $k$ is supported strictly inside $(0,\ell)$. At $t=j\ell+u$, $0<u<\ell$, the diagonal of $AP_{K_b}$ is $(1-c_p^2)c_p^j\sum_{n\ge0}c_p^n k((j-n)\ell)=0$. The delay term has zero diagonal as well. Thus for **any** bounded spatial cutoff both bare terms have zero localized trace. This follows directly by tracing their smooth kernels on each length-$\ell$ interval. Multiplication by a bounded window causes no diagonal regularity issue, by the absolutely convergent smooth-kernel expansions on those intervals.
+
+There is also a uniform trace-norm bound. With $U$ as above,
+$$
+AU=U T_0+S_\ell U T_1,\qquad
+T_i(u,v)=k(u-v+i\ell),\quad 0<u,v<\ell .
+$$
+Only the same and the preceding input interval can contribute. Each $T_i$ has trace norm $O_\phi(1+\ell)$. Partition the two intervals into cells of length at most one. Compact support permits a bounded number of input cells per output cell, and a uniform smooth extension on each pair of cells gives an absolutely summable Fourier expansion with a common bound. The two isometries in the displayed formula give $\|AP_{K_b}\|_1\ll_\phi 1+\ell$, independently of $c_p$. The same bound holds for $AP_{K_d}$ and for convolution with $k+k'$.
+
+For a fixed final set of primes and an adjacent step at $p$, take $W=M_{\Theta(\prod_{q<p} b_q)(\prod_{q>p} d_q)}$, with products over this set. The last product accounts for the later primes when using the common final coordinate. Since $AW=WA$ and $W^*W=1$, conjugating a bare block $P_K$ leaves only
+$$
+\operatorname{Tr}\big(W^*[M_{\chi_R},W]\,A P_K\big)
+$$
+in the localized trace. For each preceding prime $q$, writing $c_q=q^{\alpha-1/2}$, the absolutely convergent expansion
+$$
+b_q(S)=-c_q+(1-c_q^2)\sum_{n\ge1}c_q^{n-1}S_{n\log q}
+$$
+bounds its commutator norm by $\operatorname{Lip}(\chi)(\log q)(1+c_q)/(R(1-c_q))$. A delay by $d$ has the corresponding bound $\operatorname{Lip}(\chi)d/R$. Inner multipliers are isometries, so their product costs the sum of these bounds. The ratios $(1+c_q)/(1-c_q)$ are bounded in terms of $\alpha$. This also accommodates translating all windows into the common final-stage coordinate.
+
+For the unsieved multiplier let $h(z)=(1+z)^{-1}$ and set $\eta_\Theta(R)=\sup_{t_0}\|[M_{\chi_R},M_\Theta]M_h\|$. The boundary symbols $h$ and $\Theta h$ are continuous and vanish at infinity. Indeed the shifted zeta zeros have no finite boundary accumulation, and $\Theta$ has no singular inner factor. The commutator of a window with the Fourier multiplier of any continuous symbol vanishing at infinity tends to zero in operator norm as $R\to\infty$, uniformly in the center. Approximate the symbol in sup norm by a smooth compactly supported symbol. Its inverse Fourier transform has finite absolute first moment and the corresponding bound is $\operatorname{Lip}(\chi)/R$ times that moment. Compressing the full-line operators to the positive half-line gives the same estimate because multiplication by the window preserves the half-line. Now use
+$$
+[M_{\chi_R},M_\Theta]M_h=[M_{\chi_R},M_{\Theta h}]-M_\Theta[M_{\chi_R},M_h]
+$$
+to obtain $\eta_\Theta(R)\to0$. Convolution $A$ factors as $M_hA'$ where $A'$ has kernel $k+k'$ with the same compact positive support. Thus the previous trace-norm bound controls this commutator contribution by $O_\phi((1+\log p)\eta_\Theta(R))$ for each $p$. Summing both contributions gives the claimed estimate by $\sum_{p\le Y}\log p\ll Y$.
+
+In particular one may choose $R$ increasing sufficiently fast that both error terms vanish as $Y\to\infty$. This uses no zero-location hypothesis and supplies no effective general rate for $\eta_\Theta$. When the unsieved inner function is constant, $\eta_\Theta=0$ and every $Y=o(\sqrt R)$ works. The independently calibrated rational width $\alpha=2/5$ has this property under the external seven-eighths input. There is also a finite-band consequence by diagonal selection. Take $Y_j\to\infty$ and choose $R_j$ so that the model error is at most $1/j$. At fixed $Y_j,R_j$, the finite number of windowed traces on the genuine rational theta generators converge as $B\to\infty$. Choose $B_j$ large enough to make the sum of their errors at most $1/j$. The adjacent finite-band traces therefore vanish in aggregate on these selected **drifting lower windows**. The choices permit $\log B_j$ arbitrarily large compared with $R_j$, so these windows can lie entirely below every fixed physical annulus. Passing to an exhaustion of the full physical diagonal requires additional control of the finite-band errors and the intervening scales. [Calibration and its hypothesis](https://github.com/sergmister/riemann-masullo/pull/6)
+
 ## What the endpoint traces can detect
 
 For the unsieved lower space the open-right zeta zeros can also be read off from the trace. In Laplace coordinates set $a(z)=\int k(r)e^{-zr}\,dr$. The complement $K_\Theta$ contributes $\sum_\lambda a(\lambda)$ with multiplicities. Here is a trace-class justification. For $q(z)=(1+z)^{-1}$, the Malmquist basis vectors $e_n$ for the Blaschke zeros satisfy $\|M_qe_n\|^2=\Re q(\lambda_n)$ by the Poisson integral of $|q|^2=\Re q$ on the boundary. This sum is finite by the zeta-zero counting bound $N(T)\ll T\log(2+T)$ and bounded real parts. Thus $M_qP_{K_\Theta}$ is Hilbert–Schmidt. The operator $P_{\Theta H^2}M_qP_{K_\Theta}$ has rank at most one, since $1-2q$ is a single Blaschke factor and $(1-2q)K_\Theta$ is orthogonal to $(1-2q)\Theta H^2$. It follows by inserting both projections that $M_{q^2}P_{K_\Theta}$ is trace class. Two integrations by parts give $a/q^2\in H^\infty$. The diagonal in the same basis is $a(\lambda_n)$ by reproduction. Spatial localization of the ambient convolution has zero trace for these tests, so the lower projection contributes **minus** this sum after the window exhaustion.
