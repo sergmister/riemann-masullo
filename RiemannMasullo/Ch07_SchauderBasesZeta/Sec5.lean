@@ -2479,7 +2479,7 @@ theorem strongCoprimalityJetMatrix_det (S : Finset V)
 
 /-- The reciprocal finite Euler polynomial is entire and nonzero to the right
 of the imaginary axis. -/
-private theorem strongCoprimalityJetMatrix_det_ne_zero_euler
+theorem strongCoprimalityJetMatrix_det_ne_zero_euler
     {F : Type*} [Field F] [NumberField F]
     (χ : PontryaginDual (IdeleClassGroup (𝓞 F) F))
     (S : Finset (HeightOneSpectrum (𝓞 F))) :

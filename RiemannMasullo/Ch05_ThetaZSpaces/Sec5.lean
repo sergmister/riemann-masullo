@@ -337,7 +337,9 @@ private theorem sLocalNormalizedEigendistribution_gaussian_arch
   rw [he, ← infiniteLocalIdelicZFunction_eq_integral w _ η hpos, hz,
     ((hD z (D z)).mp rfl).2, mul_one]
 
-private theorem sLocalNormalizedEigendistribution_gaussian_finChart
+/-- Along a norm-twist chart, restricting to a finite place yields a norm twist of a
+unitary character. -/
+theorem sLocalNormalizedEigendistribution_gaussian_finChart
     (χ : PontryaginDual Jₛ) (v : S) :
     ∃ η : PontryaginDual (v.val.adicCompletion F)ˣ, ∀ z,
       sLocalFiniteRestriction v (chartₛ(χ) z) =
@@ -355,7 +357,8 @@ private theorem sLocalNormalizedEigendistribution_gaussian_finChart
   simp only [PontryaginDual.one_apply, Circle.coe_one, one_mul, Complex.cpow_one] at hn
   exact congrArg (fun t : ℂ ↦ (χ (i g) : ℂ) * t ^ z) hn
 
-private theorem sLocalNormalizedEigendistribution_gaussian_finTest
+/-- The finite standard Gaussian test function is constant along a norm-twist family. -/
+theorem sLocalNormalizedEigendistribution_gaussian_finTest
     (v : HeightOneSpectrum (𝓞 F)) (η : PontryaginDual (v.adicCompletion F)ˣ) (s z : ℂ) :
     let twist := quasiCharacterNormTwist _ (continuous_finiteLocalModule v) ((circleToComplex).comp η)
     finiteStandardGaussian v (twist s) = finiteStandardGaussian v (twist z) := by
@@ -401,7 +404,8 @@ private theorem sLocalNormalizedEigendistribution_gaussian_fin
     ← finiteLocalIdelicZFunction_eq_integral v.val _ η hz, hZ z hne,
     ((hD z (D z)).mp rfl).2, mul_one]
 
-private theorem sLocalNormalizedEigendistribution_gaussian_heckeL_ne_zero (χ : PontryaginDual Jₛ) :
+/-- Along a norm-twist chart, the S-local Hecke L-function is nonzero on a codiscrete set. -/
+theorem sLocalNormalizedEigendistribution_gaussian_heckeL_ne_zero (χ : PontryaginDual Jₛ) :
     ∀ᶠ z : ℂ in Filter.codiscrete ℂ, sLocalHeckeL (chartₛ(χ) z) ≠ 0 := by
   filter_upwards [sLocalRhoFactor_mul_dual χ, sLocalRhoFactor_eq_epsilon_mul χ] with z hprod hρ
   let c := chartₛ(χ) z
@@ -1517,7 +1521,7 @@ private theorem adeleSchwartzFourier_zero_unitTranslate_integral (u : IdeleGroup
   exact h1
 
 /-- Fourier evaluation at zero scales by the idelic norm under unit translation. -/
-private theorem adeleSchwartzFourier_zero_unitTranslate (u : IdeleGroup (𝓞 F) F)
+theorem adeleSchwartzFourier_zero_unitTranslate (u : IdeleGroup (𝓞 F) F)
     (f : ℬ(𝔸[F])) :
     adeleSchwartzFourier (schwartzBruhatUnitTranslate u f) zeroAdele =
       (((ideleNorm F u).val : ℝ) : ℂ) * adeleSchwartzFourier f zeroAdele := by
@@ -2559,7 +2563,7 @@ private theorem sLocalThetaOnClasses_unitTranslate_apply (u : Aₛˣ) (f : ℬ(A
 
 /-- The homogeneous S-local theta transform multiplies by `ω g` under a unit translate
 representing `g`. -/
-private theorem sLocalHomogeneousTheta_unitTranslate (ω : PontryaginDual (mₛ).ker)
+theorem sLocalHomogeneousTheta_unitTranslate (ω : PontryaginDual (mₛ).ker)
     (g : (mₛ).ker) (u : Aₛˣ) (hu : QuotientGroup.mk u = g.val) (f : ℬ(Aₛ)) :
     sLocalHomogeneousAdelicThetaLinearMap F S ω (schwartzBruhatUnitTranslate u f) =
       (ω g : ℂ) • sLocalHomogeneousAdelicThetaLinearMap F S ω f := by

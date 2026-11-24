@@ -191,7 +191,7 @@ private theorem reciprocalEulerProduct_over_prime_order_le_sum (p : RatPrimes) :
   rw [Ideal.sum_ramification_inertia_eq_finrank, IsFractionRing.finrank_eq (𝓞 ℚ) ℚ (𝓞 F) F]
 
 /-- A rational prime has at most `[F : ℚ]` primes of `F` above it. -/
-private theorem reciprocalEulerProduct_over_prime_order_le_card_le (p : RatPrimes) :
+theorem reciprocalEulerProduct_over_prime_order_le_card_le (p : RatPrimes) :
     Fintype.card (p.asIdeal.primesOver (𝓞 F)) ≤ degree := by
   rw [← reciprocalEulerProduct_over_prime_order_le_sum p, Fintype.card_eq_sum_ones]
   refine Finset.sum_le_sum fun q _ ↦ ?_
@@ -201,7 +201,7 @@ private theorem reciprocalEulerProduct_over_prime_order_le_card_le (p : RatPrime
     (Ideal.ramificationIdx_pos (𝓞 ℚ) q.1).ne' (Ideal.inertiaDeg_pos q.1 (𝓞 ℚ)).ne')
 
 /-- Each reciprocal finite Euler factor is entire with zeros of order at most one. -/
-private theorem reciprocalEulerProduct_over_prime_order_le_factor (χ : U𝔽) (v : Primes) (s : ℂ) :
+theorem reciprocalEulerProduct_over_prime_order_le_factor (χ : U𝔽) (v : Primes) (s : ℂ) :
     AnalyticAt ℂ (fun z ↦ (finiteHeckeEulerFactor χ v z)⁻¹) s ∧
       analyticOrderAt (fun z ↦ (finiteHeckeEulerFactor χ v z)⁻¹) s ≤ 1 := by
   classical

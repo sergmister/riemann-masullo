@@ -193,6 +193,12 @@ theorem primaryDivisorialPlaces_succ (S : Finset V) (k : ℕ) :
   simp only [primaryDivisorialPlaces, Finset.range_add_one, Finset.biUnion_insert]
   exact Finset.union_comm _ _
 
+/-- Paper: §11.3.1.1, p. 493. Every later packet set contains the earlier packets. -/
+theorem primaryDivisorialPlaces_mono (S : Finset V) : Monotone (primaryDivisorialPlaces F S) :=
+  monotone_nat_of_le_succ fun k ↦ by
+    rw [primaryDivisorialPlaces_succ]
+    exact Finset.subset_union_left
+
 private theorem primaryDivisorialPrime_eq_iff (S : Finset V) (k : ℕ) (p : Vℚ) :
     primaryDivisorialPrime S k = p ↔
       Rat.HeightOneSpectrum.natGenerator p =
@@ -937,10 +943,155 @@ theorem primaryDivisorialThetaSubquotient_mk_eq_zero (S : Finset V) (ω : Pontry
       x.val ∈ divisorialThetaStage ω (primaryDivisorialPlaces F S (k + 1)) := by
   simp only [Submodule.Quotient.mk_eq_zero, Submodule.mem_comap, Submodule.subtype_apply]
 
--- TODO(paper-gap): The claimed Schauder systems need a specified Paley–Wiener
--- subquotient at each global stage and compatible lifts in the strip Sobolev space.
--- The local subquotients of §7.3 and the zero-line quotient of §11.2.2 do not
--- identify these global stage quotients with the basis model used here.
+/-- Paper: (11.3.1.3), p. 494, and the cutoff limit on p. 496. Restricting
+past the new prime packet puts the representative in the denominator, at any
+Fourier level. -/
+theorem primaryDivisorialThetaSubquotient_later_eq_zero (S : Finset V) (ω : PontryaginDual C₁)
+    {k j : ℕ} (hkj : k < j) (x : divisorialThetaStage (F := F) ω (primaryDivisorialPlaces F S k))
+    (hx : x.val ∈ divisorialThetaStage (F := F) ω (primaryDivisorialPlaces F S j)) :
+    (Submodule.Quotient.mk x : PrimaryDivisorialThetaSubquotient (F := F) S ω k) = 0 := by
+  apply (primaryDivisorialThetaSubquotient_mk_eq_zero S ω k x).2
+  have hsub : primaryDivisorialPlaces F S (k + 1) ⊆ primaryDivisorialPlaces F S j :=
+    primaryDivisorialPlaces_mono (F := F) S hkj
+  exact (divisorialThetaStage_antitone (F := F) ω hsub : divisorialThetaStage (F := F) ω _ ≤
+    divisorialThetaStage (F := F) ω _) hx
+
+/-- Paper: (11.3.1.3), p. 494. The principal values at the selected places
+restrict to an endomorphism of the polar-free global tests. -/
+def adelePolarPrincipalValue (T : Finset V) : P →ₗ[ℂ] P :=
+  ((adelePrincipalValue F T).comp (adelePolarSubspace F).subtype).codRestrict
+    (adelePolarSubspace F) (adelePrincipalValue_mem_polarSubspace T)
+
+local notation "polarPV(" T ")" => adelePolarPrincipalValue (F := F) T
+
+/-- Paper: (11.3.1.3), p. 494. Apply the principal values at a packet set
+to a polar-free global test and take its homogeneous theta class. -/
+def divisorialThetaRepresentative (ω : PontryaginDual C₁) (T : Finset V) :
+    P →ₗ[ℂ] Θ(ω) :=
+  ((homogeneousAdelicThetaLinearMap F ω).domRestrict P).ker.mkQ.comp polarPV(T)
+
+/-- On the homogeneous polar-free tests one can cancel the same principal values
+from both sides. The isotypic average intertwines them with the injective
+operator on ordinary smooth theta classes. -/
+private theorem primaryDivisorialThetaClass_cancel (ω : PontryaginDual C₁) (T : Finset V)
+    (f g : P) :
+    (Submodule.Quotient.mk (polarPV(T) f) : Θ(ω)) =
+      Submodule.Quotient.mk (polarPV(T) g) ↔
+    (Submodule.Quotient.mk f : Θ(ω)) = Submodule.Quotient.mk g := by
+  rcases T.eq_empty_or_nonempty with rfl | hn
+  · have hid (x : P) : polarPV(∅) x = x :=
+      Subtype.ext (LinearMap.congr_fun divisorialThetaStage_empty_PV x.val)
+    rw [hid, hid]
+  obtain ⟨e, he⟩ := (globalThetaIsotypicAverage_equiv (F := F) ω).2
+  let avg := (existsUnique_globalThetaIsotypicAverage (F := F) ω).exists.choose
+  let q := (adelicThetaLinearMap F).ker.mkQ
+  have h (x y : P) : (Submodule.Quotient.mk x : Θ(ω)) = Submodule.Quotient.mk y ↔
+      avg (q x.val) = avg (q y.val) := by
+    rw [← he x.val, ← he y.val, Subtype.coe_inj, e.injective.eq_iff]
+    simp only [Submodule.mkQ_apply, Submodule.Quotient.eq, LinearMap.mem_ker,
+      LinearMap.domRestrict_apply, Submodule.coe_sub]
+  rw [h, h]
+  change avg (q (adelePrincipalValue F T f.val)) = avg (q (adelePrincipalValue F T g.val)) ↔ _
+  have hcomm (x : P) : avg (q (adelePrincipalValue F T x.val)) =
+      globalThetaPrincipalValue F T (avg (q x.val)) :=
+    (globalThetaPrincipalValue_isotypicAverage T ω (q x.val)).symm
+  rw [hcomm, hcomm]
+  exact (globalThetaPrincipalValue_isClosedEmbedding hn).injective.eq_iff
+
+private theorem divisorialThetaRepresentative_next_sdiff (S : Finset V) (k : ℕ) :
+    primaryDivisorialPlaces F S (k + 1) \ primaryDivisorialPlaces F S k =
+      above(primaryDivisorialPrime (F := F) S k) := by
+  rw [primaryDivisorialPlaces_succ (F := F) S k]
+  exact Finset.union_sdiff_cancel_left (primaryDivisorialZeta_succ_disjoint (F := F) S k)
+
+private theorem divisorialThetaRepresentative_polarPV_comp (T U T' : Finset V)
+    (h : adelePrincipalValue F T' = (adelePrincipalValue F T).comp (adelePrincipalValue F U))
+    (g : P) : polarPV(T') g = polarPV(T) (polarPV(U) g) :=
+  Subtype.ext (LinearMap.congr_fun h g.val)
+
+private theorem divisorialThetaRepresentative_next_PV (S : Finset V) (k : ℕ) (g : P) :
+    polarPV(primaryDivisorialPlaces F S (k + 1)) g =
+      polarPV(primaryDivisorialPlaces F S k) (polarPV(above(primaryDivisorialPrime (F := F) S k)) g) := by
+  let T := primaryDivisorialPlaces F S k
+  let T' := primaryDivisorialPlaces F S (k + 1)
+  have hsub : T ⊆ T' := primaryDivisorialPlaces_mono (F := F) S (Nat.le_succ k)
+  apply divisorialThetaRepresentative_polarPV_comp
+  exact (divisorialThetaStage_antitone_PV (F := F) hsub).trans
+    (congrArg (fun U ↦ (adelePrincipalValue F T).comp (adelePrincipalValue F U))
+      (divisorialThetaRepresentative_next_sdiff (F := F) S k))
+
+private theorem divisorialThetaRepresentative_mem_stage (ω : PontryaginDual C₁) (T : Finset V)
+    (x : Θ(ω)) : x ∈ divisorialThetaStage ω T ↔
+      ∃ g : P, (Submodule.Quotient.mk (polarPV(T) g) : Θ(ω)) = x := by
+  have hr : divisorialThetaStage ω T = (divisorialThetaRepresentative ω T).range := by
+    exact Submodule.span_eq (divisorialThetaRepresentative ω T).range
+  rw [hr, LinearMap.mem_range]
+  simp only [divisorialThetaRepresentative, LinearMap.comp_apply, Submodule.mkQ_apply]
+
+/-- Paper: (11.3.1.3), p. 494. A test represents zero in a successive stage quotient
+exactly when its original theta class belongs to the principal-value image for the
+single new packet. The earlier packets cancel before taking completions. -/
+theorem divisorialThetaRepresentative_mem_next_iff (S : Finset V) (ω : PontryaginDual C₁)
+    (k : ℕ) (f : P) :
+    divisorialThetaRepresentative ω (primaryDivisorialPlaces F S k) f ∈
+      divisorialThetaStage ω (primaryDivisorialPlaces F S (k + 1)) ↔
+      (Submodule.Quotient.mk f : Θ(ω)) ∈
+        divisorialThetaStage (F := F) ω above(primaryDivisorialPrime (F := F) S k) := by
+  refine (divisorialThetaRepresentative_mem_stage ω _ _).trans
+    ((exists_congr fun g ↦ ?_).trans (divisorialThetaRepresentative_mem_stage ω _ _).symm)
+  rw [divisorialThetaRepresentative_next_PV S k g]
+  simp only [divisorialThetaRepresentative, LinearMap.comp_apply, Submodule.mkQ_apply]
+  exact primaryDivisorialThetaClass_cancel ω (primaryDivisorialPlaces F S k)
+    (polarPV(above(primaryDivisorialPrime (F := F) S k)) g) f
+
+/-- Paper: (11.3.1.3), p. 494. Global polar-free representatives of an absolute
+Paley–Wiener level are integer-indicator insertions of tests with additive Fourier
+support in the box of size X at S.
+Deviation: Specify the box on the test before applying the kth principal value,
+as in (11.3.1.1) and the absolute level on p. 487. -/
+def primaryDivisorialAbsolutePWTests (S : Finset V) (X : ℝ) : Submodule ℂ P :=
+  (((sLocalPWTests (S := S) le_rfl (sLocalPWBox S X)).map
+    (sAdeleSchwartzToGlobal F S)).comap (adelePolarSubspace F).subtype)
+
+private theorem primaryDivisorialAbsolutePW_equiv_of_kernel
+    {E A B : Type*} [AddCommGroup E] [Module ℂ E] [AddCommGroup A] [Module ℂ A]
+    [AddCommGroup B] [Module ℂ B] (L : E →ₗ[ℂ] A) (R : E →ₗ[ℂ] B)
+    (h : ∀ f, L f = 0 ↔ R f = 0) :
+    ∃ e : L.range ≃ₗ[ℂ] R.range, ∀ f : E, e (L.rangeRestrict f) = R.rangeRestrict f := by
+  have hk : L.ker = R.ker := Submodule.ext h
+  refine ⟨L.quotKerEquivRange.symm.trans ((Submodule.quotEquivOfEq _ _ hk).trans
+    R.quotKerEquivRange), fun f ↦ ?_⟩
+  change R.quotKerEquivRange ((Submodule.quotEquivOfEq _ _ hk)
+    (L.quotKerEquivRange.symm ⟨L f, _⟩)) = _
+  rw [LinearMap.quotKerEquivRange_symm_apply_image, Submodule.mkQ_apply,
+    Submodule.quotEquivOfEq_mk]
+  rfl
+
+/-- Paper: (11.3.1.3), p. 494. At every fixed Fourier bound, the images of the
+same tests in the successive quotient and in the smooth single-prime orbital
+quotient of (7.4.0.2) are linearly equivalent. The right-hand image realizes
+the stage subquotient inside the ambient theta space modulo the next stage.
+Deviation: This identifies the algebraic images of actual band-limited tests.
+The trace-norm comparison on the half-twisted completion is a separate assertion. -/
+theorem primaryDivisorialAbsolutePW_equiv (S : Finset V) (χ : PontryaginDual C𝔽)
+    (k : ℕ) (X : ℝ) :
+    let ω := χ.comp (⟨(ideleClassNorm F).ker.subtype, continuous_subtype_val⟩ : C₁ →ₜ* C𝔽)
+    let W := primaryDivisorialAbsolutePWTests (F := F) S X
+    let L := ((finiteNuclearityDenominator χ (primaryDivisorialPrime (F := F) S k)).mkQ.comp
+      ((homogeneousAdelicThetaLinearMap F ω).domRestrict P).ker.mkQ).domRestrict W
+    let B := divisorialThetaStage ω (primaryDivisorialPlaces F S (k + 1))
+    let R := B.mkQ.comp
+      ((divisorialThetaRepresentative ω (primaryDivisorialPlaces F S k)).domRestrict W)
+    ∃ e : L.range ≃ₗ[ℂ] R.range, ∀ f : W, e (L.rangeRestrict f) = R.rangeRestrict f := by
+  intro ω W L B R
+  apply primaryDivisorialAbsolutePW_equiv_of_kernel L R
+  intro f
+  change (Submodule.Quotient.mk (Submodule.Quotient.mk f.val : Θ(ω)) :
+    Θ(ω) ⧸ finiteNuclearityDenominator χ (primaryDivisorialPrime (F := F) S k)) = 0 ↔
+      B.mkQ (divisorialThetaRepresentative ω (primaryDivisorialPlaces F S k) f.val) = 0
+  rw [Submodule.mkQ_apply, Submodule.Quotient.mk_eq_zero, Submodule.Quotient.mk_eq_zero]
+  exact ((divisorialThetaRepresentative_mem_next_iff S ω k f.val).trans
+    (by rw [divisorialThetaStage_above (F := F) χ])).symm
 
 end ThetaSubquotient
 
@@ -965,6 +1116,19 @@ theorem divisorialKernelDifference_eq_neg (S : Finset V) (k : ℕ) (K : I𝔽 ×
   have h2 : divisorialIndicator (primaryDivisorialPlaces F S (k + 1)) xy.2 = 0 := by
     rw [divisorialIndicator_eq_indicator]; exact Set.indicator_of_notMem _hxy.2 _
   simp [divisorialKernelDifference, h1, h2]
+
+/-- Paper: (11.3.2.3), p. 495. The later input cutoff annihilates the entire
+shell kernel pointwise, for every choice of kernel and lifts. -/
+theorem divisorialKernelDifference_mul_laterIndicator (S : Finset V) {k j : ℕ}
+    (hkj : k < j) (K : I𝔽 × I𝔽 → ℂ) (xy : I𝔽 × I𝔽) :
+    divisorialKernelDifference S k K xy * divisorialIndicator (primaryDivisorialPlaces F S j) xy.2
+      = 0 := by
+  by_cases h : xy.2 ∈ divisorialStratum F (primaryDivisorialPlaces F S j)
+  · have hmem (i : ℕ) (hi : i ≤ j) : xy.2 ∈ divisorialStratum F (primaryDivisorialPlaces F S i) :=
+      fun v hv ↦ h v (primaryDivisorialPlaces_mono S hi hv)
+    simp [divisorialKernelDifference, divisorialIndicator_eq_indicator, hmem k hkj.le,
+      hmem (k + 1) hkj]
+  · rw [divisorialIndicator_eq_indicator, Set.indicator_of_notMem h, mul_zero]
 
 variable (F) in
 /-- Paper: §11.3.1.1, p. 491, and §11.3.2, p. 495. The S-local idelic

@@ -6237,7 +6237,7 @@ theorem exists_finiteWeilTestMap (v : Primes(F)) :
   exact ⟨⟨L, hcont⟩, fun f x ↦ hΦ f x⟩
 
 /-- Closed graph theorem from a closed subspace of a Fréchet space to a Fréchet space. -/
-private theorem weilTest_continuous_of_isClosed_graph {E Y : Type*}
+theorem weilTest_continuous_of_isClosed_graph {E Y : Type*}
     [AddCommGroup E] [Module ℂ E] [TopologicalSpace E] [IsTopologicalAddGroup E]
     [ContinuousSMul ℂ E] [T2Space E]
     [AddCommGroup Y] [Module ℂ Y] [TopologicalSpace Y] [IsTopologicalAddGroup Y]

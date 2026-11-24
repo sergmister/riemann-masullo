@@ -656,6 +656,14 @@ private theorem orbitalZero (E : Set (ideleNorm ℚ).ker) (K : C(ℚ) × C(ℚ) 
   simp only [shellWeightZero E _ _ (fun xy ↦ K (QuotientGroup.mk' _ xy.1,
     QuotientGroup.mk' _ xy.2)), integral_zero, tsum_zero]
 
+private theorem rationalEmptyBase_picTrivial :
+    Subsingleton (CommRing.Pic (((∅ : Finset Vℚ) : Set Vℚ).integer ℚ)) := by
+  rw [Finset.coe_empty, integer_empty]
+  let e := (Algebra.botEquivOfInjective (IsFractionRing.injective (𝓞 ℚ) ℚ)).toRingEquiv
+  let i := Rat.ringOfIntegersEquiv.symm.trans e.symm
+  let := IsPrincipalIdealRing.of_surjective i i.surjective
+  infer_instance
+
 /-- Paper: Theorem 11.3.2.1, p. 495. Take F = ℚ, the trivial character,
 the archimedean base, the standard norm section and the first layer at 2.
 Choose a nonnegative smooth log-norm bump with value one at norm 2,
@@ -665,17 +673,11 @@ theorem Printed.orbitalTracesOnPaleyWienerLevels_false :
     ¬ Printed.orbitalTracesOnPaleyWienerLevels := by
   intro claim
   obtain ⟨φ, v, π, hv, hq, hπ, hs, hu, hsum⟩ := primeTwoWitness
-  have hpic : Subsingleton (CommRing.Pic (((∅ : Finset Vℚ) : Set Vℚ).integer ℚ)) := by
-    rw [Finset.coe_empty, integer_empty]
-    let e := (Algebra.botEquivOfInjective (IsFractionRing.injective (𝓞 ℚ) ℚ)).toRingEquiv
-    let i := Rat.ringOfIntegersEquiv.symm.trans e.symm
-    let := IsPrincipalIdealRing.of_surjective i i.surjective
-    infer_instance
   let : IsPrincipalIdealRing (𝓞 ℚ) := IsPrincipalIdealRing.of_surjective
     Rat.ringOfIntegersEquiv.symm Rat.ringOfIntegersEquiv.symm.surjective
   have hex := claim ℚ 1 φ ∅ (by simp)
     (fun w _ ↦ Ideal.ramificationIdx_eq_one w.asIdeal (𝓞 ℚ))
-    (fun w _ ↦ trivialUnramified w) hu hpic hs 2 0 (by norm_num) (by norm_num)
+    (fun w _ ↦ trivialUnramified w) hu rationalEmptyBase_picTrivial hs 2 0 (by norm_num) (by norm_num)
     (canonicalIdeleNormSection ℚ) (canonicalIdeleNormSection_continuous ℚ)
     (canonicalIdeleNormSection_rightInverse ℚ) (Units.basisModTorsion ℚ)
     Rat.infinitePlace (AlgEquiv.refl : ℂ ≃ₐ[ℝ] ℂ) (fun _ ↦ 1) rfl
@@ -693,6 +695,103 @@ theorem Printed.orbitalTracesOnPaleyWienerLevels_false :
   rw [hsum, mul_one, hq] at he
   have hn : Real.log (↑(2 : ℕ) : ℝ) ≠ 0 := (Real.log_pos (by norm_num)).ne'
   rw [localMass, Complex.ofReal_one, div_one] at he
+  exact Complex.ofReal_ne_zero.mpr hn he.symm
+
+/-- Paper: Proof of Theorem 11.3.2.1, p. 496. On the kth stratum, the later
+indicators are claimed to tend to the indicator of the ideles that are units
+outside an enlarged set containing the current prime packet.
+Deviation: State the pointwise identity of indicators on the support stratum.
+Allow any such enlargement, and specialize the character to the trivial one. -/
+def Printed.primaryDivisorialIndicator_localLimit : Prop :=
+  ∀ (F : Type) [Field F] [NumberField F] (S : Finset V(F)),
+    (∀ v ∈ S, ∀ w : V(F), w.under (𝓞 ℚ) = v.under (𝓞 ℚ) → w ∈ S) →
+    (∀ v ∉ S, ramificationIndex(v) = 1) →
+    Subsingleton (CommRing.Pic ((S : Set V(F)).integer F)) →
+    ∀ k : ℕ, ∃ T : Finset V(F), S ⊆ T ∧
+      primaryDivisorialPlaces F S (k + 1) \ primaryDivisorialPlaces F S k ⊆ T ∧
+      ∀ y ∈ divisorialStratum F (primaryDivisorialPlaces F S k),
+        Filter.Tendsto (fun j ↦ divisorialIndicator (primaryDivisorialPlaces F S j) y)
+          Filter.atTop (nhds ((sLocalDivisorialStratum F T).indicator (fun _ ↦ (1 : ℂ)) y))
+
+/-- Paper: Proof of Theorem 11.3.2.1, p. 496. At the first rational shell take
+an idele with a uniformizer at 2 and ones elsewhere. Every later mask is zero,
+whereas every allowed enlarged local indicator is one. -/
+theorem Printed.primaryDivisorialIndicator_localLimit_false :
+    ¬ Printed.primaryDivisorialIndicator_localLimit := by
+  intro claim
+  let : IsPrincipalIdealRing (𝓞 ℚ) := IsPrincipalIdealRing.of_surjective
+    Rat.ringOfIntegersEquiv.symm Rat.ringOfIntegersEquiv.symm.surjective
+  obtain ⟨T, _, hnew, hlim⟩ := claim ℚ ∅ (by simp)
+    (fun w _ ↦ Ideal.ramificationIdx_eq_one w.asIdeal (𝓞 ℚ)) rationalEmptyBase_picTrivial 0
+  obtain ⟨π, hπ⟩ := uniformizerExists twoPlace
+  let y := IdeleGroup.ofAdicCompletion (𝓞 ℚ) ℚ twoPlace π
+  have hy : y ∈ sLocalDivisorialStratum ℚ T := by
+    intro w hw
+    have hne : w ≠ twoPlace := by
+      rintro rfl
+      exact hw (hnew firstLayer)
+    change Valued.v (Pi.mulSingle (M := fun v : Vℚ ↦ v.adicCompletion ℚ) twoPlace π.val w) = 1
+    rw [Pi.mulSingle_eq_of_ne hne, map_one]
+  have hfirst : y ∈ divisorialStratum ℚ (primaryDivisorialPlaces ℚ ∅ 0) := by
+    intro w hw
+    simp [primaryDivisorialPlaces] at hw
+  have hone := hlim y hfirst
+  rw [Set.indicator_of_mem hy] at hone
+  have hzero : ∀ᶠ j : ℕ in Filter.atTop,
+      divisorialIndicator (primaryDivisorialPlaces ℚ ∅ j) y = 0 := by
+    filter_upwards [Filter.eventually_ge_atTop 1] with j hj
+    rw [divisorialIndicator_eq_indicator]
+    apply Set.indicator_of_notMem
+    intro h
+    have hv := h twoPlace
+      (primaryDivisorialPlaces_mono (F := ℚ) ∅ hj (Finset.mem_sdiff.mp firstLayer).1)
+    change Valued.v
+      (Pi.mulSingle (M := fun v : Vℚ ↦ v.adicCompletion ℚ) twoPlace π.val twoPlace) = 1 at hv
+    rw [Pi.mulSingle_eq_same] at hv
+    exact hπ.val_lt_one.ne hv
+  have hz : Filter.Tendsto (fun j ↦ divisorialIndicator (primaryDivisorialPlaces ℚ ∅ j) y)
+      Filter.atTop (nhds 0) := tendsto_const_nhds.congr' (Filter.EventuallyEq.symm hzero)
+  exact zero_ne_one (tendsto_nhds_unique hz hone)
+
+/-- Paper: (11.3.2.3)–(11.3.2.5), p. 496. The traces of the cut shell kernels
+are claimed to recover the orbital trace of (11.3.2.1) by taking the input
+limit and then removing the output cutoff.
+Deviation: Specialize to the first rational packet and the trivial character.
+Allow arbitrary kernels depending on both cutoffs, absorbing the smooth
+output cutoff and indentation. This gives a necessary scalar consequence of
+the proposed trace-norm approximation. -/
+def Printed.primaryDivisorialCutTrace : Prop :=
+  ∀ (φ : BruhatCompactSupport C(ℚ)), tsupport φ.val ⊆ {x | 1 < ratNorm(x)} →
+    (∀ u : outsideIntegralIdeleUnits ℚ ∅, ∀ x : C(ℚ),
+      φ.val (classOf(ℚ) u.val * x) = φ.val x) →
+    ∀ v ∈ primaryDivisorialPlaces ℚ ∅ (0 + 1) \ primaryDivisorialPlaces ℚ ∅ 0,
+      ∀ π : (v.adicCompletion ℚ)ˣ, Valued.v.IsUniformizer (π : v.adicCompletion ℚ) →
+      ∃ (K : ℕ → ℕ → I(ℚ) × I(ℚ) → ℂ) (E : Set (ideleNorm ℚ).ker) (c : ℕ → ℂ),
+        (∀ m, Filter.Tendsto (fun j ↦ ∑' ξ : ℚˣ, ∫ t, ∫ g in E,
+          let y := IdeleGroup.unitEmbedding (𝓞 ℚ) ℚ ξ * g.val * τq t
+          divisorialKernelDifference ∅ 0 (K m j) (τq t, y) *
+            divisorialIndicator (primaryDivisorialPlaces ℚ ∅ j) y
+          ∂normOneIdeleTamagawaMeasure ℚ ∂positiveRealHaar) Filter.atTop (nhds (c m))) ∧
+        Filter.Tendsto c Filter.atTop (nhds ((Real.log (v.asIdeal.absNorm : ℝ) /
+          unitMass(ℚ, v) : ℂ) * ∑' n : ℤ, φ.val (πclass(ℚ, v, π) ^ n)))
+
+/-- Paper: (11.3.2.3)–(11.3.2.5), p. 496. The input limit is zero for every
+kernel and output cutoff. A radial test supported above norm one with value
+one at norm two gives orbital mass log 2. -/
+theorem Printed.primaryDivisorialCutTrace_false : ¬ Printed.primaryDivisorialCutTrace := by
+  intro claim
+  obtain ⟨φ, v, π, hv, hq, hπ, hs, hu, hsum⟩ := primeTwoWitness
+  obtain ⟨K, E, c, hinner, houter⟩ := claim φ hs hu v hv π hπ
+  have hc (m : ℕ) : c m = 0 := by
+    apply tendsto_nhds_unique (hinner m)
+    apply tendsto_const_nhds.congr'
+    filter_upwards [Filter.eventually_ge_atTop 1] with j hj
+    simp only [divisorialKernelDifference_mul_laterIndicator ∅ (show 0 < j from hj),
+      integral_zero, tsum_zero]
+  rw [show c = fun _ ↦ 0 from funext hc, hsum, mul_one, hq, localMass,
+    Complex.ofReal_one, div_one] at houter
+  have he := tendsto_nhds_unique tendsto_const_nhds houter
+  have hn : Real.log (↑(2 : ℕ) : ℝ) ≠ 0 := (Real.log_pos (by norm_num)).ne'
   exact Complex.ofReal_ne_zero.mpr hn he.symm
 
 end RiemannMasullo

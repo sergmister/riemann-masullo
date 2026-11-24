@@ -341,7 +341,7 @@ private theorem heckeEulerProductOutside_eq_finite_local_factor (S : Finset V) (
   exact sLocalHeckeL_eq_partialEulerProduct η χ hχ hη s
 
 /-- Meromorphic functions equal on a right half-plane have the same normal form. -/
-private theorem heckeEulerProductOutside_eq_finite_nf_eq (f g : ℂ → ℂ) (hf : MeromorphicOn f univ)
+theorem heckeEulerProductOutside_eq_finite_nf_eq (f g : ℂ → ℂ) (hf : MeromorphicOn f univ)
     (hg : MeromorphicOn g univ) (hfg : ∀ z : ℂ, 1 < z.re → f z = g z) :
     toMeromorphicNFOn f univ = toMeromorphicNFOn g univ := by
   have hAtTwo : meromorphicOrderAt (f - g) (2 : ℂ) = ⊤ := by
@@ -3080,7 +3080,8 @@ private theorem globalConverse_nontrivial_exact_polar_translate (g : IdeleGroup 
     change (∫ x, (fun y ↦ f (Multiplicative.ofAdd y)) (d x) ∂μ) = _
     rw [← integral_map_equiv d (fun y : 𝔸[F] ↦ f (Multiplicative.ofAdd y)), hmap]
 
-private theorem globalConverse_nontrivial_exact_theta_translate (ω : PontryaginDual C₁)
+/-- Unit translation scales the homogeneous adelic theta linear map by the character value. -/
+theorem globalConverse_nontrivial_exact_theta_translate (ω : PontryaginDual C₁)
     (h : C₁) (g : IdeleGroup (𝓞 F) F) (hg : QuotientGroup.mk g = h.val) (f : ℬ) :
     homogeneousAdelicThetaLinearMap F ω (schwartzBruhatUnitTranslate g f) =
       (ω h : ℂ) • homogeneousAdelicThetaLinearMap F ω f := by
