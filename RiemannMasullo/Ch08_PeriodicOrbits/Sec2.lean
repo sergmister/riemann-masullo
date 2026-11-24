@@ -631,13 +631,113 @@ theorem sAdeleNormOneOrbitUnion_locallyCompactSpace :
     LocallyCompactSpace (sAdeleNormOneOrbitUnion F S) := by
   sorry
 
+/-- The adele ring is locally compact: the archimedean factor is a finite product of
+completions, and the finite adele ring is a restricted product of locally compact fields
+with respect to their compact open valuation rings. -/
+private theorem adeleNormOneOrbitUnion_locallyCompactSpace_adeleRing :
+    LocallyCompactSpace 𝔸[F] := by
+  have (v : HeightOneSpectrum (𝓞 F)) : ProperSpace (v.adicCompletion F) :=
+    properSpace_adicCompletion v
+  have : Fact (∀ v : HeightOneSpectrum (𝓞 F),
+      IsOpen (v.adicCompletionIntegers F : Set (v.adicCompletion F))) :=
+    ⟨fun _ ↦ Valued.isOpen_valuationSubring _⟩
+  have (v : HeightOneSpectrum (𝓞 F)) : CompactSpace (v.adicCompletionIntegers F) :=
+    compactSpace_adicCompletionIntegers v
+  have : LocallyCompactSpace (RestrictedProduct (fun v : HeightOneSpectrum (𝓞 F) =>
+      v.adicCompletion F) (fun v : HeightOneSpectrum (𝓞 F) => v.adicCompletionIntegers F)
+      Filter.cofinite) := inferInstance
+  exact inferInstanceAs (LocallyCompactSpace (((w : InfinitePlace F) → w.Completion) ×
+    RestrictedProduct (fun v : HeightOneSpectrum (𝓞 F) => v.adicCompletion F)
+      (fun v : HeightOneSpectrum (𝓞 F) => v.adicCompletionIntegers F) Filter.cofinite))
+
+/-- The special adeles form a closed subset of the adele ring. A point outside it either has
+a coordinate outside `{0, 1}` or two coordinates different from one; both conditions are
+open and exclude every special adele. A point with neither property is special. -/
+private theorem adeleNormOneOrbitUnion_locallyCompactSpace_isClosed :
+    IsClosed (adeleOrbitBasepoints F) := by
+  classical
+  have hco := adeleNormOneOrbitMap_isOpenQuotientMap_coord F
+  -- `one x c` says that the coordinate of `x` at the place `c` is one.
+  let one : 𝔸[F] → InfinitePlace F ⊕ HeightOneSpectrum (𝓞 F) → Prop := fun x ↦
+    Sum.elim (fun w ↦ x.1 w = 1) (fun v ↦ x.2 v = 1)
+  let zero : 𝔸[F] → InfinitePlace F ⊕ HeightOneSpectrum (𝓞 F) → Prop := fun x ↦
+    Sum.elim (fun w ↦ x.1 w = 0) (fun v ↦ x.2 v = 0)
+  have hcw (w : InfinitePlace F) : Continuous fun y : 𝔸[F] ↦ y.1 w :=
+    (continuous_apply w).comp continuous_fst
+  have hcv (v : HeightOneSpectrum (𝓞 F)) : Continuous fun y : 𝔸[F] ↦ y.2 v :=
+    (RestrictedProduct.continuous_eval v).comp continuous_snd
+  have hopen_one (c : InfinitePlace F ⊕ HeightOneSpectrum (𝓞 F)) :
+      IsOpen {y : 𝔸[F] | ¬ one y c} := by
+    rcases c with w | v
+    · exact isOpen_ne_fun (hcw w) continuous_const
+    · exact isOpen_ne_fun (hcv v) continuous_const
+  have hopen_zero (c : InfinitePlace F ⊕ HeightOneSpectrum (𝓞 F)) :
+      IsOpen {y : 𝔸[F] | ¬ zero y c} := by
+    rcases c with w | v
+    · exact isOpen_ne_fun (hcw w) continuous_const
+    · exact isOpen_ne_fun (hcv v) continuous_const
+  -- Coordinates of a special adele: zero at its own place, one elsewhere.
+  have hbase (k : Option (InfinitePlace F ⊕ HeightOneSpectrum (𝓞 F)))
+      (c : InfinitePlace F ⊕ HeightOneSpectrum (𝓞 F)) :
+      (k = some c → zero (adeleOrbitBasepoint F k) c) ∧
+        (k ≠ some c → one (adeleOrbitBasepoint F k) c) := by
+    rcases c with w | v
+    · exact ((hco k).1 w)
+    · exact ((hco k).2 v)
+  rw [← isOpen_compl_iff, isOpen_iff_mem_nhds]
+  intro x hx
+  by_cases hA : ∃ c, ¬ one x c ∧ ¬ zero x c
+  · obtain ⟨c, h1, h0⟩ := hA
+    refine Filter.mem_of_superset (((hopen_one c).inter (hopen_zero c)).mem_nhds ⟨h1, h0⟩) ?_
+    rintro y ⟨hy1, hy0⟩ ⟨k, rfl⟩
+    by_cases hk : k = some c
+    · exact hy0 ((hbase k c).1 hk)
+    · exact hy1 ((hbase k c).2 hk)
+  push Not at hA
+  by_cases hB : ∃ a b, a ≠ b ∧ ¬ one x a ∧ ¬ one x b
+  · obtain ⟨a, b, hab, ha, hb⟩ := hB
+    refine Filter.mem_of_superset (((hopen_one a).inter (hopen_one b)).mem_nhds ⟨ha, hb⟩) ?_
+    rintro y ⟨hya, hyb⟩ ⟨k, rfl⟩
+    by_cases hka : k = some a
+    · exact hyb ((hbase k b).2 (fun h ↦ hab (Option.some_injective _ (hka.symm.trans h))))
+    · exact hya ((hbase k a).2 hka)
+  push Not at hB
+  -- Now `x` is special, contradicting `hx`.
+  exfalso
+  apply hx
+  have hext (k : Option (InfinitePlace F ⊕ HeightOneSpectrum (𝓞 F)))
+      (h : ∀ c, (k = some c → zero x c) ∧ (k ≠ some c → one x c)) :
+      x = adeleOrbitBasepoint F k := by
+    refine Prod.ext (funext fun w ↦ ?_) (FiniteAdeleRing.ext F fun v ↦ ?_)
+    · by_cases hk : k = some (.inl w)
+      · exact ((h (.inl w)).1 hk).trans ((hbase k (.inl w)).1 hk).symm
+      · exact ((h (.inl w)).2 hk).trans ((hbase k (.inl w)).2 hk).symm
+    · by_cases hk : k = some (.inr v)
+      · exact ((h (.inr v)).1 hk).trans ((hbase k (.inr v)).1 hk).symm
+      · exact ((h (.inr v)).2 hk).trans ((hbase k (.inr v)).2 hk).symm
+  by_cases hD : ∃ c, ¬ one x c
+  · obtain ⟨c, hc⟩ := hD
+    refine ⟨some c, (hext (some c) fun d ↦ ⟨fun hd ↦ ?_, fun hd ↦ ?_⟩).symm⟩
+    · rw [Option.some_injective _ hd] at hc
+      exact hA _ hc
+    · exact hB c d (fun h ↦ hd (congrArg some h)) hc
+  · push Not at hD
+    exact ⟨none, (hext none fun d ↦ ⟨fun hd ↦ absurd hd (by simp), fun _ ↦ hD d⟩).symm⟩
+
 /-- Paper: Lemma 8.2.0.3, p. 385. The global norm-one orbit union is locally compact
 in the quotient topology of the orbit map.
 Deviation: The adelic subspace topology fails to be locally compact by ERRATA R13. -/
 theorem adeleNormOneOrbitUnion_locallyCompactSpace :
     @LocallyCompactSpace (adeleNormOneOrbitUnion F)
       (TopologicalSpace.coinduced (adeleNormOneOrbitMap F) inferInstance) := by
-  sorry
+  have : LocallyCompactSpace 𝔸[F]ˣ := (ideleGroup_topology F).2.1
+  have : LocallyCompactSpace N₁ := (ideleGroup_topology F).2.2.2.2.2.locallyCompactSpace
+  have := adeleNormOneOrbitUnion_locallyCompactSpace_adeleRing F
+  have : LocallyCompactSpace (adeleOrbitBasepoints F) :=
+    (adeleNormOneOrbitUnion_locallyCompactSpace_isClosed F).locallyCompactSpace
+  exact @IsOpenQuotientMap.locallyCompactSpace _ _ _
+    (TopologicalSpace.coinduced (adeleNormOneOrbitMap F) inferInstance) _ _
+    (adeleNormOneOrbitMap_isOpenQuotientMap F)
 
 /-- The S-idelic norm is continuous: it is a finite product of powers of coordinate norms. -/
 private theorem sAdeleNormOneOrbitUnion_sigmaCompactSpace_continuous

@@ -7,6 +7,7 @@ import RiemannMasullo.Ch10_TraceSpectral.Sec1
 import Mathlib.Analysis.Complex.ExponentialBounds
 import Mathlib.NumberTheory.LSeries.ZetaZeros
 import RiemannMasullo.Ch13_ZerosHecke.Targets
+import RiemannMasullo.External.HardyCriticalLine.CriticalLineZeroInfinitude
 import RiemannMasullo.External.ZetaLab.HardyTenZeros.TenZeros
 import Mathlib.Logic.Equiv.Nat
 
@@ -1009,7 +1010,10 @@ private theorem spectralLineSamples_bad_numbering (v : ℕ → ℂ) (hv : ∀ n,
 ordinates of ordinary Riemann zeta zeros on the critical line. -/
 private theorem spectralLineSamples_hardy :
     {t : ℝ | riemannZeta (shift(1 / 2, t)) = 0}.Infinite := by
-  sorry
+  refine HardyCriticalLine.positiveHardyZeroHeights_infinite.mono fun t ht ↦ ?_
+  change riemannZeta (shift(1 / 2, t)) = 0
+  push_cast
+  exact (HardyCriticalLine.hardyFunctionReal_eq_zero_iff t).mp ht.2
 
 /-- The trivial rational row on the critical line admits a numbering by ℕ. -/
 private theorem spectralLineSamples_enumeration :

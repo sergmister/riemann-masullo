@@ -9,9 +9,10 @@ sources we expect to draw on.
 | [`AlgebraicNumberTheoryLean/`](AlgebraicNumberTheoryLean/) | <https://github.com/jonhanke/algebraic-number-theory-lean> | Apache-2.0 | vendored at `5ea368e`: rational idelic Dirichlet character and its descent to idele classes |
 | [`Grh/`](Grh/) | <https://github.com/thatnealpatel/grh> | MIT | Vendored at `e55aab2` for good heights, zero-free disk estimates, weighted spectral jet kernels, and logarithmic derivative reflection |
 | [`TauCeti/`](TauCeti/) | <https://github.com/TauCetiProject/TauCeti> | Apache-2.0 | vendored at `8794ab3` for Montel's subsequence theorem in §1.4.3, and Runge's approximation theorem on `ℂ` with its import closure (97 files) for Lemma B.5.3.4(2) |
-| [`ZetaLab/`](ZetaLab/) | [Thomas Lince’s zeta-lab](https://github.com/teal-sea/zeta-lab/tree/a401821c9608526425f3d4cf7ff8e59bc37e1c79) | MIT and Apache-2.0 | Critical-line zero brackets and a rigorous count to height 50 for #5364. Includes Zeta23 and excerpts from PrimeNumberTheoremAnd. |
+| [`ZetaLab/`](ZetaLab/) | [Thomas Lince’s zeta-lab](https://github.com/teal-sea/zeta-lab/tree/a401821c9608526425f3d4cf7ff8e59bc37e1c79) | MIT | Critical-line zero brackets: the first zero of ζ and ten certified zeros below height 50, used by refutations |
 | [`GaussianField/`](GaussianField/) | <https://github.com/mrdouglasny/gaussian-field> | Apache-2.0 | Vendored at `1283a27` for real one-dimensional Hermite completeness, orthonormality, and Schwartz seminorm growth |
 | [`FermatDixmierMalliavin/`](FermatDixmierMalliavin/) | [Anthropic’s Fermat formalization](https://github.com/anthropics/fermats-last-theorem/tree/6e837e75355538c7f80bab5b956861e86c4eacc2) | Apache-2.0 | One-variable and one-parameter Dixmier–Malliavin factorization used in §10.3 |
+| [`HardyCriticalLine/`](HardyCriticalLine/) | [ArtiFish26’s Hardy proof](https://github.com/artifish26/riemann-hypothesis-lean/tree/e9b20c778b19b5bba2e9a8e14a9bb4ca0afad850) | Apache-2.0 | Infinitely many critical-line zeros of the Riemann zeta function for §10.3 |
 | [`Stacks/`](Stacks/) | <https://github.com/AxiomMath/Stacks> | Apache-2.0 | under consideration |
 
 Further material found by scouting. The exact declarations and pinned commits are listed in

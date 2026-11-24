@@ -1,0 +1,82 @@
+{
+  "upstream": "https://github.com/artifish26/riemann-hypothesis-lean",
+  "commit": "e9b20c778b19b5bba2e9a8e14a9bb4ca0afad850",
+  "files": {
+    "BellottiWongElementaryTaylor.lean": {
+      "path": "RiemannHypothesisProject/RiemannVonMangoldt/BellottiWongElementaryTaylor.lean",
+      "sha256": "c75d23e7c1dcaa4fb77fb1313a843a00f188128d9a92cd8abfc8be562d2c21bc",
+      "ported_sha256": "cd7f8e2391e3711e33a8499dd3d124a3e9612cefa658c51c088ba5dd915aa69f"
+    },
+    "BellottiWongGammaRemainder.lean": {
+      "path": "RiemannHypothesisProject/RiemannVonMangoldt/BellottiWongGammaRemainder.lean",
+      "sha256": "7c110961ce9fec6d925e5a581544f1e01e9cdb4f7ffcb4e053059cfc497abd07",
+      "ported_sha256": "b0ae2bbe11b62b4b48e046ad7bccb2f76ebc6f849c89740a8f333a8f5dde4edb"
+    },
+    "BinetKernelLaplace.lean": {
+      "path": "RiemannHypothesisProject/RiemannVonMangoldt/Binet/BinetKernelLaplace.lean",
+      "sha256": "320c3c71df1704ca822e11671969c61d5307cd2efbf5bf3c000e51c6faf7188c",
+      "ported_sha256": "859766d8adf89df0babbcdc33d6b4755430719d742928fa5ced9b661dd568660"
+    },
+    "BinetSawtooth.lean": {
+      "path": "RiemannHypothesisProject/RiemannVonMangoldt/Binet/BinetSawtooth.lean",
+      "sha256": "85b390a8bd84070d0c460f1151d07ae0302dda8f6e0b3f05b79837517d14a3f1",
+      "ported_sha256": "8fea249d33225e1fcb8c9fad66ea57faf78c6648c1df01e9bf5d684890bf8009"
+    },
+    "CriticalLineStirlingPhase.lean": {
+      "path": "RiemannHypothesisProject/Hardy/CriticalLineStirlingPhase.lean",
+      "sha256": "98114a7c62f9264848a0c486ede587dd4b776337a648f4489e55361ccb8daa6e",
+      "ported_sha256": "86571bc7a41749ef6aca9f9b25e4559b8038a4d460039ab95ea2ee9af9c90bae"
+    },
+    "CriticalLineZeroInfinitude.lean": {
+      "path": "RiemannHypothesisProject/Hardy/CriticalLineZeroInfinitude.lean",
+      "sha256": "7a6a85d5a474477c979ef1022610d8b07a823baf121cbeee677a4ad1ee74f0e8",
+      "ported_sha256": "2088a0fe96f78ec73502e6ad23168fdfa3c39c371da408dff356726bedda2fb4"
+    },
+    "DigammaFormula.lean": {
+      "path": "RiemannHypothesisProject/RiemannVonMangoldt/Binet/DigammaFormula.lean",
+      "sha256": "e45bb00263f5364ad8128a481ae0f80791a185934469193286a884ed8ac0da89",
+      "ported_sha256": "0ad44fa05a706ceaa69ee594be7f5b21e9e1d1fbee0c291045945d0fa546c286"
+    },
+    "GaussDigammaHolomorphic.lean": {
+      "path": "RiemannHypothesisProject/RiemannVonMangoldt/Binet/GaussDigammaHolomorphic.lean",
+      "sha256": "e73b529cad57bc12d8242d96c9891d73fe90ad08e7013ef70b7ae54db3cc7bba",
+      "ported_sha256": "8dade9714cfcc917318f8b63559f98b481e3f04f0c63dfb48309664ec1820d93"
+    },
+    "GaussDigammaReal.lean": {
+      "path": "RiemannHypothesisProject/RiemannVonMangoldt/Binet/GaussDigammaReal.lean",
+      "sha256": "938a26c3a3ba6a9ac5502dea7011895f4b7dfab048c02a022b6ee45ac1df156d",
+      "ported_sha256": "f6d210592d5e3ce279b28a8c26bb1dd0ea583a057a428534c461610b2e04857f"
+    },
+    "HardyFunctionNormalization.lean": {
+      "path": "RiemannHypothesisProject/Hardy/HardyFunctionNormalization.lean",
+      "sha256": "8d1fe2ee55c430d9194fda4c22944d8e12cff879762fc08c2d6e77806b3cede1",
+      "ported_sha256": "b4b9ede980f8c4ce431ae5ab9b30c1e6407e012e0c79ad6f740b44e9f1d5bb1c",
+      "additional_source": {
+        "path": "RiemannHypothesisProject/SpectralModel.lean",
+        "sha256": "af8790b3f40d0655c9e3e71e2ecd917455df6efc89b03fc734c58b23395f3af8",
+        "declaration": "RiemannHypothesisProject.criticalLinePoint"
+      }
+    },
+    "LowerIntegralBound.lean": {
+      "path": "RiemannHypothesisProject/Hardy/LowerIntegralBound.lean",
+      "sha256": "cc2afb1f677fb29f87ca72fc666525d6c19aaf7ceb034b9d4ef6d741c836b58a",
+      "ported_sha256": "7491d80e5bc7dcc419ad5754c93ce6d59cbc4c04e875403f332c82a56d6e8368"
+    },
+    "OscillatoryIntegralEstimates.lean": {
+      "path": "RiemannHypothesisProject/Hardy/OscillatoryIntegralEstimates.lean",
+      "sha256": "c61776b5013ff286934ddb6eac35d47db47b08da1c3711e0631c9d8e8c9affee",
+      "ported_sha256": "987dbb9622567ad3435df7f389f0dc42872756009db70fb62491c52a10ddaf3a"
+    },
+    "UpperIntegralBound.lean": {
+      "path": "RiemannHypothesisProject/Hardy/UpperIntegralBound.lean",
+      "sha256": "e731abfd0e74a76d9e97af6cb30f37e8760b6ddf7973fdd06a2e464a6cc49420",
+      "ported_sha256": "534caa6fd8b8a0a338c1ad953dbf66246da2b75a270fb05fcfd51fbdb9e2e5e5"
+    },
+    "ZetaFirstApproximation.lean": {
+      "path": "RiemannHypothesisProject/Hardy/ZetaFirstApproximation.lean",
+      "sha256": "f345f655e2ba5a6753ac1ffa353eab832a0ad188497163273d747c29f777d99b",
+      "ported_sha256": "4a24b460fddee71a96363efdebf5a173c3afc0822f1238f2f2cbe1ebccb6d695"
+    }
+  },
+  "license": "Apache-2.0"
+}
