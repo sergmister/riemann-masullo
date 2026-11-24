@@ -94,6 +94,14 @@ private theorem laplaceRates_growth {g : ℝ → ℂ} (hg : Continuous g) {A C :
     _ ≤ C * Real.exp (A * t) * Real.exp (-c * t) := by gcongr; exact hb t ht
     _ = _ := by rw [mul_assoc, ← Real.exp_add]; congr 2; ring
 
+/-- The positive half-line Laplace transform of a continuous function that grows at
+most like `exp (a * t)` is holomorphic on the open half-plane `a < Re s`. -/
+theorem differentiableAt_halfLaplace_of_exp_bound {g : ℝ → ℂ} (hg : Continuous g)
+    {a C : ℝ} (hb : ∀ t : ℝ, 0 < t → ‖g t‖ ≤ C * Real.exp (a * t))
+    {s : ℂ} (hs : a < s.re) :
+    DifferentiableAt ℂ (fun z : ℂ ↦ ∫ t in Ioi (0 : ℝ), g t * exp (-z * t)) s :=
+  halfLaplace_diff hg (laplaceRates_growth hg hb) hs
+
 /-- In the first quadrant, exponential decay makes the two remote edges of a
 square tend to zero, so the integrals along its two rays agree after rotation. -/
 private theorem rotate_integral_of_decay {G : ℂ → ℂ} (hG : Differentiable ℂ G)
