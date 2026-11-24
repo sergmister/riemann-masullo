@@ -48,24 +48,19 @@ private theorem theta_add_zero (f : 𝓢(ℝ, ℂ)) (t : ℝ) :
   simpa [rationalLatticeTheta] using
     (summable_lattice f (Real.exp_pos t)).sum_add_tsum_subtype_compl ({0} : Finset ℤ)
 
-private theorem theta_low (f : 𝓢(ℝ, ℂ)) (hc : HasCompactSupport ((𝓕 f : 𝓢(ℝ, ℂ)) : ℝ → ℂ)) :
-    ∃ T : ℝ, ∀ t < T, rationalLatticeTheta f t =
-      (Real.exp (-t) : ℂ) * 𝓕 f 0 - f 0 := by
-  obtain ⟨R, hR⟩ := (hc.image (continuous_abs : Continuous fun x : ℝ ↦ |x|)).bddAbove
-  let c := max 1 (R + 1)
-  have hcp : 0 < c := zero_lt_one.trans_le (le_max_left ..)
-  refine ⟨-Real.log c, fun t ht ↦ ?_⟩
-  have hsmall : c < Real.exp (-t) := by
-    rw [← Real.exp_log hcp]
+/-- Below the reciprocal of a specified Fourier bandwidth, only the zero Fourier
+sample survives. This determines the lattice profile even for nonzero polar values. -/
+theorem rationalLatticeTheta_below_fourierBand (f : 𝓢(ℝ, ℂ)) {B t : ℝ}
+    (hB : 0 < B) (hband : ∀ u, B < |u| → 𝓕 f u = 0) (ht : t < -Real.log B) :
+    rationalLatticeTheta f t = (Real.exp (-t) : ℂ) * 𝓕 f 0 - f 0 := by
+  have hsmall : B < Real.exp (-t) := by
+    rw [← Real.exp_log hB]
     exact Real.exp_lt_exp.mpr (by linarith)
   have hzero (n : ℤ) (hn : n ≠ 0) : 𝓕 f ((n : ℝ) / Real.exp t) = 0 := by
-    by_contra hne
-    have hR' := hR (mem_image_of_mem (fun x : ℝ ↦ |x|) (subset_tsupport _ hne))
-    have hN : 1 ≤ |(n : ℝ)| := by exact_mod_cast (Int.one_le_abs hn)
-    rw [abs_div, abs_of_pos (Real.exp_pos _), div_eq_mul_inv, ← Real.exp_neg] at hR'
-    have hN' : Real.exp (-t) ≤ |(n : ℝ)| * Real.exp (-t) :=
-      le_mul_of_one_le_left (Real.exp_pos _).le hN
-    linarith [le_max_right 1 (R+1)]
+    apply hband
+    rw [abs_div, abs_of_pos (Real.exp_pos _), div_eq_mul_inv, ← Real.exp_neg]
+    have hn' : 1 ≤ |(n : ℝ)| := by exact_mod_cast (Int.one_le_abs hn)
+    exact hsmall.trans_le (le_mul_of_one_le_left (Real.exp_pos _).le hn')
   have hsum := (hasSum_fourier_logLattice f (Real.exp_pos t)).tsum_eq
   rw [tsum_eq_single 0 hzero] at hsum
   simp only [Int.cast_zero, zero_div] at hsum
@@ -74,6 +69,17 @@ private theorem theta_low (f : 𝓢(ℝ, ℂ)) (hc : HasCompactSupport ((𝓕 f 
   rw [← theta_add_zero] at hsum
   rw [hsum, ← mul_assoc, he, one_mul]
   abel
+
+private theorem theta_low (f : 𝓢(ℝ, ℂ)) (hc : HasCompactSupport ((𝓕 f : 𝓢(ℝ, ℂ)) : ℝ → ℂ)) :
+    ∃ T : ℝ, ∀ t < T, rationalLatticeTheta f t =
+      (Real.exp (-t) : ℂ) * 𝓕 f 0 - f 0 := by
+  obtain ⟨R, hR⟩ := (hc.image (continuous_abs : Continuous fun x : ℝ ↦ |x|)).bddAbove
+  let B := max 1 R
+  have hB : 0 < B := zero_lt_one.trans_le (le_max_left ..)
+  refine ⟨-Real.log B, fun t ht ↦ rationalLatticeTheta_below_fourierBand f hB ?_ ht⟩
+  intro u hu
+  by_contra hne
+  exact hu.not_ge ((hR (mem_image_of_mem (fun x : ℝ ↦ |x|) (subset_tsupport _ hne))).trans (le_max_right ..))
 
 private theorem theta_measurable (f : 𝓢(ℝ, ℂ)) : Measurable (rationalLatticeTheta f) :=
   Measurable.tsum fun _ ↦ f.continuous.measurable.comp (measurable_const.mul Real.measurable_exp)
@@ -352,6 +358,17 @@ theorem integral_halfTwisted_translation (F : ℝ → ℂ) (L : ℝ)
   simp_rw [mul_sub, congrFun eqn]
   exact ⟨hshift, integral_add_right_eq_self f L,
     by rw [integral_sub hi hshift, integral_add_right_eq_self f L, sub_self]⟩
+
+/-- A unit sieve and a zero additive integral suffice for the exact lower cutoff at
+the enlarged reciprocal band, independently of the real test's value at zero. -/
+theorem rationalLatticeTheta_sieve_below_fourierBand (f : 𝓢(ℝ, ℂ)) {B t : ℝ}
+    (hB : 0 < B) (hband : ∀ u, B < |u| → 𝓕 f u = 0) (h₀ : 𝓕 f 0 = 0)
+    {p : ℕ} (hp : 0 < p) (ht : t < -Real.log B - Real.log p) :
+    (∑' n : {n : ℤ // ¬ (p : ℤ) ∣ n}, f (((n : ℤ) : ℝ) * Real.exp t)) = 0 := by
+  have hl : 0 ≤ Real.log (p : ℝ) := Real.log_nonneg (by exact_mod_cast Nat.succ_le_of_lt hp)
+  rw [rationalLatticeTheta_sieve f hp, rationalLatticeTheta_below_fourierBand f hB hband (by linarith : t < -Real.log B),
+    rationalLatticeTheta_below_fourierBand f hB hband (by linarith : t + Real.log p < -Real.log B)]
+  simp [h₀]
 
 /-- The row of the actual sieve on a Fourier-compact real-place test of integral zero. -/
 theorem integral_rationalLatticeTheta_sieve (f : 𝓢(ℝ, ℂ))
